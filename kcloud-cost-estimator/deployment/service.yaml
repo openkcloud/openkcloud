@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kcloud-cost-estimator
+  namespace: kcloud-system
+  labels:
+    app: kcloud-cost-estimator
+    app.kubernetes.io/name: kcloud-cost-estimator
+    app.kubernetes.io/component: collector
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8001
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: kcloud-cost-estimator
+  sessionAffinity: None

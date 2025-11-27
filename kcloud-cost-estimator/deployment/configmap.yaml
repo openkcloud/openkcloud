@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kcloud-cost-estimator-config
+  namespace: kcloud-system
+  labels:
+    app: kcloud-cost-estimator
+    app.kubernetes.io/name: kcloud-cost-estimator
+    app.kubernetes.io/component: collector
+data:
+  # Prometheus connection
+  POWER_PROMETHEUS_URL: "http://prometheus-k8s.monitoring.svc.cluster.local:9090"
+  POWER_METRICS_INTERVAL: "15"
+
+  # Cost calculation parameters
+  ELECTRICITY_RATE: "0.12"
+  COOLING_FACTOR: "1.3"
+  CARBON_RATE: "0.05"
+
+  # Data storage
+  REDIS_URL: "redis://redis.kcloud-system.svc.cluster.local:6379"
+  INFLUXDB_URL: "http://influxdb.kcloud-system.svc.cluster.local:8086"
+  INFLUXDB_BUCKET: "power_metrics"
+
+  # API settings
+  API_HOST: "0.0.0.0"
+  API_PORT: "8001"
+
+  # Logging
+  LOG_LEVEL: "INFO"
