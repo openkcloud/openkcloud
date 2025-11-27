@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kcloud-prod
+  labels:
+    name: kcloud-prod
+    environment: production
+    app.kubernetes.io/managed-by: kustomize
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: kcloud-prod-quota
+  namespace: kcloud-prod
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    persistentvolumeclaims: "10"
+    services.loadbalancers: "5"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kcloud-prod-network-policy
+  namespace: kcloud-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: kcloud-infra
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: kcloud-prod
+    - podSelector:
+        matchLabels:
+          app: kcloud-infra
+    ports:
+    - protocol: TCP
+      port: 8006
+  egress:
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+    - protocol: TCP
+      port: 5000  # OpenStack Keystone
+    - protocol: TCP
+      port: 9511  # OpenStack Magnum
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 53   # DNS
+    - protocol: UDP
+      port: 53   # DNS

@@ -1,0 +1,98 @@
+# Infrastructure Module Dependencies (Python - OpenStack Magnum)
+
+# OpenStack Client Libraries
+python-openstackclient>=6.2.0
+python-magnumclient>=4.4.0
+python-heatclient>=3.5.0
+python-novaclient>=18.3.0
+python-neutronclient>=9.0.0
+python-cinderclient>=9.3.0
+python-keystoneclient>=5.1.0
+
+# OpenStack SDK (Alternative to individual clients)
+openstacksdk>=1.5.0
+
+# Gophercloud for Go interop (if needed)
+# gophercloud>=1.7.0  # Used mainly in Go modules
+
+# HTTP & API
+requests>=2.31.0
+httpx>=0.24.0          # Async HTTP client
+aiohttp>=3.8.0
+
+# Configuration Management
+python-dotenv>=1.0.0
+omegaconf>=2.3.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Template Processing (Heat/YAML)
+jinja2>=3.1.0
+pyyaml>=6.0
+jsonschema>=4.19.0
+
+# API Framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+
+# Database & ORM
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+alembic>=1.12.0        # DB migrations
+
+# Background Tasks & Queue
+celery>=5.3.0
+redis>=4.6.0
+flower>=2.0.0          # Celery monitoring
+
+# Time Series & Monitoring
+influxdb-client>=1.38.0
+prometheus-client>=0.17.0
+
+# Logging & Observability
+loguru>=0.7.0
+structlog>=23.1.0
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+jaeger-client>=4.8.0
+
+# Async & Concurrency
+asyncio-mqtt>=0.16.0   # If MQTT messaging needed
+aioredis>=2.0.0
+asyncio>=3.4.3
+
+# Data Processing
+pandas>=2.0.0          # For cluster metrics analysis
+numpy>=1.24.0
+
+# Retry & Circuit Breaker
+tenacity>=8.2.0        # Retry logic
+circuitbreaker>=1.4.0
+
+# Utilities
+click>=8.1.0           # CLI
+tqdm>=4.66.0          # Progress bars
+python-dateutil>=2.8.0
+humanize>=4.8.0       # Human readable sizes/times
+
+# Cloud Resource Pricing (for cost calculation)
+boto3>=1.28.0         # AWS pricing (for reference)
+# google-cloud-billing>=1.12.0  # GCP pricing (if needed)
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+pytest-cov>=4.1.0
+responses>=0.23.0     # Mock HTTP responses
+
+# Development Tools
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+pre-commit>=3.4.0
+bandit>=1.7.0         # Security linting
+
+# Deployment & K8s
+kubernetes>=27.2.0    # If K8s integration needed
+helm>=3.0.0          # Helm chart management (Python binding)

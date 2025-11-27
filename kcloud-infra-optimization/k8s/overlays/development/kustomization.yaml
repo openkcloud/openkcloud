@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kcloud-dev
+
+namePrefix: dev-
+
+commonLabels:
+  environment: development
+
+bases:
+- ../../base
+
+resources:
+- namespace.yaml
+
+replicas:
+- name: kcloud-infra
+  count: 1
+
+images:
+- name: kcloud-infra
+  newTag: dev
+
+patchesStrategicMerge:
+- deployment-patch.yaml
+
+configMapGenerator:
+- name: kcloud-infra-config
+  behavior: merge
+  literals:
+  - LOG_LEVEL=debug
+  - WORKERS=2

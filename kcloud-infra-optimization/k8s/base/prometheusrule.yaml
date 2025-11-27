@@ -1,0 +1,81 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kcloud-infra-alerts
+  labels:
+    app: kcloud-infra
+    component: infrastructure
+    prometheus: kube-prometheus
+spec:
+  groups:
+  - name: kcloud-infra.rules
+    interval: 30s
+    rules:
+    - alert: KCloudInfraHighErrorRate
+      expr: |
+        rate(http_requests_total{job="kcloud-infra",status=~"5.."}[5m]) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+        component: kcloud-infra
+      annotations:
+        summary: "High error rate detected in kCloud Infrastructure"
+        description: "Error rate is {{ $value }} for {{ $labels.pod }}"
+
+    - alert: KCloudInfraDown
+      expr: |
+        up{job="kcloud-infra"} == 0
+      for: 2m
+      labels:
+        severity: critical
+        component: kcloud-infra
+      annotations:
+        summary: "kCloud Infrastructure service is down"
+        description: "Service {{ $labels.pod }} has been down for more than 2 minutes"
+
+    - alert: KCloudInfraHighMemoryUsage
+      expr: |
+        container_memory_usage_bytes{pod=~".*kcloud-infra.*"} /
+        container_spec_memory_limit_bytes{pod=~".*kcloud-infra.*"} > 0.85
+      for: 5m
+      labels:
+        severity: warning
+        component: kcloud-infra
+      annotations:
+        summary: "High memory usage in kCloud Infrastructure"
+        description: "Memory usage is {{ $value | humanizePercentage }} for {{ $labels.pod }}"
+
+    - alert: KCloudInfraHighCPUUsage
+      expr: |
+        rate(container_cpu_usage_seconds_total{pod=~".*kcloud-infra.*"}[5m]) > 0.8
+      for: 10m
+      labels:
+        severity: warning
+        component: kcloud-infra
+      annotations:
+        summary: "High CPU usage in kCloud Infrastructure"
+        description: "CPU usage is {{ $value | humanizePercentage }} for {{ $labels.pod }}"
+
+    - alert: KCloudInfraSlowResponse
+      expr: |
+        histogram_quantile(0.95,
+          rate(http_request_duration_seconds_bucket{job="kcloud-infra"}[5m])
+        ) > 2
+      for: 5m
+      labels:
+        severity: warning
+        component: kcloud-infra
+      annotations:
+        summary: "Slow response time in kCloud Infrastructure"
+        description: "95th percentile response time is {{ $value }}s"
+
+    - alert: KCloudInfraPodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{pod=~".*kcloud-infra.*"}[15m]) > 0
+      for: 5m
+      labels:
+        severity: critical
+        component: kcloud-infra
+      annotations:
+        summary: "kCloud Infrastructure pod is crash looping"
+        description: "Pod {{ $labels.pod }} is restarting frequently"
