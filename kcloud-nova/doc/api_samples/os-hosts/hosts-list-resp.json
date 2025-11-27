@@ -1,0 +1,19 @@
+{
+    "hosts": [
+        {
+            "host_name": "b6e4adbc193d428ea923899d07fb001e",
+            "service": "conductor",
+            "zone": "internal"
+        },
+        {
+            "host_name": "09c025b0efc64211bd23fc50fa974cdf",
+            "service": "compute",
+            "zone": "nova"
+        },
+        {
+            "host_name": "abffda96592c4eacaf4111c28fddee17",
+            "service": "scheduler",
+            "zone": "internal"
+        }
+    ]
+}

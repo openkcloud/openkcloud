@@ -1,0 +1,24 @@
+conf:
+  nova:
+    filter_scheduler:
+      weight_classes: "nova.scheduler.weights.all_weighers,nova.scheduler.weights.accelerator.AcceleratorWeigher"
+    accelerator_weigher:
+      # 대상 RC 정규식 (대소문자 무시)
+      rc_pattern: "(?i)^(CUSTOM_)?(FPGA|PGPU|VGPU|QAT|NIC|SSD|AICHIP)$"
+      # best-fit, worst-fit, best-product, worst-product
+      policy: best-product
+      accelerator_weight_multiplier: 1.0
+      trace: true
+    DEFAULT:
+      log_config_append: null
+#  logging:
+#    keys:
+#      - root
+#      - nova
+#      - nova_scheduler
+#      - os.brick
+#    logger_nova_scheduler:
+#      level: DEBUG
+#      handlers:
+#        - stdout
+#      qualname: nova.scheduler

@@ -1,0 +1,109 @@
+name: Build and Push to GHCR
+
+on:
+  push:
+    branches: [ stable/2024.1 ]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    if: github.repository_owner == 'openkcloud'
+    
+    runs-on: ubuntu-latest
+
+    env:
+      BASE_IMAGE_NAME: kcloud-nova_base
+      BASE_IMAGE_TAG: ubuntu_jammy
+      REQUIREMENTS_IMAGE_NAME: kcloud-nova_requirements
+      REQUIREMENTS_IMAGE_TAG: stable-2024.1-ubuntu_jammy
+      REQUIREMENTS_REF: stable/2024.1
+      PROJECT: nova
+      PROJECT_REPO: https://github.com/${{ github.repository }}
+      PROJECT_REF: stable/2024.1
+      PROFILES: fluent ceph linuxbridge openvswitch configdrive qemu apache migration
+      IMAGE_NAME: ${{ github.event.repository.name }}
+      IMAGE_TAG: stable-2024.1
+      DIST_PACKAGES: net-tools openssh-server
+
+    steps:
+      - name: Checkout Nova source
+        uses: actions/checkout@v3
+
+      - name: Clone LOCI
+        run: git clone https://opendev.org/openstack/loci.git
+
+      # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CR_PAT }}
+
+      - name: Check if Base image exists in GHCR
+        id: check-base-image
+        run: |
+          if docker manifest inspect ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Base image
+        if: steps.check-base-image.outputs.exists == 'false'
+        run: |
+          docker build \
+            -f loci/Dockerfile.base \
+            --build-arg FROM=ubuntu:jammy \
+            --build-arg CEPH_REPO='deb https://download.ceph.com/debian-reef/ jammy main' \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }} \
+            loci
+
+      - name: Push Base image to GHCR
+        if: steps.check-base-image.outputs.exists == 'false'
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }}
+
+      - name: Check if Requirements image exists in GHCR
+        id: check-requirements-image
+        run: |
+          if docker manifest inspect ghcr.io/${{ github.repository_owner }}/${{ env.REQUIREMENTS_IMAGE_NAME }}:${{ env.REQUIREMENTS_IMAGE_TAG }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Requirements image
+        if: steps.check-requirements-image.outputs.exists == 'false'
+        run: |
+          docker build \
+            -f loci/Dockerfile \
+            --target requirements \
+            --build-arg FROM=ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }} \
+            --build-arg PROJECT=requirements \
+            --build-arg PROJECT_REF=${{ env.REQUIREMENTS_REF }} \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ env.REQUIREMENTS_IMAGE_NAME }}:${{ env.REQUIREMENTS_IMAGE_TAG }} \
+            loci
+
+      - name: Push Requirements image to GHCR
+        if: steps.check-requirements-image.outputs.exists == 'false'
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/${{ env.REQUIREMENTS_IMAGE_NAME }}:${{ env.REQUIREMENTS_IMAGE_TAG }}
+
+      - name: Build Nova image
+        run: |
+          docker build \
+            -f loci/Dockerfile \
+            --build-arg FROM=ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }} \
+            --build-arg WHEELS=ghcr.io/${{ github.repository_owner }}/${{ env.REQUIREMENTS_IMAGE_NAME }}:${{ env.REQUIREMENTS_IMAGE_TAG }} \
+            --build-arg PROJECT=${{ env.PROJECT }} \
+            --build-arg PROJECT_REPO=${{ env.PROJECT_REPO }} \
+            --build-arg PROJECT_REF=${{ env.PROJECT_REF }} \
+            --build-arg PROFILES='${{ env.PROFILES }}' \
+            --build-arg DIST_PACKAGES='${{ env.DIST_PACKAGES }}' \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            loci
+
+      - name: Push Nova image to GHCR
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}

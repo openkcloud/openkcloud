@@ -1,0 +1,9 @@
+{
+    "networks": [
+        {
+            "cidr": "None",
+            "id": "3cb9bc59-5699-4588-a4b1-b87f96708bc6",
+            "label": "private"
+        }
+    ]
+}

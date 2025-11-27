@@ -1,0 +1,11 @@
+---
+other:
+  - |
+    A new ``nova-manage`` command, ``placement audit``, has been added.
+    This can be used to identify and optionally remove compute allocations in
+    placement that are no longer referenced by existing instances or
+    migrations. These orphaned allocations typically occur due to race
+    conditions during instance migration or removal and will result in capacity
+    issues if not addressed.
+    For more details on CLI usage, see the man page entry:
+    https://docs.openstack.org/nova/latest/cli/nova-manage.html#placement

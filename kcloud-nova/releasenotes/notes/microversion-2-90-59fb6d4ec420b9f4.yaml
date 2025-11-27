@@ -1,0 +1,24 @@
+---
+features:
+  - |
+    The 2.90 microversion has been added. This microversion allows users to
+    specify a requested hostname to be configured for the instance metadata
+    when creating an instance (``POST /servers``), updating an instance
+    (``PUT /servers/{id}``), or rebuilding an instance
+    (``POST /servers/{server_id}/action (rebuild)``). When specified, this
+    hostname replaces the hostname that nova auto-generates from the instance
+    display name. As with the auto-generated hostnames, a service such as
+    ``cloud-init`` can automatically configure the hostname in the guest OS
+    using this information retrieved from the metadata service.
+
+    In addition, starting with the 2.90 microversion, the
+    ``OS-EXT-SRV-ATTR:hostname`` field is now returned for all users.
+    Previously this was restricted to admin users.
+deprecations:
+  - |
+    The ``os_compute_api:os-extended-server-attributes`` policy controls
+    which users a number of server extended attributes are shown to.
+    Configuring visibility of the ``OS-EXT-SRV-ATTR:hostname`` attribute via
+    this policy has now been deprecated and will be removed in a future
+    release. Upon removal, this attribute will be shown for all users
+    regardless of policy configuration.

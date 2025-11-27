@@ -1,0 +1,136 @@
+---
+upgrade:
+  - |
+    The *nova-network* feature has been deprecated since the 14.0.0 (Newton)
+    release and has now been removed. The remaining *nova-network* specific
+    REST APIs have been removed along with their related policy rules. Calling
+    these APIs will now result in a ``410 (Gone)`` error response.
+
+    * ``GET /os-security-group-default-rules``
+    * ``POST /os-security-group-default-rules``
+    * ``GET /os-security-group-default-rules/{id}``
+    * ``DELETE /os-security-group-default-rules/{id}``
+    * ``POST /os-networks``
+    * ``DELETE /os-networks``
+    * ``POST /os-networks/add``
+    * ``POST /os-networks/{id} (associate_host)``
+    * ``POST /os-networks/{id} (disassociate)``
+    * ``POST /os-networks/{id} (disassociate_host)``
+    * ``POST /os-networks/{id} (disassociate_project)``
+    * ``POST /os-tenant-networks``
+    * ``DELETE /os-tenant-networks``
+
+    The following policies have also been removed.
+
+    * ``os_compute_api:os-security-group-default-rules``
+    * ``os_compute_api:os-networks``
+    * ``os_compute_api:os-networks-associate``
+  - |
+    The ``networks`` quota, which was only enabled if the
+    ``enabled_network_quota`` config option was enabled and only useful with
+    *nova-network*, is removed. It will not longer be present in the responses
+    for the APIs while attempts to update the quota will be rejected.
+
+    * ``GET /os-quota-sets``
+    * ``GET /os-quota-sets/{project_id}``
+    * ``GET /os-quota-sets/{project_id}/defaults``
+    * ``GET /os-quota-sets/{project_id}/detail``
+    * ``PUT /os-quota-sets/{project_id}``
+    * ``GET /os-quota-class-sets/{id}``
+    * ``PUT /os-quota-class-sets/{id}``
+
+    The following related config options have been removed.
+
+    * ``enable_network_quota``
+    * ``quota_networks``
+  - |
+    The following ``nova-manage`` commands have been removed.
+
+    * ``network``
+    * ``floating``
+
+    These were only useful for the now-removed *nova-network* service and have
+    been deprecated since the 15.0.0 (Ocata) release.
+  - |
+    The ``nova-dhcpbridge`` service has been removed. This was only used with
+    the now-removed *nova-network* service.
+  - |
+    The following config options only applied when using the *nova-network*
+    network driver which has now been removed. The config options have
+    therefore been removed also.
+
+    * ``[DEFAULT] firewall_driver``
+    * ``[DEFAULT] allow_same_net_traffic``
+    * ``[DEFAULT] flat_network_bridge``
+    * ``[DEFAULT] flat_network_dns``
+    * ``[DEFAULT] flat_interface``
+    * ``[DEFAULT] vlan_interface``
+    * ``[DEFAULT] vlan_start``
+    * ``[DEFAULT] num_networks``
+    * ``[DEFAULT] vpn_ip``
+    * ``[DEFAULT] vpn_start``
+    * ``[DEFAULT] network_size``
+    * ``[DEFAULT] fixed_range_v6``
+    * ``[DEFAULT] gateway``
+    * ``[DEFAULT] gateway_v6``
+    * ``[DEFAULT] cnt_vpn_clients``
+    * ``[DEFAULT] fixed_ip_disassociate_timeout``
+    * ``[DEFAULT] create_unique_mac_address_attempts``
+    * ``[DEFAULT] teardown_unused_network_gateway``
+    * ``[DEFAULT] l3_lib``
+    * ``[DEFAULT] network_driver``
+    * ``[DEFAULT] network_manager``
+    * ``[DEFAULT] multi_host``
+    * ``[DEFAULT] force_dhcp_release``
+    * ``[DEFAULT] update_dns_entries``
+    * ``[DEFAULT] dns_update_periodic_interval``
+    * ``[DEFAULT] dhcp_domain``
+    * ``[DEFAULT] use_neutron``
+    * ``[DEFAULT] auto_assign_floating_ip``
+    * ``[DEFAULT] floating_ip_dns_manager``
+    * ``[DEFAULT] instance_dns_manager``
+    * ``[DEFAULT] instance_dns_domain``
+    * ``[DEFAULT] default_floating_pool``
+    * ``[DEFAULT] ipv6_backend``
+    * ``[DEFAULT] metadata_host``
+    * ``[DEFAULT] metadata_port``
+    * ``[DEFAULT] iptables_top_regex``
+    * ``[DEFAULT] iptables_bottom_regex``
+    * ``[DEFAULT] iptables_drop_action``
+    * ``[DEFAULT] ldap_dns_url``
+    * ``[DEFAULT] ldap_dns_user``
+    * ``[DEFAULT] ldap_dns_password``
+    * ``[DEFAULT] ldap_dns_soa_hostmaster``
+    * ``[DEFAULT] ldap_dns_servers``
+    * ``[DEFAULT] ldap_dns_base_dn``
+    * ``[DEFAULT] ldap_dns_soa_refresh``
+    * ``[DEFAULT] ldap_dns_soa_retry``
+    * ``[DEFAULT] ldap_dns_soa_expiry``
+    * ``[DEFAULT] ldap_dns_soa_minimum``
+    * ``[DEFAULT] dhcpbridge_flagfile``
+    * ``[DEFAULT] dhcpbridge``
+    * ``[DEFAULT] dhcp_lease_time``
+    * ``[DEFAULT] dns_server``
+    * ``[DEFAULT] use_network_dns_servers``
+    * ``[DEFAULT] dnsmasq_config_file``
+    * ``[DEFAULT] ebtables_exec_attempts``
+    * ``[DEFAULT] ebtables_retry_interval``
+    * ``[DEFAULT] fake_network``
+    * ``[DEFAULT] send_arp_for_ha``
+    * ``[DEFAULT] send_arp_for_ha_count``
+    * ``[DEFAULT] dmz_cidr``
+    * ``[DEFAULT] force_snat_range``
+    * ``[DEFAULT] linuxnet_interface_driver``
+    * ``[DEFAULT] linuxnet_ovs_integration_bridge``
+    * ``[DEFAULT] use_single_default_gateway``
+    * ``[DEFAULT] forward_bridge_interface``
+    * ``[DEFAULT] ovs_vsctl_timeout``
+    * ``[DEFAULT] networks_path``
+    * ``[DEFAULT] public_interface``
+    * ``[DEFAULT] routing_source_ip``
+    * ``[DEFAULT] use_ipv6``
+    * ``[DEFAULT] allow_same_net_traffic``
+    * ``[DEFAULT] defer_iptables_apply``
+    * ``[DEFAULT] share_dhcp_address``
+    * ``[upgrade_levels] network``
+    * ``[vmware] vlan_interface``

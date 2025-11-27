@@ -1,0 +1,17 @@
+{
+    "nova_object.version": "1.2",
+    "nova_object.namespace": "nova",
+    "nova_object.name": "InstanceNUMACellPayload",
+    "nova_object.data": {
+        "cpu_pinning_raw": null,
+        "cpu_policy": null,
+        "cpu_thread_policy": null,
+        "cpu_topology": null,
+        "cpuset": [0],
+        "pcpuset": [],
+        "cpuset_reserved": null,
+        "id": 0,
+        "memory": 512,
+        "pagesize": null
+    }
+}

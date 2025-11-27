@@ -1,0 +1,57 @@
+# This is a cross-platform list tracking distribution packages needed for install and tests;
+# see https://docs.openstack.org/infra/bindep/ for additional information.
+
+build-essential [platform:dpkg test]
+# fonts-freefont-otf is needed for pdf docs builds with the 'xelatex' engine
+fonts-freefont-otf [pdf-docs]
+gcc [platform:rpm test]
+# gettext and graphviz are needed by doc builds only. For transition,
+# have them in both doc and test.
+# TODO(jaegerandi): Remove test once infra scripts are updated.
+gettext [doc test]
+graphviz [doc test]
+# libsrvg2 is needed for sphinxcontrib-svg2pdfconverter in docs builds.
+librsvg2-tools [doc platform:rpm]
+librsvg2-bin [doc platform:dpkg]
+language-pack-en [platform:ubuntu]
+latexmk [pdf-docs]
+libffi-dev [platform:dpkg test]
+libffi-devel [platform:rpm test]
+libmariadb-dev-compat [platform:debian]
+libmysqlclient-dev [platform:ubuntu]
+libpq-dev [platform:dpkg test]
+libsqlite3-dev [platform:dpkg test]
+libxml2-dev [platform:dpkg test]
+libxslt-devel [platform:rpm test]
+libxslt1-dev [platform:dpkg test]
+locales [platform:debian]
+mysql [platform:rpm !platform:redhat]
+mysql-client [platform:dpkg !platform:debian]
+mysql-devel [platform:rpm !platform:redhat test]
+mysql-server [!platform:redhat !platform:debian]
+mariadb-devel [platform:rpm platform:redhat test]
+mariadb-server [platform:rpm platform:redhat platform:debian]
+openssh-client [platform:dpkg]
+openssh-clients [platform:rpm]
+openssl
+pkg-config [platform:dpkg test]
+pkgconfig [platform:rpm test]
+postgresql
+postgresql-client [platform:dpkg]
+postgresql-devel [platform:rpm test]
+postgresql-server [platform:rpm]
+python3-all [platform:dpkg]
+python3-all-dev [platform:dpkg]
+python3 [platform:rpm test]
+python3-devel [platform:rpm test]
+sqlite-devel [platform:rpm test]
+texlive [pdf-docs]
+texlive-latex-recommended [pdf-docs]
+texlive-xetex [pdf-docs]
+libpcre3-dev [platform:dpkg test]
+pcre-devel [platform:rpm test]
+# Nova uses lsscsi via os-brick. Due to bindep usage in devstack and
+# elsewhere, we add it here to make sure it is picked up and available at
+# runtime and in unit tests. Net result is the same that lsscsi will be
+# installed for any nova installation.
+lsscsi

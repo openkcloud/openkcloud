@@ -1,0 +1,61 @@
+---
+upgrade:
+  - |
+    The *cells v1* feature has been deprecated since the 16.0.0 Pike release
+    and has now been removed. The ``nova-cells`` service and ``nova-manage
+    cells`` commands have been removed, while the ``nova-manage cell_v2
+    simple_cell_setup`` command will no longer check if cells v1 is enabled and
+    therefore can no longer exit with ``2``.
+
+    The *cells v1* specific REST APIs have been removed along with their
+    related policy rules. Calling these APIs will now result in a ``410
+    (Gone)`` error response.
+
+    * ``GET /os-cells``
+    * ``POST /os-cells``
+    * ``GET /os-cells/capacities``
+    * ``GET /os-cells/detail``
+    * ``GET /os-cells/info``
+    * ``POST /os-cells/sync_instances``
+    * ``GET /os-cells/{cell_id}``
+    * ``PUT /os-cells/{cell_id}``
+    * ``DELETE /os-cells/{cell_id}``
+    * ``GET /os-cells/{cell_id}/capacities``
+
+    The *cells v1* specific policies have been removed.
+
+    * ``cells_scheduler_filter:DifferentCellFilter``
+    * ``cells_scheduler_filter:TargetCellFilter``
+
+    The *cells v1* specific configuration options, previously found in
+    ``cells``, have been removed.
+
+    * ``enabled``
+    * ``name``
+    * ``capabilities``
+    * ``call_timeout``
+    * ``reserve_percent``
+    * ``cell_type``
+    * ``mute_child_interval``
+    * ``bandwidth_update_interval``
+    * ``instance_update_sync_database_limit``
+    * ``mute_weight_multiplier``
+    * ``ram_weight_multiplier``
+    * ``offset_weight_multiplier``
+    * ``instance_updated_at_threshold``
+    * ``instance_update_num_instances``
+    * ``max_hop_count``
+    * ``scheduler``
+    * ``rpc_driver_queue_base``
+    * ``scheduler_filter_classes``
+    * ``scheduler_weight_classes``
+    * ``scheduler_retries``
+    * ``scheduler_retry_delay``
+    * ``db_check_interval``
+    * ``cells_config``
+
+    In addition, the following *cells v1* related RPC configuration options,
+    previously found in ``upgrade_levels``, have been removed.
+
+    * ``cells``
+    * ``intercell``
