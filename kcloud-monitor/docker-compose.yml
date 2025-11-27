@@ -1,0 +1,43 @@
+# KCloud Monitor - External Prometheus Setup
+# Host network mode as requested
+
+services:
+  # KCloud Monitor API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: 3.12
+    container_name: kcloud-monitor-api
+    env_file:
+      - .env
+    environment:
+      # Override defaults at runtime if needed
+      HOST: ${HOST:-0.0.0.0}
+      PORT: ${PORT:-8000}
+      # WARNING: Multi-worker (>1) requires Redis for shared cache
+      # Current in-memory cache does NOT sync across workers
+      # Use UVICORN_WORKERS=1 for single worker or setup Redis
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-https://prometheus.example.com}
+      PROMETHEUS_TIMEOUT: ${PROMETHEUS_TIMEOUT:-30}
+      API_AUTH_USERNAME: ${API_AUTH_USERNAME:-admin}
+      API_AUTH_PASSWORD: ${API_AUTH_PASSWORD:-changeme}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./app:/app/app:ro
+    ports:
+      - "0.0.0.0:${PORT:-8000}:${PORT:-8000}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/api/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+# Usage:
+# 1. Copy .env.example to .env and update PROMETHEUS_URL (and credentials if needed).
+# 2. Run: docker-compose up -d
+# 3. Verify health: curl http://localhost:8000/api/v1/system/health

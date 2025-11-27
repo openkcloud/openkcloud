@@ -1,0 +1,221 @@
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.virtualenvs/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+*.coverage
+coverage.xml
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# ============================================
+# Project: AI Chip Monitor
+# ============================================
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite3
+
+# ============================================
+# LLM Context & Documentation
+# ============================================
+
+# LLM Skills & Personal Guides (개인 세팅)
+.claude/
+.gemini/
+.openai/
+
+# Model-Specific Adapter Files (개인 세팅)
+CLAUDE.md
+CLAUDE*.md
+.CLAUDE.MD
+.claude.md
+GEMINI.md
+GEMINI*.md
+.GEMINI.MD
+.gemini.md
+AGENT.md
+AGENT*.md
+.AGENT.MD
+.agent.md
+OPENAI.md
+OPENAI*.md
+
+# Personal Spec & Notes (개인 설계)
+.spec/
+
+# Temporary Documentation (임시 분석)
+docs/temp
+docs/**/*.tmp.md
+docs/**/*.draft.md
+
+# ============================================
+# Tests
+# ============================================
+
+# Temporary Test Files (실험용 테스트)
+tests/temp
+tests/tmp/
+tests/**/*.tmp.py
+tests/**/*.temp.py
+tests/**/*.draft.py
+
+# Test Outputs & Results
+tests/**/*.tmp
+tests/**/*.temp
+tests/**/*.json
+tests/**/*.xml
+tests/**/results/
+test-results/
+test-output/
+
+# Pytest Specific
+.pytest_cache/
+.tox/
+.coverage
+*.coverage
+htmlcov/
+coverage.xml
+.cache/
+
+# Test Artifacts
+tests/**/old_*/
+tests/**/backup/
+tests/**/*.backup
+tests/**/*.bak
+
+# ============================================
+# Data & Exports (if needed)
+# ============================================
+
+# Exported Data Files (샘플 데이터 제외)
+*.csv
+*.xlsx
+*.parquet
+*.pdf
+# !data/samples/*.csv  # 샘플 데이터는 추적할 경우 주석 해제
+
+# ============================================
+# Docker & Deployment
+# ============================================
+
+# Docker Override Files (개인 설정)
+docker-compose.override.yml
+docker-compose.*.yml
+!docker-compose.yml
+
+# Kubernetes Secrets (민감 정보)
+k8s/secrets/
+k8s/**/*-secret.yaml
+k8s/**/*-secret.yml
+
+# ============================================
+# Monitoring & Metrics
+# ============================================
+
+# Prometheus Data (로컬 테스트용 Prometheus)
+prometheus-data/
+prometheus_data/
+
+# ============================================
+# Backup & Archive
+# ============================================
+
+# Backup Files
+*.backup
+*.bak
+*.old
+backup/
+backups/
+
+# Archive Files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# ============================================
+# Poetry & Alembic
+# ============================================
+
+# Poetry
+poetry.lock
+
+# Alembic
+alembic/versions/*.py
+!alembic/versions/.gitkeep
+
+# ============================================
+# Kiro (if used)
+# ============================================
+.kiro/
