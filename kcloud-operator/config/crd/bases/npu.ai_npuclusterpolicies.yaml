@@ -1,0 +1,84 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: npuclusterpolicies.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: NPUClusterPolicy
+    listKind: NPUClusterPolicyList
+    plural: npuclusterpolicies
+    singular: npuclusterpolicy
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: NPUClusterPolicy is the Schema for the npuclusterpolicies API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NPUClusterPolicySpec defines the desired state of NPUClusterPolicy.
+            properties:
+              furiosa:
+                properties:
+                  configMapName:
+                    type: string
+                  devicePluginImage:
+                    type: string
+                  enabled:
+                    type: boolean
+                required:
+                - devicePluginImage
+                - enabled
+                type: object
+              nvidia:
+                description: |-
+                  INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                properties:
+                  devicePluginImage:
+                    type: string
+                  enabled:
+                    type: boolean
+                required:
+                - devicePluginImage
+                - enabled
+                type: object
+            required:
+            - furiosa
+            - nvidia
+            type: object
+          status:
+            description: NPUClusterPolicyStatus defines the observed state of NPUClusterPolicy.
+            properties:
+              phase:
+                description: |-
+                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

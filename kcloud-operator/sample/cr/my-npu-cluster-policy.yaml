@@ -1,0 +1,12 @@
+apiVersion: npu.ai/v1alpha1
+kind: NPUClusterPolicy
+metadata:
+  name: my-npu-cluster-policy
+spec:
+  nvidia:
+    enabled: true
+    devicePluginImage: "nvcr.io/nvidia/k8s-device-plugin:v0.17.1"
+  furiosa:
+    enabled: true
+    devicePluginImage: "ghcr.io/furiosa-ai/k8s-device-plugin:0.10.1"
+    configMapName: "npu-device-plugin"
