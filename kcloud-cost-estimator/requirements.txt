@@ -1,0 +1,76 @@
+# Collector Module Dependencies (Python - Kepler Power Monitoring)
+
+# Kepler & Prometheus Integration
+prometheus-client>=0.17.0
+prometheus-api-client>=0.5.3
+requests>=2.31.0
+
+# Power Monitoring Hardware APIs
+pyipmi>=0.5.0           # IPMI power monitoring
+pysnmp>=4.4.0          # SNMP for network devices  
+redfish>=3.1.0         # Modern server management
+pynvml>=11.5.0         # NVIDIA GPU monitoring
+py3nvml>=0.2.7         # Alternative NVIDIA binding
+
+# Time Series & Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.11.0
+influxdb-client>=1.38.0 # Time-series storage
+redis>=4.6.0           # Queue & caching
+
+# Energy Prediction (ARIMA & Machine Learning)
+statsmodels>=0.14.0    # ARIMA time series forecasting
+scikit-learn>=1.3.0    # Linear regression for calibration
+
+# API Framework
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+
+# Database & ORM
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+alembic>=1.12.0        # DB migrations
+
+# Background Tasks
+celery>=5.3.0
+flower>=2.0.0          # Celery monitoring
+
+# Configuration & Logging
+python-dotenv>=1.0.0
+omegaconf>=2.3.0
+loguru>=0.7.0
+structlog>=23.1.0      # Structured logging
+
+# Monitoring & Observability  
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-instrumentation-fastapi>=0.41b0
+jaeger-client>=4.8.0
+
+# Data Validation & Serialization
+marshmallow>=3.20.0
+jsonschema>=4.19.0
+
+# HTTP & Networking
+httpx>=0.24.0          # Async HTTP client
+aiohttp>=3.8.0
+tenacity>=8.2.0        # Retry logic
+
+# Utilities
+click>=8.1.0           # CLI
+tqdm>=4.66.0          # Progress bars
+python-dateutil>=2.8.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+pytest-cov>=4.1.0
+
+# Development
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
+pre-commit>=3.4.0

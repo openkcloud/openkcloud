@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kcloud-system
+  labels:
+    name: kcloud-system
+    app.kubernetes.io/name: kcloud-cost-estimator
+    app.kubernetes.io/component: monitoring
