@@ -1,0 +1,17 @@
+# Core
+torch==2.5.1
+transformers==4.46.2
+vllm==0.6.6
+sentencepiece==0.2.0
+accelerate==0.34.2
+
+# Data & metrics
+datasets==2.21.0
+evaluate==0.4.2
+rouge-score==0.1.2
+
+# Reporting
+matplotlib==3.9.0
+
+# Utils
+pyyaml==6.0.2

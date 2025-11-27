@@ -1,0 +1,3 @@
+[submodule "mlcommons_inference"]
+	path = mlcommons_inference
+	url = https://github.com/mlcommons/inference
