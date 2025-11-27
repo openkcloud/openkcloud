@@ -1,0 +1,139 @@
+# Prometheus Monitor Service (Metrics)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: metrics
+  name: controller-manager-metrics-monitor
+  namespace: system
+spec:
+  endpoints:
+    - path: /metrics
+      port: https
+      scheme: https
+      interval: 30s
+      scrapeTimeout: 10s
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        insecureSkipVerify: true
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/name: k8s-workload-operator
+  namespaceSelector:
+    matchNames:
+    - system
+---
+# PrometheusRule for kcloud-operator alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: monitoring
+  name: kcloud-operator-alerts
+  namespace: system
+spec:
+  groups:
+  - name: kcloud-operator
+    rules:
+    # WorkloadOptimizer alerts
+    - alert: WorkloadOptimizerFailed
+      expr: kcloud_workloadoptimizer_phase{phase="Failed"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "WorkloadOptimizer {{ $labels.name }} in namespace {{ $labels.namespace }} has failed"
+        description: "WorkloadOptimizer {{ $labels.name }} in namespace {{ $labels.namespace }} has been in Failed phase for more than 5 minutes"
+    
+    - alert: WorkloadOptimizerLowScore
+      expr: kcloud_workloadoptimizer_score < 0.5
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "WorkloadOptimizer {{ $labels.name }} has low optimization score"
+        description: "WorkloadOptimizer {{ $labels.name }} in namespace {{ $labels.namespace }} has optimization score below 0.5 for more than 10 minutes"
+    
+    # Cost optimization alerts
+    - alert: CostConstraintViolation
+      expr: kcloud_cost_optimization_violations_total > 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Cost constraint violation detected"
+        description: "Cost optimization constraint has been violated"
+    
+    - alert: HighBudgetUtilization
+      expr: kcloud_budget_utilization_ratio > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High budget utilization detected"
+        description: "Budget utilization for {{ $labels.namespace }}/{{ $labels.name }} is above 90%"
+    
+    # Power optimization alerts
+    - alert: PowerConstraintViolation
+      expr: kcloud_power_optimization_violations_total > 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Power constraint violation detected"
+        description: "Power optimization constraint has been violated"
+    
+    - alert: LowPowerEfficiency
+      expr: kcloud_power_efficiency_ratio < 0.7
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Low power efficiency detected"
+        description: "Power efficiency for {{ $labels.namespace }}/{{ $labels.name }} is below 70%"
+    
+    # Scheduling alerts
+    - alert: SchedulingFailureRate
+      expr: rate(kcloud_scheduling_failure_total[5m]) / rate(kcloud_scheduling_total[5m]) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High scheduling failure rate"
+        description: "Scheduling failure rate is above 10% for the last 5 minutes"
+    
+    # Webhook alerts
+    - alert: WebhookFailureRate
+      expr: rate(kcloud_webhook_failure_total[5m]) / rate(kcloud_webhook_total[5m]) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High webhook failure rate"
+        description: "Webhook failure rate is above 5% for the last 5 minutes"
+    
+    # Node alerts
+    - alert: HighNodeUtilization
+      expr: kcloud_node_utilization_ratio > 0.9
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High node utilization"
+        description: "Node {{ $labels.node }} {{ $labels.resource_type }} utilization is above 90%"
+    
+    # Policy alerts
+    - alert: PolicyViolation
+      expr: increase(kcloud_policy_violations_total[5m]) > 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Policy violation detected"
+        description: "Policy {{ $labels.policy_name }} of type {{ $labels.policy_type }} has been violated"

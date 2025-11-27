@@ -1,0 +1,733 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kcloud-system
+  labels:
+    name: kcloud-system
+    app.kubernetes.io/name: kcloud-operator
+    app.kubernetes.io/component: system
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workloadoptimizers.kcloud.io
+  labels:
+    app.kubernetes.io/name: kcloud-operator
+    app.kubernetes.io/component: crd
+spec:
+  group: kcloud.io
+  names:
+    kind: WorkloadOptimizer
+    listKind: WorkloadOptimizerList
+    plural: workloadoptimizers
+    singular: workloadoptimizer
+    shortNames:
+    - wo
+    - wopt
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        description: WorkloadOptimizer is the Schema for the workloadoptimizers API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of WorkloadOptimizer
+            properties:
+              workloadType:
+                description: WorkloadType defines the type of workload (training, serving, inference, etc.)
+                enum:
+                - training
+                - serving
+                - inference
+                - batch
+                type: string
+                default: serving
+              priority:
+                description: Priority defines the priority of the workload (0-100)
+                format: int32
+                maximum: 100
+                minimum: 0
+                type: integer
+              resources:
+                description: Resources defines the resource requirements for the workload
+                properties:
+                  cpu:
+                    description: CPU resource requirement
+                    pattern: ^[0-9]+m?$
+                    type: string
+                  memory:
+                    description: Memory resource requirement
+                    pattern: ^[0-9]+(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)?$
+                    type: string
+                  gpu:
+                    description: GPU resource requirement
+                    format: int32
+                    maximum: 16
+                    minimum: 0
+                    type: integer
+                  npu:
+                    description: NPU resource requirement
+                    format: int32
+                    maximum: 16
+                    minimum: 0
+                    type: integer
+                required:
+                - cpu
+                - memory
+                type: object
+              costConstraints:
+                description: CostConstraints defines cost-related constraints and policies
+                properties:
+                  maxCostPerHour:
+                    description: MaxCostPerHour defines the maximum cost per hour in USD
+                    format: double
+                    maximum: 10000
+                    minimum: 0
+                    type: number
+                  preferSpot:
+                    description: PreferSpot indicates whether to prefer spot instances
+                    type: boolean
+                  budgetLimit:
+                    description: BudgetLimit defines the total budget limit in USD
+                    format: double
+                    maximum: 1000000
+                    minimum: 0
+                    type: number
+                required:
+                - maxCostPerHour
+                type: object
+              powerConstraints:
+                description: PowerConstraints defines power-related constraints and policies
+                properties:
+                  maxPowerUsage:
+                    description: MaxPowerUsage defines the maximum power usage in Watts
+                    format: double
+                    maximum: 10000
+                    minimum: 0
+                    type: number
+                  preferGreen:
+                    description: PreferGreen indicates whether to prefer green energy sources
+                    type: boolean
+                required:
+                - maxPowerUsage
+                type: object
+              placementPolicy:
+                description: PlacementPolicy defines node placement preferences
+                properties:
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: NodeSelector defines node selection criteria
+                    type: object
+                  affinity:
+                    description: Affinity defines node affinity rules
+                    items:
+                      properties:
+                        key:
+                          description: Key defines the affinity key
+                          type: string
+                        type:
+                          description: Type defines the affinity type
+                          type: string
+                        value:
+                          description: Value defines the affinity value
+                          type: string
+                        weight:
+                          description: Weight defines the affinity weight
+                          format: int32
+                          type: integer
+                      required:
+                      - key
+                      - type
+                      - value
+                      type: object
+                    type: array
+                type: object
+              autoScaling:
+                description: AutoScaling defines auto-scaling configuration
+                properties:
+                  minReplicas:
+                    description: MinReplicas defines the minimum number of replicas
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  maxReplicas:
+                    description: MaxReplicas defines the maximum number of replicas
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  metrics:
+                    description: Metrics defines the metrics for auto-scaling
+                    items:
+                      properties:
+                        type:
+                          description: Type defines the metric type
+                          type: string
+                        threshold:
+                          description: Threshold defines the metric threshold
+                          format: double
+                          type: number
+                      required:
+                      - type
+                      - threshold
+                      type: object
+                    type: array
+                required:
+                - minReplicas
+                - maxReplicas
+                type: object
+            required:
+            - workloadType
+            - resources
+            type: object
+          status:
+            description: status defines the observed state of WorkloadOptimizer
+            properties:
+              phase:
+                description: Phase represents the current phase of the workload optimization
+                enum:
+                - Pending
+                - Optimizing
+                - Optimized
+                - Failed
+                - Suspended
+                type: string
+                default: Pending
+              currentCost:
+                description: CurrentCost represents the current cost per hour in USD
+                format: double
+                type: number
+              currentPower:
+                description: CurrentPower represents the current power usage in Watts
+                format: double
+                type: number
+              assignedNode:
+                description: AssignedNode represents the currently assigned node
+                type: string
+              optimizationScore:
+                description: OptimizationScore represents the current optimization score (0.0-1.0)
+                format: double
+                maximum: 1
+                minimum: 0
+                type: number
+              lastOptimizationTime:
+                description: LastOptimizationTime represents the last time optimization was performed
+                format: date-time
+                type: string
+              replicas:
+                description: Replicas represents the current number of replicas
+                format: int32
+                type: integer
+              readyReplicas:
+                description: ReadyReplicas represents the number of ready replicas
+                format: int32
+                type: integer
+              conditions:
+                description: conditions represent the current state of the WorkloadOptimizer resource
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: lastTransitionTime is the last time the condition transitioned from one status to another
+                      format: date-time
+                      type: string
+                    message:
+                      description: message is a human readable message indicating details about the transition
+                      type: string
+                    observedGeneration:
+                      description: observedGeneration represents the .metadata.generation that the condition was set based upon
+                      format: int64
+                      type: integer
+                    reason:
+                      description: reason is a unique, one-word, CamelCase reason for the condition's last transition
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        type: object
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Workload Type
+      type: string
+      jsonPath: .spec.workloadType
+    - name: Priority
+      type: integer
+      jsonPath: .spec.priority
+    - name: CPU
+      type: string
+      jsonPath: .spec.resources.cpu
+    - name: Memory
+      type: string
+      jsonPath: .spec.resources.memory
+    - name: GPU
+      type: integer
+      jsonPath: .spec.resources.gpu
+    - name: NPU
+      type: integer
+      jsonPath: .spec.resources.npu
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Optimization Score
+      type: number
+      jsonPath: .status.optimizationScore
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: costpolicies.kcloud.io
+  labels:
+    app.kubernetes.io/name: kcloud-operator
+    app.kubernetes.io/component: crd
+spec:
+  group: kcloud.io
+  names:
+    kind: CostPolicy
+    listKind: CostPolicyList
+    plural: costpolicies
+    singular: costpolicy
+    shortNames:
+    - cp
+    - costpolicy
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        description: CostPolicy is the Schema for the costpolicies API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of CostPolicy
+            properties:
+              budgetLimit:
+                description: BudgetLimit defines the total budget limit in USD
+                format: double
+                minimum: 0
+                type: number
+              costPerHourLimit:
+                description: CostPerHourLimit defines the maximum cost per hour in USD
+                format: double
+                minimum: 0
+                type: number
+              spotInstancePolicy:
+                description: SpotInstancePolicy defines the spot instance policy
+                properties:
+                  enabled:
+                    description: Enabled indicates whether spot instances are enabled
+                    type: boolean
+                  maxInterruptionRate:
+                    description: MaxInterruptionRate defines the maximum acceptable interruption rate
+                    format: double
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                type: object
+              resourceCostPolicy:
+                description: ResourceCostPolicy defines the resource cost policy
+                properties:
+                  cpuCostPerCore:
+                    description: CPUCostPerCore defines the cost per CPU core per hour
+                    format: double
+                    minimum: 0
+                    type: number
+                  memoryCostPerGB:
+                    description: MemoryCostPerGB defines the cost per GB memory per hour
+                    format: double
+                    minimum: 0
+                    type: number
+                  gpuCostPerUnit:
+                    description: GPUCostPerUnit defines the cost per GPU unit per hour
+                    format: double
+                    minimum: 0
+                    type: number
+                  npuCostPerUnit:
+                    description: NPUCostPerUnit defines the cost per NPU unit per hour
+                    format: double
+                    minimum: 0
+                    type: number
+                type: object
+              alertThresholds:
+                description: AlertThresholds defines the alert thresholds
+                properties:
+                  budgetUtilization:
+                    description: BudgetUtilization defines the budget utilization threshold
+                    format: double
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                  costSpike:
+                    description: CostSpike defines the cost spike threshold
+                    format: double
+                    minimum: 0
+                    type: number
+                type: object
+              namespaceSelector:
+                description: NamespaceSelector defines the namespace selector
+                properties:
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  matchExpressions:
+                    items:
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          type: string
+                        values:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                type: object
+              workloadSelector:
+                description: WorkloadSelector defines the workload selector
+                properties:
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  matchExpressions:
+                    items:
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          type: string
+                        values:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                type: object
+            type: object
+          status:
+            description: status defines the observed state of CostPolicy
+            properties:
+              phase:
+                description: Phase represents the current phase of the cost policy
+                enum:
+                - Active
+                - Inactive
+                - Violated
+                type: string
+              currentSpend:
+                description: CurrentSpend represents the current spend in USD
+                format: double
+                type: number
+              budgetUtilization:
+                description: BudgetUtilization represents the budget utilization percentage
+                format: double
+                maximum: 1
+                minimum: 0
+                type: number
+              conditions:
+                description: conditions represent the current state of the CostPolicy resource
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: lastTransitionTime is the last time the condition transitioned from one status to another
+                      format: date-time
+                      type: string
+                    message:
+                      description: message is a human readable message indicating details about the transition
+                      type: string
+                    observedGeneration:
+                      description: observedGeneration represents the .metadata.generation that the condition was set based upon
+                      format: int64
+                      type: integer
+                    reason:
+                      description: reason is a unique, one-word, CamelCase reason for the condition's last transition
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        type: object
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: powerpolicies.kcloud.io
+  labels:
+    app.kubernetes.io/name: kcloud-operator
+    app.kubernetes.io/component: crd
+spec:
+  group: kcloud.io
+  names:
+    kind: PowerPolicy
+    listKind: PowerPolicyList
+    plural: powerpolicies
+    singular: powerpolicy
+    shortNames:
+    - pp
+    - powerpolicy
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        description: PowerPolicy is the Schema for the powerpolicies API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of PowerPolicy
+            properties:
+              maxPowerUsage:
+                description: MaxPowerUsage defines the maximum power usage in Watts
+                format: double
+                minimum: 0
+                type: number
+              efficiencyTarget:
+                description: EfficiencyTarget defines the power efficiency target
+                format: double
+                maximum: 1
+                minimum: 0
+                type: number
+              greenEnergyPolicy:
+                description: GreenEnergyPolicy defines the green energy policy
+                properties:
+                  enabled:
+                    description: Enabled indicates whether green energy is enabled
+                    type: boolean
+                  renewablePercentage:
+                    description: RenewablePercentage defines the minimum renewable energy percentage
+                    format: double
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                type: object
+              powerAwareScheduling:
+                description: PowerAwareScheduling defines the power-aware scheduling policy
+                properties:
+                  enabled:
+                    description: Enabled indicates whether power-aware scheduling is enabled
+                    type: boolean
+                  powerThreshold:
+                    description: PowerThreshold defines the power threshold for scheduling
+                    format: double
+                    minimum: 0
+                    type: number
+                type: object
+              alertThresholds:
+                description: AlertThresholds defines the alert thresholds
+                properties:
+                  powerUtilization:
+                    description: PowerUtilization defines the power utilization threshold
+                    format: double
+                    maximum: 1
+                    minimum: 0
+                    type: number
+                  efficiencyDrop:
+                    description: EfficiencyDrop defines the efficiency drop threshold
+                    format: double
+                    minimum: 0
+                    type: number
+                type: object
+              namespaceSelector:
+                description: NamespaceSelector defines the namespace selector
+                properties:
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  matchExpressions:
+                    items:
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          type: string
+                        values:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                type: object
+              workloadSelector:
+                description: WorkloadSelector defines the workload selector
+                properties:
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  matchExpressions:
+                    items:
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          type: string
+                        values:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                type: object
+            type: object
+          status:
+            description: status defines the observed state of PowerPolicy
+            properties:
+              phase:
+                description: Phase represents the current phase of the power policy
+                enum:
+                - Active
+                - Inactive
+                - Violated
+                type: string
+              currentPowerUsage:
+                description: CurrentPowerUsage represents the current power usage in Watts
+                format: double
+                type: number
+              efficiency:
+                description: Efficiency represents the current power efficiency
+                format: double
+                maximum: 1
+                minimum: 0
+                type: number
+              carbonFootprint:
+                description: CarbonFootprint represents the carbon footprint in kg CO2
+                format: double
+                type: number
+              conditions:
+                description: conditions represent the current state of the PowerPolicy resource
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: lastTransitionTime is the last time the condition transitioned from one status to another
+                      format: date-time
+                      type: string
+                    message:
+                      description: message is a human readable message indicating details about the transition
+                      type: string
+                    observedGeneration:
+                      description: observedGeneration represents the .metadata.generation that the condition was set based upon
+                      format: int64
+                      type: integer
+                    reason:
+                      description: reason is a unique, one-word, CamelCase reason for the condition's last transition
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        type: object
+    subresources:
+      status: {}

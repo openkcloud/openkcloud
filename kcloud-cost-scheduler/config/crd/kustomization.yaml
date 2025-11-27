@@ -1,0 +1,29 @@
+# This kustomization.yaml is not intended to be run by itself,
+# since it depends on service directory and specific namespace.
+# Please run kustomize build <service_dir> instead. For example:
+#    kustomize build config/default
+
+resources:
+- bases/kcloud.io_costpolicies.yaml
+- bases/kcloud.io_powerpolicies.yaml
+- bases/kcloud.io_workloadoptimizers.yaml
+
+# the following config is for teaching kustomize how to do name prefix
+namePrefix: kcloud-
+
+# the following config is for teaching kustomize how to do var substitution
+vars:
+- name: CRD_GROUP
+  objref:
+    kind: CustomResourceDefinition
+    version: v1
+    name: workloadoptimizers.kcloud.io
+  fieldref:
+    fieldpath: spec.group
+- name: CRD_VERSION
+  objref:
+    kind: CustomResourceDefinition
+    version: v1
+    name: workloadoptimizers.kcloud.io
+  fieldref:
+    fieldpath: spec.versions[0].name

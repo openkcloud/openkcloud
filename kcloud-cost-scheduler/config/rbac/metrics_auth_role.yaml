@@ -1,0 +1,49 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: metrics
+  name: metrics-auth-role
+rules:
+# Authentication and authorization for metrics
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+
+# Metrics API access
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - nodes
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+
+# Core resources for metrics collection
+- apiGroups: [""]
+  resources: ["nodes", "pods", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["nodes/metrics", "pods/metrics"]
+  verbs: ["get", "list", "watch"]
+
+# Custom metrics for kcloud resources
+- apiGroups: ["kcloud.io"]
+  resources: ["workloadoptimizers", "costpolicies", "powerpolicies"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["kcloud.io"]
+  resources: ["workloadoptimizers/status", "costpolicies/status", "powerpolicies/status"]
+  verbs: ["get", "list", "watch"]

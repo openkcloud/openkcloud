@@ -1,0 +1,44 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: webhook
+  name: webhook-role
+rules:
+# Core Kubernetes resources for webhook operations
+- apiGroups: [""]
+  resources: ["pods", "nodes", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get", "list", "watch"]
+
+# Kcloud CRDs for webhook validation and mutation
+- apiGroups: ["kcloud.io"]
+  resources: ["workloadoptimizers", "costpolicies", "powerpolicies"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["kcloud.io"]
+  resources: ["workloadoptimizers/status", "costpolicies/status", "powerpolicies/status"]
+  verbs: ["get", "list", "watch"]
+
+# Resource quotas for validation
+- apiGroups: [""]
+  resources: ["resourcequotas", "limitranges"]
+  verbs: ["get", "list", "watch"]
+
+# ConfigMaps and Secrets for webhook configuration
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+
+# Events for webhook logging
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+# Admission webhooks
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list", "watch"]

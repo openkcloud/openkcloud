@@ -1,0 +1,465 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kcloud-operator-dashboard
+  namespace: system
+  labels:
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/component: monitoring
+    grafana_dashboard: "1"
+data:
+  kcloud-operator.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "KCloud Operator Dashboard",
+        "tags": ["kcloud", "operator", "optimization"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "WorkloadOptimizer Overview",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "kcloud_workloadoptimizer_active",
+                "legendFormat": "Active WorkloadOptimizers"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "palette-classic"
+                },
+                "custom": {
+                  "hideFrom": {
+                    "legend": false,
+                    "tooltip": false,
+                    "vis": false
+                  }
+                },
+                "mappings": [],
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              }
+            },
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "id": 2,
+            "title": "WorkloadOptimizer Phases",
+            "type": "piechart",
+            "targets": [
+              {
+                "expr": "sum by (phase) (kcloud_workloadoptimizer_phase)",
+                "legendFormat": "{{phase}}"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 0
+            }
+          },
+          {
+            "id": 3,
+            "title": "Optimization Scores",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.5, rate(kcloud_workloadoptimizer_score_bucket[5m]))",
+                "legendFormat": "50th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.95, rate(kcloud_workloadoptimizer_score_bucket[5m]))",
+                "legendFormat": "95th percentile"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 8
+            }
+          },
+          {
+            "id": 4,
+            "title": "Cost Optimization",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "rate(kcloud_cost_optimization_savings_total[5m])",
+                "legendFormat": "Cost Savings Rate"
+              },
+              {
+                "expr": "rate(kcloud_cost_optimization_violations_total[5m])",
+                "legendFormat": "Cost Violations Rate"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 16
+            }
+          },
+          {
+            "id": 5,
+            "title": "Power Optimization",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "rate(kcloud_power_optimization_savings_total[5m])",
+                "legendFormat": "Power Savings Rate"
+              },
+              {
+                "expr": "rate(kcloud_power_optimization_violations_total[5m])",
+                "legendFormat": "Power Violations Rate"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 16
+            }
+          },
+          {
+            "id": 6,
+            "title": "Scheduling Performance",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "rate(kcloud_scheduling_success_total[5m])",
+                "legendFormat": "Success Rate"
+              },
+              {
+                "expr": "rate(kcloud_scheduling_failure_total[5m])",
+                "legendFormat": "Failure Rate"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 24
+            }
+          },
+          {
+            "id": 7,
+            "title": "Webhook Performance",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "rate(kcloud_webhook_success_total[5m])",
+                "legendFormat": "Success Rate"
+              },
+              {
+                "expr": "rate(kcloud_webhook_failure_total[5m])",
+                "legendFormat": "Failure Rate"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 24
+            }
+          },
+          {
+            "id": 8,
+            "title": "Node Utilization",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "kcloud_node_utilization_ratio{resource_type=\"cpu\"}",
+                "legendFormat": "CPU - {{node}}"
+              },
+              {
+                "expr": "kcloud_node_utilization_ratio{resource_type=\"memory\"}",
+                "legendFormat": "Memory - {{node}}"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 32
+            }
+          },
+          {
+            "id": 9,
+            "title": "Policy Compliance",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "kcloud_policy_compliance_ratio",
+                "legendFormat": "{{policy_type}} - {{policy_name}}"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 40
+            }
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s",
+        "schemaVersion": 27,
+        "version": 1,
+        "links": []
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kcloud-operator-cost-dashboard
+  namespace: system
+  labels:
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/component: monitoring
+    grafana_dashboard: "1"
+data:
+  kcloud-cost-optimization.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "KCloud Cost Optimization Dashboard",
+        "tags": ["kcloud", "cost", "optimization"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Total Cost Savings",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "kcloud_cost_optimization_savings_total",
+                "legendFormat": "Total Savings ($)"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "id": 2,
+            "title": "Cost Violations",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "kcloud_cost_optimization_violations_total",
+                "legendFormat": "Total Violations"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 0
+            }
+          },
+          {
+            "id": 3,
+            "title": "Cost Per Hour by Workload",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "kcloud_cost_per_hour_usd",
+                "legendFormat": "{{workload_type}} - {{namespace}}/{{name}}"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 8
+            }
+          },
+          {
+            "id": 4,
+            "title": "Budget Utilization",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "kcloud_budget_utilization_ratio * 100",
+                "legendFormat": "{{workload_type}} - {{namespace}}/{{name}} (%)"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 16
+            }
+          },
+          {
+            "id": 5,
+            "title": "Node Costs",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "kcloud_node_cost_per_hour_usd",
+                "legendFormat": "{{node}} ({{instance_type}})"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 24
+            }
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s",
+        "schemaVersion": 27,
+        "version": 1
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kcloud-operator-power-dashboard
+  namespace: system
+  labels:
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/component: monitoring
+    grafana_dashboard: "1"
+data:
+  kcloud-power-optimization.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "KCloud Power Optimization Dashboard",
+        "tags": ["kcloud", "power", "optimization"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Total Power Savings",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "kcloud_power_optimization_savings_total",
+                "legendFormat": "Total Savings (W)"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "id": 2,
+            "title": "Power Violations",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "kcloud_power_optimization_violations_total",
+                "legendFormat": "Total Violations"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 0
+            }
+          },
+          {
+            "id": 3,
+            "title": "Power Usage by Workload",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "kcloud_power_usage_watts",
+                "legendFormat": "{{workload_type}} - {{namespace}}/{{name}}"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 8
+            }
+          },
+          {
+            "id": 4,
+            "title": "Power Efficiency",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "kcloud_power_efficiency_ratio * 100",
+                "legendFormat": "{{workload_type}} - {{namespace}}/{{name}} (%)"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 16
+            }
+          },
+          {
+            "id": 5,
+            "title": "Node Power Usage",
+            "type": "timeseries",
+            "targets": [
+              {
+                "expr": "kcloud_node_power_usage_watts",
+                "legendFormat": "{{node}} ({{instance_type}})"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 24
+            }
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s",
+        "schemaVersion": 27,
+        "version": 1
+      }
+    }
