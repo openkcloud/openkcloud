@@ -1,0 +1,169 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Policy Engine Dashboard",
+    "tags": ["policy-engine"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "HTTP Requests Total",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(rate(policy_engine_http_requests_total[5m]))",
+            "legendFormat": "Requests/sec"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(policy_engine_http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(policy_engine_http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 6,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Policies",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "policy_engine_policies_total",
+            "legendFormat": "Total"
+          },
+          {
+            "expr": "policy_engine_policies_active",
+            "legendFormat": "Active"
+          },
+          {
+            "expr": "policy_engine_policies_inactive",
+            "legendFormat": "Inactive"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        }
+      },
+      {
+        "id": 4,
+        "title": "Workloads",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "policy_engine_workloads_total",
+            "legendFormat": "Total"
+          },
+          {
+            "expr": "policy_engine_workloads_running",
+            "legendFormat": "Running"
+          },
+          {
+            "expr": "policy_engine_workloads_stopped",
+            "legendFormat": "Stopped"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "Policy Evaluations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(policy_engine_policy_evaluations_total[5m])) by (policy_type)",
+            "legendFormat": "{{policy_type}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 6,
+          "y": 8
+        }
+      },
+      {
+        "id": 6,
+        "title": "Automation Rules",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "policy_engine_automation_rules_total",
+            "legendFormat": "Total"
+          },
+          {
+            "expr": "policy_engine_automation_rules_active",
+            "legendFormat": "Active"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 18,
+          "y": 8
+        }
+      },
+      {
+        "id": 7,
+        "title": "System Metrics",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "policy_engine_system_memory_usage_bytes",
+            "legendFormat": "Memory Usage"
+          },
+          {
+            "expr": "policy_engine_system_cpu_usage_percent",
+            "legendFormat": "CPU Usage"
+          },
+          {
+            "expr": "policy_engine_system_goroutines",
+            "legendFormat": "Goroutines"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 16
+        }
+      }
+    ]
+  }
+}
+
+

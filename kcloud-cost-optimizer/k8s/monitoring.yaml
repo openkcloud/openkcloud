@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: policy-engine-metrics
+  namespace: policy-engine
+  labels:
+    app: policy-engine
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: policy-engine
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: policy-engine-rules
+  namespace: policy-engine
+  labels:
+    app: policy-engine
+    release: prometheus
+spec:
+  groups:
+  - name: policy-engine.rules
+    rules:
+    - alert: PolicyEngineDown
+      expr: up{job="policy-engine-service"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Policy Engine is down"
+        description: "Policy Engine service has been down for more than 1 minute"
+    
+    - alert: PolicyEngineHighMemoryUsage
+      expr: (container_memory_usage_bytes{container="policy-engine"} / container_spec_memory_limit_bytes{container="policy-engine"}) * 100 > 85
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Policy Engine high memory usage"
+        description: "Policy Engine memory usage is above 85%"
+    
+    - alert: PolicyEngineHighCPUUsage
+      expr: (rate(container_cpu_usage_seconds_total{container="policy-engine"}[5m]) * 100) > 80
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Policy Engine high CPU usage"
+        description: "Policy Engine CPU usage is above 80%"
+    
+    - alert: PolicyEngineHighErrorRate
+      expr: (rate(http_requests_total{job="policy-engine-service",status=~"5.."}[5m]) / rate(http_requests_total{job="policy-engine-service"}[5m])) * 100 > 5
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Policy Engine high error rate"
+        description: "Policy Engine error rate is above 5%"
+
+

@@ -1,0 +1,143 @@
+apiVersion: policy.kcloud-opt.io/v1
+kind: WorkloadPriorityPolicy
+metadata:
+  name: workload-priority-default
+  namespace: default
+  labels:
+    policy-type: workload-priority
+    environment: production
+  annotations:
+    description: "Default workload priority policy for resource allocation"
+    version: "1.0.0"
+    created-by: "policy-engine"
+spec:
+  type: workload-priority
+  status: active
+  priority: 150
+  target:
+    namespaces:
+      - default
+      - production
+      - staging
+    workloadTypes:
+      - deployment
+      - statefulset
+      - daemonset
+      - job
+      - cronjob
+    labelSelectors:
+      matchExpressions:
+        - key: priority
+          operator: Exists
+  priorityLevels:
+    - level: critical
+      priority: 1000
+      description: "Critical workloads that require highest priority"
+      criteria:
+        - labelSelectors:
+            matchLabels:
+              priority: "critical"
+          conditions:
+            - "workload.annotations['business-critical'] == 'true'"
+            - "workload.labels['service-type'] == 'database'"
+      resourceAllocation:
+        cpu: "80%"
+        memory: "80%"
+        storage: "90%"
+        network: "90%"
+    - level: high
+      priority: 750
+      description: "High priority workloads for production services"
+      criteria:
+        - labelSelectors:
+            matchLabels:
+              priority: "high"
+          conditions:
+            - "workload.labels['environment'] == 'production'"
+            - "workload.labels['service-type'] == 'api'"
+      resourceAllocation:
+        cpu: "60%"
+        memory: "60%"
+        storage: "70%"
+        network: "70%"
+    - level: medium
+      priority: 500
+      description: "Medium priority workloads for standard services"
+      criteria:
+        - labelSelectors:
+            matchLabels:
+              priority: "medium"
+          conditions:
+            - "workload.labels['environment'] == 'staging'"
+            - "workload.labels['service-type'] == 'worker'"
+      resourceAllocation:
+        cpu: "40%"
+        memory: "40%"
+        storage: "50%"
+        network: "50%"
+    - level: low
+      priority: 250
+      description: "Low priority workloads for development and testing"
+      criteria:
+        - labelSelectors:
+            matchLabels:
+              priority: "low"
+          conditions:
+            - "workload.labels['environment'] == 'development'"
+            - "workload.labels['service-type'] == 'test'"
+      resourceAllocation:
+        cpu: "20%"
+        memory: "20%"
+        storage: "30%"
+        network: "30%"
+  resourceAllocation:
+    strategy: "priority-based"
+    rules:
+      - name: cpu-allocation
+        condition: "workload.priority == 'critical'"
+        action: "allocate-cpu"
+        parameters:
+          min_cpu: "1000m"
+          max_cpu: "4000m"
+          burst_limit: "8000m"
+      - name: memory-allocation
+        condition: "workload.priority == 'critical'"
+        action: "allocate-memory"
+        parameters:
+          min_memory: "2Gi"
+          max_memory: "8Gi"
+          burst_limit: "16Gi"
+      - name: storage-allocation
+        condition: "workload.priority == 'critical'"
+        action: "allocate-storage"
+        parameters:
+          min_storage: "10Gi"
+          max_storage: "100Gi"
+          storage_class: "fast-ssd"
+  scheduling:
+    strategy: "priority-preemption"
+    rules:
+      - name: preempt-low-priority
+        condition: "cluster.resources.cpu < 20%"
+        action: "preempt-workloads"
+        parameters:
+          target_priority: "low"
+          grace_period: "5m"
+      - name: schedule-critical-first
+        condition: "workload.priority == 'critical'"
+        action: "schedule-immediately"
+        parameters:
+          max_wait_time: "30s"
+  monitoring:
+    enabled: true
+    metrics:
+      - resource_utilization_by_priority
+      - scheduling_latency_by_priority
+      - preemption_events
+      - resource_allocation_efficiency
+  evaluation:
+    interval: "1m"
+    timeout: "15s"
+    retry_count: 2
+
+

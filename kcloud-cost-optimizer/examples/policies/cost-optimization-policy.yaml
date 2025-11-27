@@ -1,0 +1,93 @@
+apiVersion: policy.kcloud-opt.io/v1
+kind: CostOptimizationPolicy
+metadata:
+  name: cost-optimization-default
+  namespace: default
+  labels:
+    policy-type: cost-optimization
+    environment: production
+  annotations:
+    description: "Default cost optimization policy for production workloads"
+    version: "1.0.0"
+    created-by: "policy-engine"
+spec:
+  type: cost-optimization
+  status: active
+  priority: 100
+  target:
+    namespaces:
+      - default
+      - production
+    workloadTypes:
+      - deployment
+      - statefulset
+      - daemonset
+    labelSelectors:
+      matchLabels:
+        cost-optimization: "true"
+      matchExpressions:
+        - key: environment
+          operator: In
+          values: ["production", "staging"]
+  objectives:
+    - type: cost-reduction
+      weight: 0.4
+      target: 20%  # 20% cost reduction target
+    - type: resource-efficiency
+      weight: 0.3
+      target: 85%  # 85% resource utilization target
+    - type: performance-maintenance
+      weight: 0.3
+      target: 95%  # 95% performance maintenance target
+  constraints:
+    - type: sla-compliance
+      value: "99.9%"
+      description: "Must maintain 99.9% SLA compliance"
+    - type: max-down-time
+      value: "5m"
+      description: "Maximum downtime allowed is 5 minutes"
+    - type: resource-limit
+      value: "80%"
+      description: "Maximum resource reduction is 80%"
+  rules:
+    - name: cpu-optimization
+      condition: "workload.cpu.usage < 50%"
+      action: "scale-down"
+      parameters:
+        min_replicas: 2
+        max_reduction: 50%
+    - name: memory-optimization
+      condition: "workload.memory.usage < 60%"
+      action: "reduce-memory"
+      parameters:
+        min_memory: "128Mi"
+        max_reduction: 40%
+    - name: storage-optimization
+      condition: "workload.storage.usage < 70%"
+      action: "optimize-storage"
+      parameters:
+        min_storage: "1Gi"
+        max_reduction: 30%
+  actions:
+    - type: scale-down
+      parameters:
+        min_replicas: 2
+        scale_factor: 0.8
+    - type: resource-adjustment
+      parameters:
+        cpu_reduction: 20%
+        memory_reduction: 15%
+    - type: notification
+      parameters:
+        channels: ["email", "slack"]
+        message: "Cost optimization applied to workload {{.workload.name}}"
+  evaluation:
+    interval: "5m"
+    timeout: "30s"
+    retry_count: 3
+  enforcement:
+    mode: automatic
+    delay: "2m"
+    rollback_on_failure: true
+
+

@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: policy-engine-pdb
+  namespace: policy-engine
+  labels:
+    app: policy-engine
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: policy-engine
+
+

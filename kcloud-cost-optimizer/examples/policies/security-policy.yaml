@@ -1,0 +1,98 @@
+apiVersion: policy.kcloud-opt.io/v1
+kind: SecurityPolicy
+metadata:
+  name: security-default
+  namespace: default
+  labels:
+    policy-type: security
+    environment: production
+  annotations:
+    description: "Default security policy for workload security compliance"
+    version: "1.0.0"
+    created-by: "policy-engine"
+spec:
+  type: security
+  status: active
+  priority: 400
+  target:
+    namespaces:
+      - default
+      - production
+      - staging
+      - development
+    workloadTypes:
+      - deployment
+      - statefulset
+      - daemonset
+      - job
+      - cronjob
+  securityRules:
+    - name: non-root-user
+      description: "Workloads must not run as root user"
+      condition: "workload.securityContext.runAsUser != 0"
+      action: "enforce"
+      severity: "high"
+    - name: read-only-root-filesystem
+      description: "Workloads must have read-only root filesystem"
+      condition: "workload.securityContext.readOnlyRootFilesystem == true"
+      action: "enforce"
+      severity: "medium"
+    - name: no-privileged-containers
+      description: "Workloads must not run privileged containers"
+      condition: "workload.securityContext.privileged != true"
+      action: "enforce"
+      severity: "high"
+    - name: drop-all-capabilities
+      description: "Workloads must drop all capabilities"
+      condition: "workload.securityContext.capabilities.drop == ['ALL']"
+      action: "enforce"
+      severity: "medium"
+    - name: network-policy-required
+      description: "Workloads must have network policies defined"
+      condition: "workload.networkPolicies.count > 0"
+      action: "enforce"
+      severity: "high"
+    - name: resource-limits-required
+      description: "Workloads must have resource limits defined"
+      condition: "workload.resources.limits.cpu != null && workload.resources.limits.memory != null"
+      action: "enforce"
+      severity: "medium"
+    - name: image-pull-policy-always
+      description: "Workloads must use 'Always' image pull policy"
+      condition: "workload.containers[].imagePullPolicy == 'Always'"
+      action: "enforce"
+      severity: "low"
+  compliance:
+    standards:
+      - "CIS Kubernetes Benchmark"
+      - "NIST Cybersecurity Framework"
+      - "SOC 2 Type II"
+    requirements:
+      - "PCI DSS compliance"
+      - "GDPR compliance"
+      - "HIPAA compliance"
+  enforcement:
+    mode: strict
+    actions:
+      - type: reject
+        condition: "security.violation.severity == 'high'"
+        message: "High severity security violation: {{.violation.description}}"
+      - type: warn
+        condition: "security.violation.severity == 'medium'"
+        message: "Medium severity security violation: {{.violation.description}}"
+      - type: audit
+        condition: "security.violation.severity == 'low'"
+        message: "Low severity security violation: {{.violation.description}}"
+  monitoring:
+    enabled: true
+    metrics:
+      - security_violations_by_severity
+      - compliance_score
+      - enforcement_actions
+      - security_scan_results
+  evaluation:
+    interval: "1m"
+    timeout: "30s"
+    retry_count: 3
+
+

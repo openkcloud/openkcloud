@@ -1,0 +1,86 @@
+apiVersion: policy.kcloud-opt.io/v1
+kind: ResourceQuotaPolicy
+metadata:
+  name: resource-quota-default
+  namespace: default
+  labels:
+    policy-type: resource-quota
+    environment: production
+  annotations:
+    description: "Default resource quota policy for namespace resource limits"
+    version: "1.0.0"
+    created-by: "policy-engine"
+spec:
+  type: resource-quota
+  status: active
+  priority: 300
+  target:
+    namespaces:
+      - default
+      - production
+      - staging
+      - development
+    workloadTypes:
+      - deployment
+      - statefulset
+      - daemonset
+      - job
+      - cronjob
+  quotas:
+    - name: cpu-quota
+      resource: "cpu"
+      limit: "1000m"
+      request: "500m"
+      burst_limit: "2000m"
+      description: "CPU quota for namespace workloads"
+    - name: memory-quota
+      resource: "memory"
+      limit: "4Gi"
+      request: "2Gi"
+      burst_limit: "8Gi"
+      description: "Memory quota for namespace workloads"
+    - name: storage-quota
+      resource: "storage"
+      limit: "100Gi"
+      request: "50Gi"
+      burst_limit: "200Gi"
+      description: "Storage quota for namespace workloads"
+    - name: pod-quota
+      resource: "pods"
+      limit: 50
+      request: 25
+      burst_limit: 100
+      description: "Pod count quota for namespace"
+    - name: service-quota
+      resource: "services"
+      limit: 20
+      request: 10
+      burst_limit: 50
+      description: "Service count quota for namespace"
+  enforcement:
+    mode: strict
+    actions:
+      - type: reject
+        condition: "quota.limit.exceeded"
+        message: "Resource quota exceeded for {{.resource}}"
+      - type: scale-down
+        condition: "quota.limit.approaching"
+        threshold: 90%
+        message: "Resource quota approaching limit for {{.resource}}"
+      - type: notification
+        condition: "quota.limit.warning"
+        threshold: 80%
+        message: "Resource quota warning for {{.resource}}"
+  monitoring:
+    enabled: true
+    metrics:
+      - quota_utilization_by_resource
+      - quota_violations
+      - quota_enforcement_actions
+      - resource_consumption_trends
+  evaluation:
+    interval: "30s"
+    timeout: "10s"
+    retry_count: 2
+
+

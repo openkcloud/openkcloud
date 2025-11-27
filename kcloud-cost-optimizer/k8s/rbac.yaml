@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: policy-engine-sa
+  namespace: policy-engine
+  labels:
+    app: policy-engine
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: policy-engine-role
+  namespace: policy-engine
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: policy-engine-rolebinding
+  namespace: policy-engine
+subjects:
+- kind: ServiceAccount
+  name: policy-engine-sa
+  namespace: policy-engine
+roleRef:
+  kind: Role
+  name: policy-engine-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: policy-engine-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: policy-engine-cluster-rolebinding
+subjects:
+- kind: ServiceAccount
+  name: policy-engine-sa
+  namespace: policy-engine
+roleRef:
+  kind: ClusterRole
+  name: policy-engine-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+

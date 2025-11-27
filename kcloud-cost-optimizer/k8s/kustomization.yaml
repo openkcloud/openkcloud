@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: policy-engine
+
+namespace: policy-engine
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - rbac.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - monitoring.yaml
+
+images:
+  - name: kcloud-policy-engine
+    newTag: v1.0.0
+
+commonLabels:
+  app: policy-engine
+  version: v1.0.0
+  component: policy-engine
+
+patchesStrategicMerge:
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: policy-engine
+    spec:
+      template:
+        spec:
+          serviceAccountName: policy-engine-sa
+
+

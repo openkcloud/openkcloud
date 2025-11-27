@@ -1,0 +1,90 @@
+apiVersion: policy.kcloud-opt.io/v1
+kind: AutomationRule
+metadata:
+  name: auto-scale-rule
+  namespace: default
+  labels:
+    policy-type: automation
+    environment: production
+  annotations:
+    description: "Automatic scaling rule based on resource usage"
+    version: "1.0.0"
+    created-by: "policy-engine"
+spec:
+  type: automation
+  status: active
+  priority: 200
+  target:
+    namespaces:
+      - default
+      - production
+    workloadTypes:
+      - deployment
+      - statefulset
+    labelSelectors:
+      matchLabels:
+        auto-scale: "true"
+  triggers:
+    - type: event-based
+      events:
+        - workload.created
+        - workload.updated
+        - metrics.threshold-exceeded
+    - type: time-based
+      schedule: "*/5 * * * *"  # Every 5 minutes
+    - type: threshold-based
+      metrics:
+        - name: cpu_usage
+          threshold: 80%
+          operator: ">"
+        - name: memory_usage
+          threshold: 85%
+          operator: ">"
+  conditions:
+    - name: high-cpu-usage
+      expression: "workload.cpu.usage > 80%"
+      description: "CPU usage exceeds 80%"
+    - name: high-memory-usage
+      expression: "workload.memory.usage > 85%"
+      description: "Memory usage exceeds 85%"
+    - name: low-cpu-usage
+      expression: "workload.cpu.usage < 30%"
+      description: "CPU usage below 30%"
+    - name: low-memory-usage
+      expression: "workload.memory.usage < 40%"
+      description: "Memory usage below 40%"
+  actions:
+    - name: scale-up
+      type: scale-workload
+      conditions: ["high-cpu-usage", "high-memory-usage"]
+      parameters:
+        scale_factor: 1.5
+        max_replicas: 10
+        cooldown: "5m"
+    - name: scale-down
+      type: scale-workload
+      conditions: ["low-cpu-usage", "low-memory-usage"]
+      parameters:
+        scale_factor: 0.7
+        min_replicas: 2
+        cooldown: "10m"
+    - name: notify-team
+      type: notification
+      conditions: ["high-cpu-usage", "high-memory-usage"]
+      parameters:
+        channels: ["slack", "email"]
+        message: "Workload {{.workload.name}} requires scaling due to high resource usage"
+  execution:
+    mode: automatic
+    timeout: "2m"
+    retry_count: 3
+    retry_delay: "30s"
+  monitoring:
+    enabled: true
+    metrics:
+      - execution_count
+      - success_rate
+      - average_duration
+      - failure_reasons
+
+
