@@ -14,6 +14,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Runtime env: unbuffered logs, no .pyc files
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
 # Create a non-root user
 RUN addgroup --system app && adduser --system --group app
 
@@ -29,6 +33,10 @@ USER app
 
 # Expose port (will be set by environment variable)
 EXPOSE ${PORT:-8000}
+
+# Liveness healthcheck via the public probe endpoint (no curl needed in slim image)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8000')+'/api/v1/system/livez').read()" || exit 1
 
 # Run the application with environment variables
 # WARNING: Multi-worker mode (UVICORN_WORKERS>1) requires Redis for shared cache

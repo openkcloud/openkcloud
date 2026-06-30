@@ -1,0 +1,4 @@
+# deploy/helm/.gitignore: 배포 환경 변수 파일 제외
+# deploy.env 는 클러스터별 레지스트리 주소 등 환경 정보를 담으므로 커밋하지 않습니다.
+# deploy.env.example 만 커밋합니다.
+deploy.env

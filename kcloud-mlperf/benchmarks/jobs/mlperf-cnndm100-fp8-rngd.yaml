@@ -1,0 +1,78 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mlperf-cnndm100-fp8-rngd-20260506
+  namespace: llm-evaluation
+  labels:
+    app: mlperf-cnndm100-fp8
+    hardware: RNGD
+    benchmark: mlperf
+    precision: fp8
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: mlperf-cnndm100-fp8
+        hardware: RNGD
+    spec:
+      restartPolicy: Never
+      # Run on a CPU node — calls an external RNGD inference (furiosa-llm) server
+      # serving furiosa-ai/Llama-3.1-8B-Instruct-FP8.
+      # NOTE: 192.0.2.114 is a placeholder (RFC 5737). Set --base-url / VLLM_BASE_URL
+      #       below to your own RNGD OpenAI-compatible endpoint before applying.
+      nodeSelector:
+        kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.product
+                    operator: DoesNotExist
+                  - key: furiosa.ai/rngd
+                    operator: DoesNotExist
+                  - key: rebellions.ai/ATOM
+                    operator: DoesNotExist
+      containers:
+        - name: mlperf-fp8-rngd
+          image: python:3.11-slim
+          command:
+            - bash
+            - -c
+            - |
+              set -euo pipefail
+              pip install -q datasets 2>&1 | tail -2
+              python3 /scripts/mlperf_cnndm100_fp8.py \
+                --hw rngd \
+                --model furiosa-ai/Llama-3.1-8B-Instruct-FP8 \
+                --base-url http://192.0.2.114:8000 \
+                --output /mnt/datasets/results/mlperf-cnndm100-fp8-rngd-20260506/result.json \
+                --n-samples 100 \
+                --max-tokens 128
+          env:
+            - name: VLLM_BASE_URL
+              value: "http://192.0.2.114:8000"
+            - name: LOG_PATH
+              value: /mnt/datasets/logs/benchmarks/mlperf_rngd_fp8_20260506.log
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+          volumeMounts:
+            - mountPath: /mnt/datasets
+              name: dataset-cache
+            - mountPath: /scripts
+              name: bench-script
+      volumes:
+        - name: dataset-cache
+          persistentVolumeClaim:
+            claimName: dataset-nfs-pvc
+        - name: bench-script
+          configMap:
+            name: mlperf-cnndm100-fp8-script
+            defaultMode: 0755

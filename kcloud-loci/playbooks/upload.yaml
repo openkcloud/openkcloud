@@ -1,0 +1,20 @@
+- hosts: all[0]
+  gather_facts: true
+  tasks:
+    - name: Vars
+      include_vars:
+        file: "vars.yaml"
+
+    - name: Job vars
+      include_vars:
+        file: "{{ item }}"
+      loop: "{{ vars_files }}"
+
+    - name: Upload images
+      include_role:
+        name: upload-container-image
+      vars:
+        container_images: "{{ openstack_images + [requirements_image] }}"
+      loop_control:
+        loop_var: image_registry
+      loop: "{{ image_registries }}"

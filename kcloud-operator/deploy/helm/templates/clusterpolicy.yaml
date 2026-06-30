@@ -1,0 +1,51 @@
+{{- if .Values.deployClusterPolicy }}
+# clusterpolicy.yaml: NPUClusterPolicy 샘플 CR
+# 생성일: 2026-03-25
+apiVersion: npu.ai/v1alpha1
+kind: NPUClusterPolicy
+metadata:
+  name: {{ .Values.clusterPolicy.name }}
+  namespace: {{ .Values.clusterPolicy.namespace | default .Release.Namespace }}
+spec:
+  detector:
+    image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.detector.repository "tag" .Values.detector.tag) }}"
+  nvidia:
+    enabled: {{ .Values.nvidia.enabled }}
+    devicePluginImage: "{{ .Values.nvidia.devicePluginImage }}"
+    {{- if .Values.nvidia.nodeSelector }}
+    nodeSelector:
+      {{- toYaml .Values.nvidia.nodeSelector | nindent 6 }}
+    {{- end }}
+  furiosa:
+    enabled: {{ .Values.furiosa.enabled }}
+    devicePluginImage: "{{ .Values.furiosa.devicePluginImage }}"
+    configMapName: "{{ .Values.furiosa.configMapName }}"
+    {{- if .Values.furiosa.nodeSelector }}
+    nodeSelector:
+      {{- toYaml .Values.furiosa.nodeSelector | nindent 6 }}
+    {{- end }}
+    {{- if .Values.furiosa.rngd }}
+    rngd:
+      enabled: {{ .Values.furiosa.rngd.enabled }}
+      devicePluginImage: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.furiosa.rngd.devicePluginRepository "tag" .Values.furiosa.rngd.devicePluginTag) }}"
+      resourceName: "{{ .Values.furiosa.rngd.resourceName }}"
+      partitionPolicy: {{ .Values.furiosa.rngd.partitionPolicy | default "none" | quote }}
+      {{- if .Values.furiosa.rngd.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.furiosa.rngd.nodeSelector | nindent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- if .Values.rebellions }}
+  rebellions:
+    enabled: {{ .Values.rebellions.enabled }}
+    devicePluginImage: {{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.rebellions.devicePluginRepository "tag" .Values.rebellions.devicePluginTag) | quote }}
+    resourceName: {{ .Values.rebellions.resourceName | quote }}
+    resourcePrefix: {{ .Values.rebellions.resourcePrefix | quote }}
+    namespace: {{ .Values.rebellions.namespace | quote }}
+    configMapName: {{ .Values.rebellions.configMapName | quote }}
+    {{- with .Values.rebellions.nodeSelector }}
+    nodeSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

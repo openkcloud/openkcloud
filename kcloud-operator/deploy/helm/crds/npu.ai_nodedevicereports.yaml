@@ -1,0 +1,88 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: nodedevicereports.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: NodeDeviceReport
+    listKind: NodeDeviceReportList
+    plural: nodedevicereports
+    shortNames:
+    - ndr
+    singular: nodedevicereport
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              nodeName:
+                description: 이 리포트가 속하는 노드 이름 (immutable 권장)
+                type: string
+            required:
+            - nodeName
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  properties:
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              devices:
+                items:
+                  properties:
+                    count:
+                      format: int32
+                      type: integer
+                    driverLoaded:
+                      type: boolean
+                    driverVersion:
+                      type: string
+                    driverVersionDetail:
+                      type: string
+                    model:
+                      type: string
+                    needsReboot:
+                      type: boolean
+                    vendor:
+                      type: string
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

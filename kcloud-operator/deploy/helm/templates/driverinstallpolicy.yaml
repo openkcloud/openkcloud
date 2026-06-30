@@ -1,0 +1,138 @@
+# ============================================================
+# driverinstallpolicy.yaml: DriverInstallPolicy CR 자동 생성
+# 상세: driverInstallPolicies.<vendor>.enabled=true 인 각 벤더에 대해 DIP CR 생성.
+#       Furiosa (warboy) / NVIDIA (generic) 두 벤더 모두 mode=daemonset 기본.
+# 생성일: 2026-04-10 | 수정일: 2026-04-21
+# ============================================================
+{{- if .Values.driverInstallPolicies.furiosa.enabled }}
+apiVersion: npu.ai/v1alpha1
+kind: DriverInstallPolicy
+metadata:
+  name: {{ .Values.driverInstallPolicies.furiosa.name }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  vendor: {{ .Values.driverInstallPolicies.furiosa.vendor }}
+  model: {{ .Values.driverInstallPolicies.furiosa.model }}
+  rebootStrategy: {{ .Values.driverInstallPolicies.furiosa.rebootStrategy }}
+  kernelAllowlist:
+    {{- toYaml .Values.driverInstallPolicies.furiosa.kernelAllowlist | nindent 4 }}
+  containerdMinVersion: "{{ .Values.driverInstallPolicies.furiosa.containerdMinVersion }}"
+  driver:
+    {{- with .Values.driverInstallPolicies.furiosa.driver.mode }}
+    mode: {{ . }}
+    {{- end }}
+    version: "{{ .Values.driverInstallPolicies.furiosa.driver.version }}"
+    image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.driverInstallPolicies.furiosa.driver.repository "tag" .Values.driverInstallPolicies.furiosa.driver.tag) }}"
+    {{- with .Values.driverInstallPolicies.furiosa.driver.installer }}
+    installer: {{ . }}
+    {{- end }}
+    {{- with .Values.driverInstallPolicies.furiosa.driver.env }}
+    env:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- with .Values.driverInstallPolicies.furiosa.verifiedVersions }}
+  verifiedVersions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.furiosa.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.furiosa.upgradePolicy }}
+  upgradePolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.driverInstallPolicies.nvidia.enabled }}
+---
+apiVersion: npu.ai/v1alpha1
+kind: DriverInstallPolicy
+metadata:
+  name: {{ .Values.driverInstallPolicies.nvidia.name }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  vendor: {{ .Values.driverInstallPolicies.nvidia.vendor }}
+  model: {{ .Values.driverInstallPolicies.nvidia.model }}
+  rebootStrategy: {{ .Values.driverInstallPolicies.nvidia.rebootStrategy }}
+  kernelAllowlist:
+    {{- toYaml .Values.driverInstallPolicies.nvidia.kernelAllowlist | nindent 4 }}
+  containerdMinVersion: "{{ .Values.driverInstallPolicies.nvidia.containerdMinVersion }}"
+  driver:
+    {{- with .Values.driverInstallPolicies.nvidia.driver.mode }}
+    mode: {{ . }}
+    {{- end }}
+    version: "{{ .Values.driverInstallPolicies.nvidia.driver.version }}"
+    image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.driverInstallPolicies.nvidia.driver.repository "tag" .Values.driverInstallPolicies.nvidia.driver.tag) }}"
+    {{- with .Values.driverInstallPolicies.nvidia.driver.installer }}
+    installer: {{ . }}
+    {{- end }}
+    {{- with .Values.driverInstallPolicies.nvidia.driver.env }}
+    env:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- with .Values.driverInstallPolicies.nvidia.toolkit }}
+  toolkit:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.nvidia.verifiedVersions }}
+  verifiedVersions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.nvidia.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.nvidia.upgradePolicy }}
+  upgradePolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.driverInstallPolicies.rngd.enabled }}
+---
+apiVersion: npu.ai/v1alpha1
+kind: DriverInstallPolicy
+metadata:
+  name: {{ .Values.driverInstallPolicies.rngd.name }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  vendor: {{ .Values.driverInstallPolicies.rngd.vendor }}
+  model: {{ .Values.driverInstallPolicies.rngd.model }}
+  rebootStrategy: {{ .Values.driverInstallPolicies.rngd.rebootStrategy }}
+  kernelAllowlist:
+    {{- toYaml .Values.driverInstallPolicies.rngd.kernelAllowlist | nindent 4 }}
+  containerdMinVersion: "{{ .Values.driverInstallPolicies.rngd.containerdMinVersion }}"
+  driver:
+    {{- with .Values.driverInstallPolicies.rngd.driver.mode }}
+    mode: {{ . }}
+    {{- end }}
+    version: "{{ .Values.driverInstallPolicies.rngd.driver.version }}"
+    image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.driverInstallPolicies.rngd.driver.repository "tag" .Values.driverInstallPolicies.rngd.driver.tag) }}"
+    {{- with .Values.driverInstallPolicies.rngd.driver.installer }}
+    installer: {{ . }}
+    {{- end }}
+    {{- with .Values.driverInstallPolicies.rngd.driver.env }}
+    env:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- with .Values.driverInstallPolicies.rngd.verifiedVersions }}
+  verifiedVersions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.rngd.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.rngd.upgradePolicy }}
+  upgradePolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

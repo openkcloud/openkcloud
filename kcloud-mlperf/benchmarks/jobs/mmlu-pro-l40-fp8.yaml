@@ -1,0 +1,101 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mmlu-pro-l40-fp8-w8
+  namespace: llm-evaluation
+  labels:
+    app: mmlu-pro-fp8
+    hardware: L40
+    benchmark: mmlu
+    precision: fp8
+    owner: w-fp8-l40
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: mmlu-pro-fp8
+        hardware: L40
+        owner: w-fp8-l40
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-L40
+      containers:
+        - name: mmlu-pro-l40-fp8
+          image: vllm/vllm-openai:v0.8.4
+          command:
+            - bash
+            - -c
+            - >-
+              set -euo pipefail;
+              RUN_ID="l40-fp8-w8";
+              MODEL="RedHatAI/Meta-Llama-3.1-8B-Instruct-FP8";
+              PRECISION="FP8-weights/bf16-compute-on-sm89";
+              LOG_DIR="/mnt/datasets/logs/mmlu_pro_l40_fp8_${RUN_ID}";
+              RESULT_DIR="/mnt/datasets/results/mmlu-pro-l40-fp8-${RUN_ID}";
+              mkdir -p "$LOG_DIR" "$RESULT_DIR";
+              echo "=== MMLU-Pro L40 FP8 run started $(date -u +%Y-%m-%dT%H:%M:%SZ) ===" | tee "$LOG_DIR/run.log";
+              python3 -m vllm.entrypoints.openai.api_server
+              --model "$MODEL"
+              --dtype auto
+              --port 8000
+              --tensor-parallel-size 1
+              --max-model-len 4096
+              --gpu-memory-utilization 0.9
+              >> "$LOG_DIR/vllm-server.log" 2>&1 &
+              VLLM_PID=$!;
+              echo "vLLM PID=$VLLM_PID" | tee -a "$LOG_DIR/run.log";
+              for i in $(seq 1 180); do
+                if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                  echo "Server ready at attempt $i" | tee -a "$LOG_DIR/run.log";
+                  break;
+                fi;
+                sleep 5;
+              done;
+              pip install -q lm-eval datasets 2>&1 | tail -3 | tee -a "$LOG_DIR/run.log";
+              START_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ);
+              lm_eval
+              --model openai-chat-completions
+              --model_args "model=$MODEL,base_url=http://localhost:8000/v1,tokenizer_backend=huggingface,num_concurrent=1"
+              --tasks mmlu_pro
+              --num_fewshot 5
+              --batch_size 1
+              --limit 100
+              --output_path "$RESULT_DIR"
+              2>&1 | tee -a "$LOG_DIR/run.log";
+              END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ);
+              ACCURACY=$(python3 -c "import json,glob;files=glob.glob('$RESULT_DIR/**/*.json',recursive=True);[print(f'{v.get(\"acc,none\",v.get(\"acc\",0)):.4f}') or exit() for f in files for k,v in (json.load(open(f)).get('results',{}) if isinstance(json.load(open(f)).get('results',{}),dict) else {}).items() if 'mmlu' in k.lower()]" 2>/dev/null || echo "0.0000");
+              printf '{"run_id":"mmlu-pro-l40-fp8-w8","hardware":"NVIDIA-L40","vendor":"nvidia","benchmark":"mmlu","model":"%s","precision":"%s","started_at":"%s","completed_at":"%s","status":"completed","failure_reason":null,"tt100t_seconds":null,"elapsed_seconds":0,"throughput_tokens_per_sec":null,"raw_metrics":{"result_acc_total":%s,"dataset":"TIGER-Lab/MMLU-Pro","n_train":5,"batch_size":1,"data_number":100},"logs_path":"logs/benchmarks/mmlu_pro_l40_fp8_%s.log","artifact_path":"results/mmlu-pro-l40-fp8-%s","config_fingerprint":"mmlu|RedHatAI/Meta-Llama-3.1-8B-Instruct-FP8|TIGER-Lab/MMLU-Pro|FP8|1|100|5"}\n' "$MODEL" "$PRECISION" "$START_TIME" "$END_TIME" "$ACCURACY" "$RUN_ID" "$RUN_ID" > "$RESULT_DIR/result.json";
+              cat "$RESULT_DIR/result.json" | tee -a "$LOG_DIR/run.log";
+              cp "$LOG_DIR/run.log" "/mnt/datasets/logs/mmlu_pro_l40_fp8_${RUN_ID}.log" 2>/dev/null || true;
+              kill $VLLM_PID 2>/dev/null || true;
+              echo "=== DONE ==="
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+          resources:
+            requests:
+              cpu: "8"
+              memory: "32Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "16"
+              memory: "64Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - mountPath: /mnt/datasets
+              name: dataset-cache
+      volumes:
+        - name: dataset-cache
+          persistentVolumeClaim:
+            claimName: dataset-nfs-pvc

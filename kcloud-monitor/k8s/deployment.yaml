@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kcloud-monitor
+  labels:
+    app: kcloud-monitor
+spec:
+  # In-memory cache is per-pod; >1 replica needs Redis (see docs/MULTI_WORKER_GUIDE.md).
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kcloud-monitor
+  template:
+    metadata:
+      labels:
+        app: kcloud-monitor
+    spec:
+      containers:
+        - name: kcloud-monitor
+          image: kcloud-monitor:latest  # replace with your registry image
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+            - name: UVICORN_WORKERS
+              value: "1"
+          envFrom:
+            # PROMETHEUS_*, JWT_SECRET_KEY, API_KEY, etc.
+            - secretRef:
+                name: kcloud-monitor-secrets
+                optional: true
+          livenessProbe:
+            httpGet:
+              path: /api/v1/system/livez
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/system/readyz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi

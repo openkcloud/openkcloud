@@ -32,7 +32,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	npuv1alpha1 "npu-operator/api/v1alpha1"
+	npuv1alpha1 "kcloud-operator/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 

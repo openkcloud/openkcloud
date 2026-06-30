@@ -1,0 +1,139 @@
+# rbac.yaml: NPU Operator RBAC 리소스
+# 생성일: 2026-03-25
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "npu-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "npu-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "npu-operator.fullname" . }}-role
+rules:
+  - apiGroups: ["npu.ai"]
+    resources: ["npuclusterpolicies", "npuclusterpolicies/status", "npuclusterpolicies/finalizers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["npu.ai"]
+    resources: ["nodedevicereports", "nodedevicereports/status", "driverinstallpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["npu.ai"]
+    resources: ["driverupgradestates", "driverupgradestates/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # A6.1: quiesce-on-driver-upgrade — Cordoning 진입 시 라벨 가진 Deployment 의 replicas 를 0 으로 patch, Idle/Failed 진입 시 복구
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  # P1: PDB-aware drain via Eviction API (pods/eviction create + PDB read)
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  # Rebellions ATOM+ 지원: rbln-system 네임스페이스 + SA + RBAC 생성에 필요
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "npu-operator.fullname" . }}-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "npu-operator.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "npu-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+
+---
+# npu-detector DaemonSet이 NodeDeviceReport CR을 생성/업데이트할 수 있도록 허용
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: npu-detector-role
+rules:
+  - apiGroups: ["npu.ai"]
+    resources: ["nodedevicereports", "nodedevicereports/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: npu-detector-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: npu-detector-role
+subjects:
+  - kind: ServiceAccount
+    name: npu-detector
+    namespace: {{ .Values.detector.namespace | default "kube-system" }}
+
+---
+# Leader election (Lease lock) — controller-runtime 기본 경로
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "npu-operator.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "npu-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "npu-operator.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "npu-operator.fullname" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "npu-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

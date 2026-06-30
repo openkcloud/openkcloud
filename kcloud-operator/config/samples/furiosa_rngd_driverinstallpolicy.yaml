@@ -1,0 +1,19 @@
+# ============================================================
+# furiosa_rngd_driverinstallpolicy.yaml: Furiosa RNGD 드라이버 설치 정책 예시
+# 상세: DriverInstallPolicy CR — furiosa-rngd-driver-installer 이미지 사용
+#       레지스트리에 이미지 빌드 후 image 필드를 실제 태그로 교체할 것
+# 생성일: 2026-05-11 | 수정일: 2026-05-11
+# ============================================================
+apiVersion: npu.ai/v1alpha1
+kind: DriverInstallPolicy
+metadata:
+  name: furiosa-rngd-installer-test
+spec:
+  vendor: furiosa
+  model: rngd
+  rebootStrategy: IfNeeded
+  kernelAllowlist: ["5.15.*", "6.8.*"]
+  containerdMinVersion: "1.7.0"
+  driver:
+    version: "1.0"
+    image: "<your-registry>/furiosa-rngd-driver-installer:2026.1.0"

@@ -41,6 +41,9 @@ class Device(base.APIBase):
     This class enforces type checking and value constraints, and converts
     between the internal object model and the API representation.
     """
+    id = wsme.wsattr(types.integer, readonly=True)
+    """The internal ID (matches deployable.device_id)"""
+
     uuid = types.uuid
     """The UUID of the device"""
 

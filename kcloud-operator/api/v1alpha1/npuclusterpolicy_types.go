@@ -14,6 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// ============================================================
+// npuclusterpolicy_types.go: NPUClusterPolicy CRD 타입 정의
+// 상세: Detector/Nvidia/Furiosa/Rebellions vendor spec 포함
+// 생성일: 2025-01-01 | 수정일: 2026-04-29
+// ============================================================
+
 package v1alpha1
 
 import (
@@ -23,30 +29,65 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type DetectorSpec struct {
+	Image string `json:"image,omitempty"`
+}
+
 type FuriosaSpec struct {
-	Enabled           bool   `json:"enabled"`
-	DevicePluginImage string `json:"devicePluginImage"`
-	ConfigMapName     string `json:"configMapName,omitempty"`
+	Enabled           bool              `json:"enabled"`
+	DevicePluginImage string            `json:"devicePluginImage"`
+	ConfigMapName     string            `json:"configMapName,omitempty"`
+	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
+	Rngd              RngdSpec          `json:"rngd,omitempty"`
+}
+
+// RngdSpec defines the RNGD-specific (Furiosa RNGD NPU) device plugin configuration.
+// Backward-compatible: all fields are omitempty; omit the whole block to keep legacy behavior.
+type RngdSpec struct {
+	Enabled           bool              `json:"enabled,omitempty"`
+	DevicePluginImage string            `json:"devicePluginImage,omitempty"`
+	ResourceName      string            `json:"resourceName,omitempty"` // default "furiosa.ai/rngd"
+	ConfigMapName     string            `json:"configMapName,omitempty"`
+	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
+	// PartitionPolicy: "none" (default, 1 instance/card), "single-core" (8), "dual-core" (4), "quad-core" (2).
+	// Furiosa libfuriosa-kubernetes PartitioningPolicy 와 1:1 매핑.
+	// +kubebuilder:validation:Enum=none;single-core;dual-core;quad-core
+	// +optional
+	PartitionPolicy string `json:"partitionPolicy,omitempty"`
 }
 
 type NvidiaSpec struct {
-	Enabled           bool   `json:"enabled"`
-	DevicePluginImage string `json:"devicePluginImage"`
+	Enabled           bool              `json:"enabled"`
+	DevicePluginImage string            `json:"devicePluginImage"`
+	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
+}
+
+// RebellionsSpec defines the Rebellions ATOM+ device plugin configuration.
+// Backward-compatible: all fields are omitempty; omit the whole block to keep legacy behavior.
+type RebellionsSpec struct {
+	Enabled           bool              `json:"enabled,omitempty"`
+	DevicePluginImage string            `json:"devicePluginImage"`
+	ResourceName      string            `json:"resourceName,omitempty"`   // default "ATOM"
+	ResourcePrefix    string            `json:"resourcePrefix,omitempty"` // default "rebellions.ai"
+	Namespace         string            `json:"namespace,omitempty"`      // default "rbln-system"
+	ConfigMapName     string            `json:"configMapName,omitempty"`  // default "rbln-device-plugin-config"
+	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
 }
 
 // NPUClusterPolicySpec defines the desired state of NPUClusterPolicy.
 type NPUClusterPolicySpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Nvidia  NvidiaSpec  `json:"nvidia"`
-	Furiosa FuriosaSpec `json:"furiosa"`
+	Detector   *DetectorSpec  `json:"detector,omitempty"`
+	Nvidia     NvidiaSpec     `json:"nvidia"`
+	Furiosa    FuriosaSpec    `json:"furiosa"`
+	Rebellions RebellionsSpec `json:"rebellions,omitempty"`
 }
 
 // NPUClusterPolicyStatus defines the observed state of NPUClusterPolicy.
 type NPUClusterPolicyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	Phase string `json:"phase,omitempty"`
+	Phase      string             `json:"phase,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -68,8 +109,4 @@ type NPUClusterPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []NPUClusterPolicy `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&NPUClusterPolicy{}, &NPUClusterPolicyList{})
 }

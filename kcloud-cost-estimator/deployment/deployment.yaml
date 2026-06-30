@@ -38,6 +38,11 @@ spec:
           containerPort: 8001
           protocol: TCP
         env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: timescale-secret
+              key: url
         - name: PYTHONUNBUFFERED
           value: "1"
         envFrom:

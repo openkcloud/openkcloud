@@ -1,0 +1,21 @@
+# Reduce build context (smaller/faster builds)
+.git
+.gitignore
+.dockerignore
+.venv
+venv
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.spec/
+docs/
+tests/
+.claude/
+.env
+.env.*
+!.env.example
+*.log

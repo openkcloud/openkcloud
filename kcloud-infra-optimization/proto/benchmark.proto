@@ -1,0 +1,52 @@
+syntax = "proto3";
+package benchmark;
+
+// Worker → Master: 벤치마크 결과 전송
+// 흐름: benchmark-runner (Worker) → catalog-service (Master) → TimescaleDB
+service CatalogService {
+  rpc SubmitResult (BenchmarkResult) returns (SubmitResponse);
+}
+
+// Worker 노드의 하드웨어 스펙
+// nvidia-smi / furiosa-smi 로 자동 수집 예정
+message HardwareInfo {
+  string device_name          = 1;  // RTX PRO 6000 Blackwell | Furiosa Warboy
+  string device_type          = 2;  // gpu | npu
+  int64  vram_mb              = 3;  // 98304 (96GB)
+  float  memory_bandwidth_gbs = 4;  // 1792.0
+  string driver_version       = 5;  // 570.x | furiosa 0.10.x
+}
+
+// 실행한 워크로드 스펙
+message WorkloadSpec {
+  string model_name = 1;  // resnet50 | bert-base | llama3-8b
+  string task_type  = 2;  // training | inference | serving
+  string precision  = 3;  // fp32 | fp16 | int8
+  int32  batch_size = 4;
+  string framework  = 5;  // pytorch | onnx | vllm
+}
+
+// 측정된 성능 지표
+message PerformanceMetrics {
+  float throughput_qps = 1;  // 초당 처리 건수
+  float latency_p50_ms = 2;
+  float latency_p95_ms = 3;
+  float latency_p99_ms = 4;
+  float power_w        = 5;  // 측정 평균 전력 (W)
+  float memory_used_mb = 6;
+}
+
+// 전송 단위
+message BenchmarkResult {
+  string             node_id   = 1;
+  HardwareInfo       hardware  = 2;
+  WorkloadSpec       workload  = 3;
+  PerformanceMetrics metrics   = 4;
+  int64              timestamp = 5;  // unix timestamp
+  string             source    = 6;  // measured | stub
+}
+
+message SubmitResponse {
+  bool   success = 1;
+  string message = 2;
+}

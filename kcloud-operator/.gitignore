@@ -25,3 +25,15 @@ go.work
 *.swp
 *.swo
 *~
+
+# undeploy script
+cleanup.sh
+
+# Generated embed bundle for apply-crds subcommand (populated by `make embed-crds`)
+internal/crdapply/crd/*.yaml
+
+# Workspace residuals (Claude Code, OMC, AGENTS.md)
+.omc/
+.claude/
+CLAUDE.md
+AGENTS.md

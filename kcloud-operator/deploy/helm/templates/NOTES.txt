@@ -1,0 +1,62 @@
+NPU Operator {{ .Chart.AppVersion }} 설치 완료!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  설치 후 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. NPU Cluster Policy 확인:
+   kubectl get npuclusterpolicy -A
+
+2. Driver Install Policy 확인 (shortName: dip):
+   kubectl get dip
+
+3. Node Device Report 확인 (shortName: ndr):
+   kubectl get ndr -A
+
+4. Operator Pod 상태 확인:
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=npu-operator
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Furiosa Registry Secret 생성 (필요 시)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Furiosa 드라이버 이미지가 인증이 필요한 레지스트리에 있을 경우:
+
+   kubectl create secret docker-registry furiosa-registry-secret \
+     --docker-server=<REGISTRY_HOST> \
+     --docker-username=<USERNAME> \
+     --docker-password=<PASSWORD> \
+     -n {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CRD 업그레이드 주의사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+버전 업그레이드 시 CRD를 먼저 적용해야 합니다:
+
+   kubectl apply -f ./crds/
+
+이후 helm upgrade를 실행하세요.
+자세한 업그레이드 절차는 UPGRADE.md를 참조하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  detector.image SSA 충돌 해결 (NPUClusterPolicy)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+운영 중 detector image 를 직접 kubectl patch 한 경우,
+다음 helm upgrade 시 Server-Side Apply (SSA) fieldManager 충돌이 발생합니다.
+
+해결 방법 (둘 중 하나):
+
+  1) helm upgrade 시 현재 값으로 명시 동기화:
+     helm upgrade npu-operator helm/kcloud-operator/ \
+       --set detector.image=<현재-레지스트리/이미지:태그> \
+       -n {{ .Release.Namespace }}
+
+  2) --force-conflicts 로 helm 이 ownership 을 강제 취득:
+     helm upgrade npu-operator helm/kcloud-operator/ \
+       --force-conflicts \
+       -n {{ .Release.Namespace }}
+
+권장: 운영 환경에서는 항상 --set detector.image=<값> 으로 명시 동기화.
+      --force-conflicts 는 다른 controller 의 field ownership 도 빼앗으므로 주의.

@@ -1,0 +1,25 @@
+# kcp_workspace conda 환경 기준 (conda run -n kcp_workspace pip list 확인)
+# 아래 패키지는 이미 설치되어 있음 — 신규 환경 구성 시 참고용
+
+# gRPC
+grpcio>=1.62.0
+grpcio-tools>=1.62.0
+protobuf>=4.25.0
+
+# 수치 연산
+numpy>=1.24.0
+
+# GPU 노드 (이미 설치됨: torch 2.6.0+cu124, torchvision 0.21.0)
+torch>=2.2.0
+torchvision>=0.17.0
+pynvml>=11.5.0          # GPU 전력 측정
+
+# ── NPU 노드 전용 (Warboy Worker에서만 설치) ──────────────────────────────────
+# furiosa-sdk와 furiosa-models는 Furiosa Warboy 드라이버가 설치된
+# NPU Worker 노드에서만 동작함. Control Plane 및 GPU 노드에서는 설치 불필요.
+#
+# NPU Worker 노드에서:
+#   pip install furiosa-sdk furiosa-models Pillow
+#
+# furiosa-sdk>=0.10.0
+# furiosa-models>=0.10.0    # furiosa-zoo: ResNet50, BERT, YOLOv8 등 포함

@@ -1,0 +1,348 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: driverinstallpolicies.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: DriverInstallPolicy
+    listKind: DriverInstallPolicyList
+    plural: driverinstallpolicies
+    shortNames:
+    - dip
+    singular: driverinstallpolicy
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          DriverInstallPolicy는 노드의 장치 드라이버/툴킷 설치 정책을 정의합니다.
+          예) Vendor: "furiosa"/"nvidia", Model: "warboy"/"generic"(또는 GPU 세대명)
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DriverInstallPolicySpec 은 벤더/모델별 드라이버 설치 정책을 담습니다.
+            properties:
+              containerdMinVersion:
+                description: 최소 containerd 버전 (semver)
+                type: string
+              driver:
+                description: 설치할 드라이버 사양
+                properties:
+                  env:
+                    description: (선택) 인스톨러 환경변수
+                    items:
+                      description: KV는 단순 키-값 환경변수 표현입니다.
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                  extraHostMounts:
+                    description: (선택) 추가 호스트 마운트(기본 /lib/modules, /usr/src, /etc,
+                      /var/lib/npu-operator 외)
+                    items:
+                      description: HostPathMount는 호스트 디렉터리를 파드에 마운트하기 위한 간단한 스펙입니다.
+                      properties:
+                        hostPath:
+                          description: /etc, /lib/modules 등의 호스트 경로
+                          type: string
+                        mountPath:
+                          description: 파드 내 마운트 경로
+                          type: string
+                        readOnly:
+                          description: 읽기전용 여부
+                          type: boolean
+                      required:
+                      - hostPath
+                      - mountPath
+                      type: object
+                    type: array
+                  image:
+                    description: |-
+                      인스톨러 컨테이너 이미지
+                      예: "129.254.202.88:5100/furiosa-driver-installer:1.7.8" 또는 "ghcr.io/you/nvidia-apt-installer:latest"
+
+                      CRD 는 docker reference 의 syntax 만 검증한다 (tag 부에 invalid char 차단). 의미론적
+                      검증 — broken plain tag 가 mode=daemonset 환경에서 entrypoint 누락된 broken image 로
+                      작동하는 결함을 차단 (architectural plan §3.4 defense-in-depth) — 은 state_machine 의
+                      isVerifiedBuildTag 가드 가 담당한다 (followup plan §F4).
+
+                      허용 (registry/host:port/repo 부 + ":" + tag 부):
+                        - registry 부: alphanumerics, `.`, `_`, `:`, `/`, `-` (port 표기 호환)
+                        - tag 부:      alphanumerics, `.`, `_`, `+`, `-` (sub-version 예: "580.142-v17.1")
+                    pattern: ^[a-zA-Z0-9._:/-]+:[a-zA-Z0-9._+-]+$
+                    type: string
+                  installer:
+                    description: |-
+                      설치 방식
+                      apt  : APT 기반(내/외부 리포지터리 사용)
+                      ngc  : NVIDIA NGC 드라이버 컨테이너(커널 매칭 이미지) 사용
+                      script : 컨테이너 내 스크립트로 설치(자유도 높음)
+                    enum:
+                    - apt
+                    - ngc
+                    - script
+                    type: string
+                  mode:
+                    default: daemonset
+                    description: |-
+                      Mode는 드라이버 설치 방식을 결정합니다.
+                      daemonset: DaemonSet으로 드라이버를 상시 실행 (컨테이너화 드라이버, 유일 지원 방식)
+                    enum:
+                    - daemonset
+                    type: string
+                  secrets:
+                    description: |-
+                      (선택) 시크릿 마운트(예: Furiosa APT 인증)
+                      기본 MountPath는 "/secrets"로 두고 필요시 개별 지정
+                    items:
+                      description: SecretMount는 시크릿을 파드에 마운트하기 위한 간단한 스펙입니다.
+                      properties:
+                        mountPath:
+                          description: '마운트 경로 (기본: "/secrets")'
+                          type: string
+                        name:
+                          description: 시크릿 이름
+                          type: string
+                        optional:
+                          description: 선택적 여부
+                          type: boolean
+                      required:
+                      - name
+                      type: object
+                    type: array
+                  version:
+                    description: |-
+                      예: "1.7.8" (Furiosa) 또는 "575.64.03"(NVIDIA)
+                      비워두면 인스톨러 스크립트가 "권장 버전"으로 자동 선택하도록 구현 가능
+                    type: string
+                required:
+                - image
+                type: object
+              jobOverrides:
+                description: (선택) 잡 템플릿 오버라이드(서비스어카운트, TTL, Backoff 등)
+                properties:
+                  backoffLimit:
+                    description: 실패 재시도 횟수
+                    format: int32
+                    type: integer
+                  priorityClassName:
+                    description: (선택) 파드 우선순위 클래스
+                    type: string
+                  serviceAccountName:
+                    description: 서비스어카운트 이름(미지정 시 운영자 기본 SA 사용 또는 빈값)
+                    type: string
+                  ttlSecondsAfterFinished:
+                    description: 완료 후 자동 삭제 TTL(초)
+                    format: int32
+                    type: integer
+                type: object
+              kernelAllowlist:
+                description: '허용 커널 버전 패턴 (예: ["5.15.*","6.8.*"])'
+                items:
+                  type: string
+                type: array
+              model:
+                description: |-
+                  예: "warboy", "generic" (또는 "a100","a30" 등 필요시 사용)
+                  빈 값 허용(벤더만 매칭)하려면 Controller에서 로직으로 지원
+                type: string
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                description: (선택) 잡/파드에 적용할 노드 셀렉터(특정 노드군에만 설치)
+                type: object
+              rebootStrategy:
+                description: 재부팅 전략
+                enum:
+                - Require
+                - IfNeeded
+                - Never
+                type: string
+              toolkit:
+                description: (선택) NVIDIA Container Toolkit 등 런타임 툴킷 설치 사양
+                properties:
+                  enabled:
+                    description: 설치 여부
+                    type: boolean
+                  env:
+                    description: (선택) 환경변수/시크릿/호스트마운트
+                    items:
+                      description: KV는 단순 키-값 환경변수 표현입니다.
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                  extraHostMounts:
+                    items:
+                      description: HostPathMount는 호스트 디렉터리를 파드에 마운트하기 위한 간단한 스펙입니다.
+                      properties:
+                        hostPath:
+                          description: /etc, /lib/modules 등의 호스트 경로
+                          type: string
+                        mountPath:
+                          description: 파드 내 마운트 경로
+                          type: string
+                        readOnly:
+                          description: 읽기전용 여부
+                          type: boolean
+                      required:
+                      - hostPath
+                      - mountPath
+                      type: object
+                    type: array
+                  image:
+                    description: (선택) 전용 인스톨러 이미지 (미지정 시 Driver.Image 재사용 가능)
+                    type: string
+                  method:
+                    description: |-
+                      설치 방법
+                      apt : NVIDIA 공식 APT 저장소/패키지 사용
+                      ctk : nvidia-ctk 기반 구성만 수행(패키지는 사전 설치 가정)
+                    enum:
+                    - apt
+                    - ctk
+                    type: string
+                  secrets:
+                    items:
+                      description: SecretMount는 시크릿을 파드에 마운트하기 위한 간단한 스펙입니다.
+                      properties:
+                        mountPath:
+                          description: '마운트 경로 (기본: "/secrets")'
+                          type: string
+                        name:
+                          description: 시크릿 이름
+                          type: string
+                        optional:
+                          description: 선택적 여부
+                          type: boolean
+                      required:
+                      - name
+                      type: object
+                    type: array
+                  version:
+                    description: '원하는 툴킷 버전(예: "1.17.8-1"). 비우면 최신(또는 스크립트 내 권장)으로'
+                    type: string
+                required:
+                - enabled
+                type: object
+              upgradePolicy:
+                description: Upgrade policy for driver version changes
+                properties:
+                  autoUpgrade:
+                    description: AutoUpgrade enables automatic upgrade when version
+                      mismatch is detected
+                    type: boolean
+                  drainEnabled:
+                    description: DrainEnabled enables cordon+drain before driver upgrade
+                      on nodes with active GPU workloads
+                    type: boolean
+                  drainTimeout:
+                    description: DrainTimeout is the maximum duration to wait for
+                      node drain to complete (e.g. "5m", "10m")
+                    type: string
+                  forceUpgrade:
+                    description: ForceUpgrade allows drain --force when pods cannot
+                      be evicted gracefully
+                    type: boolean
+                  idleCooldownSeconds:
+                    default: 10
+                    description: |-
+                      IdleCooldownSeconds 는 Idle 진입 후 다음 upgrade 트리거를 받지 않을 최소 기간(초).
+                      미지정(nil) 시 default 10s 적용. 0 또는 음수는 cooldown 비활성화 (legacy 동작).
+                      rolling-update 테스트에서 연속 trigger 가 mid-state 로 오인되거나 관측되지 않은 채
+                      신규 사이클이 시작되는 것을 차단하는 안전장치 (followup plan §F3).
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  maxParallelUpgrades:
+                    description: MaxParallelUpgrades is the maximum number of nodes
+                      being upgraded in parallel
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  maxRollbackAttempts:
+                    default: 3
+                    description: |-
+                      MaxRollbackAttempts는 롤백이 반복 실패할 때 시도할 최대 횟수입니다.
+                      이 값을 초과하면 "Failed" 상태로 전이하여 무한 루프를 방지합니다. 기본값 3.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  maxUnavailable:
+                    default: 1
+                    description: MaxUnavailable is the max number of nodes being upgraded
+                      simultaneously
+                    format: int32
+                    type: integer
+                  rollbackOnFailure:
+                    description: RollbackOnFailure triggers automatic rollback to
+                      the previous driver version on upgrade failure
+                    type: boolean
+                  rollbackTarget:
+                    description: |-
+                      RollbackTarget 은 롤백 시 어떤 image 로 되돌릴지 결정합니다.
+                      previousValidated : 직전 사이클에서 검증된 PreviousImage 가 있을 때만 롤백 (없으면 Failed).
+                                          plain tag 치환으로 인한 broken image 회귀 (architectural plan §3.4) 차단.
+                      spec              : 현재 동작 — PreviousImage 가 없으면 태그만 치환하여 복구 (legacy, unsafe).
+                      비워두면 spec 과 동일하게 처리되어 backward compat 유지. 신규 클러스터는 previousValidated 권장.
+                    enum:
+                    - previousValidated
+                    - spec
+                    type: string
+                  validationTimeout:
+                    description: ValidationTimeout is the maximum duration to wait
+                      for driver validation after upgrade (e.g. "2m")
+                    type: string
+                type: object
+              vendor:
+                description: |-
+                  예: "furiosa", "nvidia"
+                  컨트롤러에서 NodeDeviceReport.status.devices[].vendor 와 매칭
+                type: string
+              verifiedVersions:
+                description: |-
+                  VerifiedVersions 검증된 driver version 화이트리스트.
+                  non-empty 이면 spec.driver.version 이 이 목록에 없을 경우 업그레이드를 거부하고
+                  DUS 를 "UnverifiedVersion" 상태로 전이합니다 (NVIDIA GPU Operator validateDriver 동등).
+                  비어있으면 버전 검증을 skip 하여 기존 동작을 유지합니다 (backward compat).
+                items:
+                  type: string
+                type: array
+            required:
+            - driver
+            - vendor
+            type: object
+        type: object
+    served: true
+    storage: true

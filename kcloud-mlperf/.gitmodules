@@ -1,3 +1,6 @@
 [submodule "mlcommons_inference"]
-	path = mlcommons_inference
+	path = benchmarks/mlcommons_inference
 	url = https://github.com/mlcommons/inference
+[submodule "mmlu_pro"]
+	path = benchmarks/mmlu_pro
+	url = https://github.com/TIGER-AI-Lab/MMLU-Pro.git

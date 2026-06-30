@@ -17,10 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -30,6 +34,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -37,8 +42,11 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	npuv1alpha1 "npu-operator/api/v1alpha1"
-	"npu-operator/internal/controller"
+	npuv1alpha1 "kcloud-operator/api/v1alpha1"
+	"kcloud-operator/internal/controller"
+	"kcloud-operator/internal/crdapply"
+	"kcloud-operator/internal/metrics"
+	"kcloud-operator/internal/upgrade"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -56,6 +64,18 @@ func init() {
 
 // nolint:gocyclo
 func main() {
+	// === apply-crds 서브명령 분기 (반드시 flag.Parse() 이전) ===
+	if len(os.Args) > 1 && os.Args[1] == "apply-crds" {
+		ctrl.SetLogger(zap.New(zap.UseDevMode(false)))
+		setupLog.Info("apply-crds 서브명령 시작")
+		if err := crdapply.Run(context.Background()); err != nil {
+			setupLog.Error(err, "apply-crds 실패")
+			os.Exit(1)
+		}
+		setupLog.Info("apply-crds 완료")
+		return
+	}
+	// === 기존 manager 로직 (변경 없음) ===
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
@@ -178,6 +198,8 @@ func main() {
 		})
 	}
 
+	// syncPeriod: 캐시 re-sync 주기. 60s 로 단축하여 stale informer 조기 감지.
+	syncPeriod := 60 * time.Second
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
@@ -196,6 +218,7 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+		Cache: cache.Options{SyncPeriod: &syncPeriod},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -203,10 +226,34 @@ func main() {
 	}
 
 	if err := (&controller.NPUClusterPolicyReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("npuclusterpolicy-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NPUClusterPolicy")
+		os.Exit(1)
+	}
+
+	if err := (&controller.DriverDaemonSetReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("driverdaemonset-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DriverDaemonSet")
+		os.Exit(1)
+	}
+
+	sm := &upgrade.UpgradeStateMachine{
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor("driver-upgrade-statemachine"),
+	}
+	if err := (&controller.DriverUpgradeReconciler{
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Recorder:     mgr.GetEventRecorderFor("driverupgrade-controller"),
+		StateMachine: sm,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DriverUpgrade")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
@@ -229,6 +276,21 @@ func main() {
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
+		os.Exit(1)
+	}
+	// reconcile-alive: 마지막 reconcile 이후 5분 초과 시 liveness 실패 처리.
+	// stale informer / zombie controller 감지를 위한 추가 헬스 체크.
+	if err := mgr.AddHealthzCheck("reconcile-alive", func(_ *http.Request) error {
+		last := metrics.GetLastReconcileTime()
+		if last.IsZero() {
+			return nil // 기동 직후 grace period
+		}
+		if d := time.Since(last); d > 5*time.Minute {
+			return fmt.Errorf("no reconcile in %v", d)
+		}
+		return nil
+	}); err != nil {
+		setupLog.Error(err, "unable to set up reconcile-alive check")
 		os.Exit(1)
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {

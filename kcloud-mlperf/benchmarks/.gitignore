@@ -1,0 +1,127 @@
+
+*~
+auth.json
+*.bin
+build/
+.cache/
+*.ckpt
+cnn_dailymail_dataset.json
+config/join-command.sh
+credentials.json
+*.crt
+.cursor/
+.cursorignore
+.cursorindexignore
+*.dataset
+# Dataset files (too large for GitHub)
+*_dataset.json
+develop-eggs/
+dist/
+# Docker build cache
+.dockerignore
+downloads/
+.DS_Store
+*.egg
+*.egg-info/
+.eggs/
+eggs/
+.env
+env/
+ENV/
+env.bak/
+.env.development
+.env.example
+# Environment variables and credentials
+.env.*.local
+.env.local
+.env.production
+.env.sample
+.env.test
+# Generated results and reports
+.git-credentials
+*.gz
+# HF and model caches
+.hf_cache/
+# HuggingFace cache
+.idea/
+# IDE files
+inference-master/**/data/
+inference-master/**/mlperf_log_*.json
+inference-master/**/output-logs/
+inference-master/**/__pycache__/
+# Inference repo generated artifacts
+.installed.cfg
+*.key
+*_key.txt
+# Large model artifacts (safetensors/weights)
+lib/
+lib64/
+*.local
+*.log
+logs/
+# Logs
+MANIFEST
+.mlc/
+MLC/
+.mlc-log.txt
+# MLCommons cache and logs
+# MLPerf logs (can be very large)
+models/
+*.nsys-rep
+# NVIDIA profiler
+*.nvvp
+# OS files
+*.p12
+parts/
+*.pem
+*.pt
+*.pyc
+__pycache__/
+*.pyd
+*.pyo
+.Python
+# Python cache
+*.qdrep
+reports_*/
+results/
+*.safetensors
+sdist/
+secrets.json
+*.swo
+*.swp
+*.tar
+*.temp
+temp/
+# Temporary files
+test_results/
+Thumbs.db
+*.tmp
+tmp/
+*_token.txt
+var/
+venv/
+venv.bak/
+# Virtual environments
+.vscode/
+wheels/
+*.zip
+# --- from kcloud-tool ---
+# Rendered manifests / working dirs produced at install time
+deploy/render/
+# Test harness results
+test/.results/
+# OMC working state (research docs are intentionally tracked; sessions/state are not)
+.omc/state/
+.omc/sessions/
+.omc/logs/
+.omc/validator-run.log
+.omc/.toolcheck
+# Editor / OS
+# Secret-bearing ad-hoc build logs/scripts (kept local only)
+.omc/jwbuild-logs/
+# Benchmark job manifests with hardcoded HF token (kept local only)
+jobs/mmlu-pro-a40.yaml
+jobs/mmlu-pro-l40.yaml
+jobs/mmlu-pro-rngd.yaml
+# internal OMC working notes (never publish)
+.omc/

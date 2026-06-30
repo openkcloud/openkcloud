@@ -1,0 +1,19 @@
+- hosts: localhost
+  tasks:
+    - name: Vars
+      include_vars:
+        file: "vars.yaml"
+
+    - name: Job vars
+      include_vars:
+        file: "{{ item }}"
+      loop: "{{ vars_files }}"
+
+    - name: Promote images
+      include_role:
+        name: promote-container-image
+      vars:
+        container_images: "{{ openstack_images + [requirements_image] }}"
+      loop_control:
+        loop_var: image_registry
+      loop: "{{ image_registries }}"

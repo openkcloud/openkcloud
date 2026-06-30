@@ -1,0 +1,272 @@
+# Accelerator Configuration for Cost-Based Scheduler
+# This file defines GPU/NPU specifications for cost and power efficiency scoring
+#
+# How GPU matching works:
+# 1. Node labels: accelerator.type + accelerator.model (exact match)
+# 2. Resource detection: nvidia.com/gpu, nvidia.com/mig-*, furiosa.ai/warboy
+# 3. GPU product label: nvidia.com/gpu.product (partial match)
+# 4. Fallback: node labels for raw metrics (backward compatibility)
+
+accelerators:
+  # ── 실제 보유 하드웨어 (gpu-npu-server-02) ─────────────────────────────────
+  - name: "NVIDIA RTX PRO 6000 Blackwell"
+    type: "gpu"
+    vendor: "nvidia"
+    model: "rtx-pro-6000-blackwell"
+    memory_gb: 96
+    specs:
+      cost_per_hour: 2.50         # data-catalog/table.txt hw_id=2 기반
+      perf_score: 2519            # FP16 251.9 TFLOPS × 10
+      power_watts: 300            # TDP
+      perf_per_watt: 8.40         # 251.9 TFLOPS / 300W
+      inference_affinity: 0.85
+      training_affinity: 1.0
+
+  # ── 실제 보유 하드웨어 (gpu-server-01 / Master 노드) ─────────────────────
+  - name: "NVIDIA RTX A6000"
+    type: "gpu"
+    vendor: "nvidia"
+    model: "rtx-a6000"
+    memory_gb: 48
+    specs:
+      cost_per_hour: 1.20         # data-catalog/table.txt hw_id=1 기반
+      perf_score: 774             # FP16 77.4 TFLOPS × 10
+      power_watts: 300            # TDP
+      perf_per_watt: 2.58         # 77.4 TFLOPS / 300W
+      inference_affinity: 0.8
+      training_affinity: 0.9
+
+  # ── 실제 보유 하드웨어 — Furiosa NPU (gpu-npu-server-02) ──────────────────
+  # 아래 "Furiosa Warboy" 항목이 이미 있으므로 중복 주석 처리
+  # (이 항목이 우선순위 높게 먼저 등록됨)
+
+  # NVIDIA H100 Series
+  - name: "NVIDIA H100 80GB SXM"
+    type: "gpu"
+    vendor: "nvidia"
+    model: "h100"
+    memory_gb: 80
+    specs:
+      cost_per_hour: 4.0          # $/hour (cloud pricing reference)
+      perf_score: 2000            # Relative performance score
+      power_watts: 700            # TDP in Watts
+      perf_per_watt: 2.86         # Performance per Watt
+      inference_affinity: 0.8     # 0-1: suitability for inference
+      training_affinity: 1.0      # 0-1: suitability for training
+
+  # NVIDIA A100 Series
+  - name: "NVIDIA A100 80GB SXM"
+    type: "gpu"
+    vendor: "nvidia"
+    model: "a100-80gb"
+    memory_gb: 80
+    specs:
+      cost_per_hour: 2.0
+      perf_score: 1000
+      power_watts: 400
+      perf_per_watt: 2.5
+      inference_affinity: 0.7
+      training_affinity: 1.0
+
+  - name: "NVIDIA A100 40GB"
+    type: "gpu"
+    vendor: "nvidia"
+    model: "a100-40gb"
+    memory_gb: 40
+    specs:
+      cost_per_hour: 1.5
+      perf_score: 800
+      power_watts: 400
+      perf_per_watt: 2.0
+      inference_affinity: 0.7
+      training_affinity: 0.9
+
+  # NVIDIA A10 (Inference optimized)
+  - name: "NVIDIA A10"
+    type: "gpu"
+    vendor: "nvidia"
+    model: "a10"
+    memory_gb: 24
+    specs:
+      cost_per_hour: 0.8
+      perf_score: 400
+      power_watts: 150
+      perf_per_watt: 2.67
+      inference_affinity: 0.9
+      training_affinity: 0.5
+
+  # NVIDIA T4 (Cost efficient inference)
+  - name: "NVIDIA T4"
+    type: "gpu"
+    vendor: "nvidia"
+    model: "t4"
+    memory_gb: 16
+    specs:
+      cost_per_hour: 0.35
+      perf_score: 200
+      power_watts: 70
+      perf_per_watt: 2.86
+      inference_affinity: 1.0
+      training_affinity: 0.3
+
+  # NVIDIA L4 (Ada Lovelace inference)
+  - name: "NVIDIA L4"
+    type: "gpu"
+    vendor: "nvidia"
+    model: "l4"
+    memory_gb: 24
+    specs:
+      cost_per_hour: 0.5
+      perf_score: 350
+      power_watts: 72
+      perf_per_watt: 4.86
+      inference_affinity: 1.0
+      training_affinity: 0.4
+
+  # MIG Instances (A100 partitions)
+  - name: "NVIDIA MIG 1g.5gb"
+    type: "mig"
+    vendor: "nvidia"
+    model: "1g.5gb"
+    memory_gb: 5
+    specs:
+      cost_per_hour: 0.15
+      perf_score: 100
+      power_watts: 50
+      perf_per_watt: 2.0
+      inference_affinity: 1.0
+      training_affinity: 0.1
+
+  - name: "NVIDIA MIG 1g.10gb"
+    type: "mig"
+    vendor: "nvidia"
+    model: "1g.10gb"
+    memory_gb: 10
+    specs:
+      cost_per_hour: 0.2
+      perf_score: 120
+      power_watts: 55
+      perf_per_watt: 2.18
+      inference_affinity: 1.0
+      training_affinity: 0.2
+
+  - name: "NVIDIA MIG 1g.24gb"
+    type: "mig"
+    vendor: "nvidia"
+    model: "1g.24gb"
+    memory_gb: 24
+    specs:
+      cost_per_hour: 0.3
+      perf_score: 150
+      power_watts: 60
+      perf_per_watt: 2.5
+      inference_affinity: 1.0
+      training_affinity: 0.3
+
+  - name: "NVIDIA MIG 2g.10gb"
+    type: "mig"
+    vendor: "nvidia"
+    model: "2g.10gb"
+    memory_gb: 10
+    specs:
+      cost_per_hour: 0.35
+      perf_score: 200
+      power_watts: 100
+      perf_per_watt: 2.0
+      inference_affinity: 0.9
+      training_affinity: 0.4
+
+  - name: "NVIDIA MIG 3g.20gb"
+    type: "mig"
+    vendor: "nvidia"
+    model: "3g.20gb"
+    memory_gb: 20
+    specs:
+      cost_per_hour: 0.5
+      perf_score: 300
+      power_watts: 150
+      perf_per_watt: 2.0
+      inference_affinity: 0.85
+      training_affinity: 0.5
+
+  - name: "NVIDIA MIG 3g.40gb"
+    type: "mig"
+    vendor: "nvidia"
+    model: "3g.40gb"
+    memory_gb: 40
+    specs:
+      cost_per_hour: 0.7
+      perf_score: 350
+      power_watts: 170
+      perf_per_watt: 2.06
+      inference_affinity: 0.8
+      training_affinity: 0.6
+
+  - name: "NVIDIA MIG 7g.40gb"
+    type: "mig"
+    vendor: "nvidia"
+    model: "7g.40gb"
+    memory_gb: 40
+    specs:
+      cost_per_hour: 1.2
+      perf_score: 700
+      power_watts: 300
+      perf_per_watt: 2.33
+      inference_affinity: 0.7
+      training_affinity: 0.8
+
+  - name: "NVIDIA MIG 7g.80gb"
+    type: "mig"
+    vendor: "nvidia"
+    model: "7g.80gb"
+    memory_gb: 80
+    specs:
+      cost_per_hour: 1.5
+      perf_score: 800
+      power_watts: 350
+      perf_per_watt: 2.29
+      inference_affinity: 0.7
+      training_affinity: 0.9
+
+  # Furiosa NPU (Power efficient inference)
+  - name: "Furiosa Warboy"
+    type: "npu"
+    vendor: "furiosa"
+    model: "warboy"
+    memory_gb: 64
+    specs:
+      cost_per_hour: 0.5
+      perf_score: 500
+      power_watts: 100
+      perf_per_watt: 5.0        # NPU is more power efficient
+      inference_affinity: 1.0
+      training_affinity: 0.2
+
+  - name: "Furiosa RNGD"
+    type: "npu"
+    vendor: "furiosa"
+    model: "rngd"
+    memory_gb: 48
+    specs:
+      cost_per_hour: 0.8
+      perf_score: 800
+      power_watts: 150
+      perf_per_watt: 5.33
+      inference_affinity: 1.0
+      training_affinity: 0.3
+
+# Pod Affinity Configuration
+affinity_config:
+  pod_affinity_weight: 20.0              # Max score for pod affinity
+  same_job_bonus_per_pod: 2.0            # Bonus per same-job pod (preferred mode)
+  same_queue_bonus_per_pod: 1.0          # Bonus per same-queue pod (preferred mode)
+  anti_affinity_penalty_per_pod: 5.0     # Penalty per same-job pod (anti mode)
+  default_mode: "preferred"              # Default affinity mode: none, preferred, anti
+
+# Scoring Weight Configuration
+scoring_weights:
+  cost_efficiency_max: 50.0              # Max score for cost efficiency (0-50)
+  power_efficiency_max: 30.0             # Max score for power efficiency (0-30)
+  workload_affinity_max: 20.0            # Max score for workload type affinity
+  pod_affinity_max: 20.0                 # Max score for pod affinity (0-20)
+  base_score: 0.0                        # Base score added to all nodes

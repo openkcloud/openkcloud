@@ -31,7 +31,7 @@ class TestAICHIPDriver(base.TestCase):
     def test_create(self):
         # FuriosaAICHIPDriver.VENDOR == 'furiosa'
         AICHIPDriver.create(FuriosaAICHIPDriver.VENDOR)
-        self.assertRaises(LookupError, AICHIPDriver.create, "rebellions")
+        self.assertRaises(LookupError, AICHIPDriver.create, "unknown_vendor")
 
     def test_discover(self):
         d = AICHIPDriver()

@@ -1,0 +1,72 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mlperf-cnndm100-fp8-a40-20260506
+  namespace: llm-evaluation
+  labels:
+    app: mlperf-cnndm100-fp8
+    hardware: A40
+    benchmark: mlperf
+    precision: fp8
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: mlperf-cnndm100-fp8
+        hardware: A40
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-A40
+      containers:
+        - name: mlperf-fp8-a40
+          image: vllm/vllm-openai:v0.8.4
+          command:
+            - bash
+            - -c
+            - |
+              set -euo pipefail
+              pip install -q datasets 2>&1 | tail -2
+              python3 /scripts/mlperf_cnndm100_fp8.py \
+                --hw a40 \
+                --model RedHatAI/Meta-Llama-3.1-8B-Instruct-FP8 \
+                --output /mnt/datasets/results/mlperf-cnndm100-fp8-a40-20260506/result.json \
+                --n-samples 100 \
+                --max-tokens 128
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: huggingface-token
+                  key: token
+            - name: LOG_PATH
+              value: /mnt/datasets/logs/benchmarks/mlperf_a40_fp8_20260506.log
+          resources:
+            requests:
+              cpu: "8"
+              memory: "32Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "16"
+              memory: "64Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - mountPath: /mnt/datasets
+              name: dataset-cache
+            - mountPath: /scripts
+              name: bench-script
+      volumes:
+        - name: dataset-cache
+          persistentVolumeClaim:
+            claimName: dataset-nfs-pvc
+        - name: bench-script
+          configMap:
+            name: mlperf-cnndm100-fp8-script
+            defaultMode: 0755

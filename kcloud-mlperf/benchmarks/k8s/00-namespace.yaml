@@ -1,0 +1,8 @@
+﻿# kcloud-mlperf Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlperf
+  labels:
+    app: mlperf
+    purpose: llm-benchmarks

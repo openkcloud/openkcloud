@@ -10,6 +10,8 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 from enum import Enum
 
+from app.models.common.responses import BaseResponse
+
 
 class GPUVendor(str, Enum):
     """GPU vendor enumeration."""
@@ -212,9 +214,13 @@ class GPUSummary(BaseModel):
 # API Response Models
 # ============================================================================
 
-class GPUListResponse(BaseModel):
-    """Response model for GPU list endpoint (GET /api/v1/accelerators/gpus)."""
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+class GPUListResponse(BaseResponse):
+    """Response model for GPU list endpoint (GET /api/v1/accelerators/gpus).
+
+    Inherits the common envelope (timestamp/observed_at/is_stale/warnings/
+    partial_sources/request_id) from BaseResponse (design_contracts §6).
+    """
+    status: str = Field("success", description="Operation status (success | partial | error)")
     cluster: str = Field("default", description="Cluster name")
     total_gpus: int = Field(..., ge=0, description="Total number of GPUs")
     gpus: List[GPUInfo] = Field(..., description="List of GPU information")

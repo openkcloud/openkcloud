@@ -1,0 +1,16 @@
+*.egg-info
+*.pyc
+.*.swp
+*~
+.stestr
+.tox
+.testrepository
+.venv
+AUTHORS
+ChangeLog
+dist
+.eggs
+*.egg
+*.pot
+doc/build
+build

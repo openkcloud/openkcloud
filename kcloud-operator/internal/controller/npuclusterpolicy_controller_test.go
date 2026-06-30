@@ -23,11 +23,12 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	npuv1alpha1 "npu-operator/api/v1alpha1"
+	npuv1alpha1 "kcloud-operator/api/v1alpha1"
 )
 
 var _ = Describe("NPUClusterPolicy Controller", func() {
@@ -51,7 +52,14 @@ var _ = Describe("NPUClusterPolicy Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: npuv1alpha1.NPUClusterPolicySpec{
+						// detector.image 는 ensureDetector 의 필수 필드 — 미지정 시
+						// reconcile 이 에러 경로로 진입한다. 벤더(nvidia/furiosa/rebellions)는
+						// 기본 Enabled=false 라 reconcile 에서 skip 되어 성공 경로에 도달한다.
+						Detector: &npuv1alpha1.DetectorSpec{
+							Image: "registry.example.com/npu-op-detector:test",
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
@@ -71,6 +79,8 @@ var _ = Describe("NPUClusterPolicy Controller", func() {
 			controllerReconciler := &NPUClusterPolicyReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
+				// Recorder 주입 — 미설정 시 reconcile 의 Eventf 호출에서 nil deref panic.
+				Recorder: record.NewFakeRecorder(100),
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{

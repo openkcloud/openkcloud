@@ -92,9 +92,29 @@ help: ## Display this help.
 
 ##@ Development
 
+# HELM_CRDS_DIR: 헬름 차트의 crds/ 디렉토리.
+# 이 Makefile이 위치한 디렉토리($(MAKEFILE_DIR)) 기준으로 앵커링하여,
+# 어느 디렉토리에서 `make -C` 또는 CI 상의 다른 cwd로 실행해도 동일 위치를 가리킴.
+# (kcloud-operator는 자체 git repo이므로 git-toplevel로는 상위 operator repo에 도달 불가.)
+MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+HELM_CRDS_DIR ?= $(MAKEFILE_DIR)/deploy/helm/crds
+
+.PHONY: embed-crds
+embed-crds: ## Copy generated CRDs into internal/crdapply/crd/ for go:embed bundling.
+	@mkdir -p internal/crdapply/crd
+	@cp config/crd/bases/*.yaml internal/crdapply/crd/
+
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(MAKE) embed-crds
+	$(MAKE) sync-helm-crds
+
+.PHONY: sync-helm-crds
+sync-helm-crds: ## Sync generated CRDs to helm chart crds/ directory.
+	@mkdir -p $(HELM_CRDS_DIR)
+	@cp config/crd/bases/*.yaml $(HELM_CRDS_DIR)/
+	@echo "Helm CRDs synchronized to $(HELM_CRDS_DIR)"
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -167,7 +187,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
+docker-build: embed-crds ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} .
 
 .PHONY: docker-push

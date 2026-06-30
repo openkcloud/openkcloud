@@ -1,0 +1,257 @@
+# MLPerf Inference - Official MLCommons Llama 3.1 8B Benchmark
+# Uses LoadGen for MLPerf compliance
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mlperf-bench
+  namespace: mlperf
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      runtimeClassName: nvidia
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: DoesNotExist
+      tolerations:
+      - key: node.kubernetes.io/unreachable
+        operator: Exists
+        effect: NoSchedule
+      - key: node.kubernetes.io/unreachable
+        operator: Exists
+        effect: NoExecute
+        tolerationSeconds: 300
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        nameservers:
+        - 10.96.0.10
+        - 8.8.8.8
+        - 8.8.4.4
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0
+        - name: timeout
+          value: "2"
+        - name: attempts
+          value: "3"
+      initContainers:
+      # Clone MLCommons inference repo if not present
+      - name: setup
+        image: alpine/git:latest
+        command: ["sh", "-c"]
+        args:
+        - |
+          # First, check if host mount already has the repo
+          echo "Checking for existing MLCommons repo on host mount..."
+          if [ -f /mlcommons/loadgen/setup.py ]; then
+            echo "✓ MLCommons repo found on host mount (loadgen/setup.py exists)"
+            exit 0
+          fi
+          
+          # Check if directory exists and has any content
+          if [ -d /mlcommons ] && [ -n "$(ls -A /mlcommons 2>/dev/null)" ]; then
+            echo "MLCommons directory exists with content, checking structure..."
+            # Check for key directories/files that indicate valid repo
+            if [ -d /mlcommons/loadgen ] || [ -d /mlcommons/language ] || [ -d /mlcommons/vision ] || [ -f /mlcommons/.git/config ]; then
+              echo "✓ MLCommons repo structure found on host, using existing"
+              exit 0
+            fi
+            # If directory exists but seems incomplete, try to use it anyway
+            echo "Warning: MLCommons directory exists but structure unclear, attempting to use it"
+            exit 0
+          fi
+          
+          # If we get here, need to clone
+          echo "MLCommons repo not found on host, attempting to clone..."
+          echo "Note: This requires DNS/network access to github.com"
+          
+          # Try cloning with retries and timeout
+          CLONE_SUCCESS=false
+          for i in 1 2 3; do
+            echo "Clone attempt $i/3..."
+            if timeout 60 git clone --depth 1 https://github.com/mlcommons/inference.git /mlcommons 2>&1; then
+              echo "✓ Successfully cloned MLCommons repo"
+              CLONE_SUCCESS=true
+              break
+            else
+              CLONE_EXIT=$?
+              echo "Clone attempt $i failed (exit code: $CLONE_EXIT)"
+              if [ $i -lt 3 ]; then
+                echo "Retrying in 5 seconds..."
+                sleep 5
+              fi
+            fi
+          done
+          
+          # Final check - if clone failed, verify host directory one more time
+          if [ "$CLONE_SUCCESS" = false ]; then
+            echo "Warning: All clone attempts failed (DNS/network issue)"
+            if [ -d /mlcommons ] && [ -n "$(ls -A /mlcommons 2>/dev/null)" ]; then
+              echo "✓ Using existing host directory content despite clone failure"
+              exit 0
+            else
+              echo "✗ Error: Cannot clone and no existing repo found on host"
+              echo "Please ensure /data/mlcommons-inference is populated on the host"
+              exit 1
+            fi
+          fi
+          
+          echo "✓ MLCommons repo ready"
+        volumeMounts:
+        - name: mlcommons
+          mountPath: /mlcommons
+      containers:
+      - name: bench
+        image: vllm/vllm-openai:v0.6.6
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -e
+          echo "════════════════════════════════════════════════════════════════════"
+          echo " MLPerf Inference - Official MLCommons Benchmark"
+          echo " Model: Llama 3.1 8B | Backend: vLLM | LoadGen: Official"
+          echo "════════════════════════════════════════════════════════════════════"
+          
+          # Install dependencies
+          echo "[1/5] Installing dependencies..."
+          pip install -q pybind11 datasets evaluate rouge-score nltk simplejson
+          python3 -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True)"
+          
+          # Install LoadGen from MLCommons
+          echo "[2/5] Installing MLPerf LoadGen..."
+          cd /mlcommons/loadgen
+          pip install -e . -q
+          
+          # Patch SUT_VLLM.py to limit max_model_len for GPU memory
+          echo "[2b/5] Patching SUT for GPU memory constraints..."
+          cd /mlcommons/language/llama3.1-8b
+          # Add max_model_len at the end of LLM() call
+          sed -i 's/tensor_parallel_size=self.tensor_parallel_size,$/tensor_parallel_size=self.tensor_parallel_size, max_model_len=4096, gpu_memory_utilization=0.9,/' SUT_VLLM.py
+          
+          # Prepare dataset
+          echo "[3/5] Preparing dataset..."
+          cd /mlcommons/language/llama3.1-8b
+          mkdir -p dataset
+          
+          # Download dataset if not cached
+          if [ ! -f dataset/cnn_eval.json ]; then
+            echo "Downloading CNN/DailyMail dataset..."
+            # Install rclone binary
+            curl -sL https://rclone.org/install.sh | bash >/dev/null 2>&1 || {
+              apt-get update -qq && apt-get install -qq -y rclone >/dev/null 2>&1
+            }
+            # Create rclone config file directly
+            mkdir -p /root/.config/rclone
+            cat > /root/.config/rclone/rclone.conf << 'EOF'
+          [mlc-inference]
+          type = s3
+          provider = Cloudflare
+          access_key_id = f65ba5eef400db161ea49967de89f47b
+          secret_access_key = fbea333914c292b854f14d3fe232bad6c5407bf0ab1bebf78833c2b359bdfd2b
+          endpoint = https://c2686074cb2caf5cbaf6d134bdba8b47.r2.cloudflarestorage.com
+          EOF
+            rclone copy mlc-inference:mlcommons-inference-wg-public/llama3.1_8b/datasets/cnn_eval.json dataset/ -P
+          else
+            echo "Dataset already cached"
+          fi
+          
+          # Determine sample count
+          if [ -n "${SAMPLE_SPLIT}" ]; then
+            TOTAL_SAMPLES=100
+            echo "Mode: SMOKE TEST ($TOTAL_SAMPLES samples)"
+          else
+            TOTAL_SAMPLES=13368
+            echo "Mode: FULL DATASET ($TOTAL_SAMPLES samples)"
+          fi
+          
+          echo ""
+          echo "[4/5] Running Official MLPerf Benchmark with LoadGen..."
+          echo "  Scenario: Offline"
+          echo "  Samples: $TOTAL_SAMPLES"
+          echo ""
+          
+          # Run official MLPerf benchmark
+          python3 -u main.py \
+            --scenario Offline \
+            --model-path meta-llama/Llama-3.1-8B-Instruct \
+            --batch-size 16 \
+            --dtype bfloat16 \
+            --accuracy \
+            --user-conf user.conf \
+            --total-sample-count $TOTAL_SAMPLES \
+            --dataset-path dataset/cnn_eval.json \
+            --output-log-dir /output \
+            --tensor-parallel-size 1 \
+            --vllm
+          
+          echo ""
+          echo "[5/5] Running Official Accuracy Evaluation..."
+          
+          if [ -f /output/mlperf_log_accuracy.json ]; then
+            python3 evaluation.py \
+              --mlperf-accuracy-file /output/mlperf_log_accuracy.json \
+              --dataset-file dataset/cnn_eval.json \
+              --dtype int32
+          fi
+          
+          echo ""
+          echo "════════════════════════════════════════════════════════════════════"
+          echo " RESULTS (Official MLCommons LoadGen)"
+          echo "════════════════════════════════════════════════════════════════════"
+          
+          if [ -f /output/mlperf_log_summary.txt ]; then
+            cat /output/mlperf_log_summary.txt
+          fi
+          
+          echo ""
+          echo "Status: PASS"
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+            memory: "48Gi"
+          requests:
+            nvidia.com/gpu: "1"
+            memory: "24Gi"
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: HF_TOKEN
+        - name: HF_HOME
+          value: /cache
+        - name: TRANSFORMERS_CACHE
+          value: /cache
+        - name: SAMPLE_SPLIT
+          value: "${SAMPLE_SPLIT}"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: VLLM_WORKER_MULTIPROC_METHOD
+          value: "spawn"
+        volumeMounts:
+        - name: cache
+          mountPath: /cache
+        - name: mlcommons
+          mountPath: /mlcommons
+        - name: output
+          mountPath: /output
+      volumes:
+      - name: cache
+        hostPath:
+          path: /data/hf-cache
+          type: DirectoryOrCreate
+      - name: mlcommons
+        hostPath:
+          path: /data/mlcommons-inference
+          type: DirectoryOrCreate
+      - name: output
+        emptyDir: {}

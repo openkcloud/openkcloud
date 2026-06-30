@@ -1,0 +1,8 @@
+# Chart.yaml: NPU Operator Helm Chart 메타데이터
+# 생성일: 2026-03-25
+apiVersion: v2
+name: npu-operator
+description: Kubernetes Operator for unified NPU/GPU accelerator management
+type: application
+version: 0.5.16
+appVersion: "v0.5.24"

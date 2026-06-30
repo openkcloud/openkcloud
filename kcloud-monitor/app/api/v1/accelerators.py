@@ -150,6 +150,13 @@ async def list_gpus(
             summary=summary
         )
 
+        # DCGM is the primary GPU-level source; serving from the Kepler fallback
+        # means DCGM data was unavailable -> partial response (design_contracts §6).
+        if data_source == DataSource.KEPLER:
+            response.status = "partial"
+            response.partial_sources = ["dcgm"]
+            response.warnings = ["DCGM_UNAVAILABLE"]
+
         # Cache for 1 hour (static GPU info) or 30 seconds (with metrics)
         ttl = 30 if include_metrics else 3600
         await cache_service.set(cache_key, response, ttl=ttl)

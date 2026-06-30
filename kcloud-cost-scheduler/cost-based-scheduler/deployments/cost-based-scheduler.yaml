@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kcp-control-plane
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cost-based-scheduler
+  namespace: kcp-control-plane
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cost-based-scheduler
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods/binding"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["patch", "update"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch", "update"]
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "csinodes", "csidrivers", "csistoragecapacities"]
+  verbs: ["get", "list", "watch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cost-based-scheduler
+subjects:
+- kind: ServiceAccount
+  name: cost-based-scheduler
+  namespace: kcp-control-plane
+roleRef:
+  kind: ClusterRole
+  name: cost-based-scheduler
+  apiGroup: rbac.authorization.k8s.io
+---
+# accelerator-config.yaml을 ConfigMap으로 관리
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: accelerator-config
+  namespace: kcp-control-plane
+data:
+  accelerator-config.yaml: |
+    # See config/accelerator-config.yaml for the full content.
+    # kubectl create configmap accelerator-config \
+    #   --from-file=accelerator-config.yaml=config/accelerator-config.yaml \
+    #   -n kcp-control-plane --dry-run=client -o yaml | kubectl apply -f -
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cost-based-scheduler
+  name: cost-based-scheduler
+  namespace: kcp-control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cost-based-scheduler
+  template:
+    metadata:
+      labels:
+        app: cost-based-scheduler
+      name: cost-based-scheduler
+    spec:
+      serviceAccountName: cost-based-scheduler
+      nodeSelector:
+        kubernetes.io/hostname: gpu-server-01
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+        - name: cost-based-scheduler
+          image: ketidevit2/cost-based-scheduler:0.4.2
+          imagePullPolicy: Always
+          env:
+          - name: ACCELERATOR_CONFIG_PATH
+            value: /etc/scheduler/accelerator-config.yaml
+          - name: ANALYSIS_ENGINE_URL
+            value: "http://analysis-engine.kcp-control-plane.svc.cluster.local:8080"
+          volumeMounts:
+          - name: accelerator-config
+            mountPath: /etc/scheduler
+            readOnly: true
+          resources:
+            limits:
+              memory: "500Mi"
+              cpu: "500m"
+            requests:
+              memory: "200Mi"
+              cpu: "100m"
+      volumes:
+      - name: accelerator-config
+        configMap:
+          name: accelerator-config

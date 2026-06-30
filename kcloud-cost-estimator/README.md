@@ -2,6 +2,10 @@
 
 **Kubernetes 클러스터 전력 데이터 수집 및 에너지 예측 모듈**
 
+### XGBoost 기반 AI 워크로드 예측
+- 모델 기반 예측: 파라미터 수, 배치 크기 반영
+- 고정밀 전력 추정: 실측 데이터 기반 학습 모델 적용
+
 ## 주요 기능
 
 ### Power 메트릭 수집
@@ -311,3 +315,8 @@ kcloud-cost-estimator/
 ## 라이센스
 
 Apache License 2.0
+
+## API Specification
+
+### Workload-aware Prediction
+- POST `/predict/workload-aware`: Predict power for AI/ML jobs.

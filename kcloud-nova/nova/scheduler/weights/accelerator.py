@@ -5,8 +5,10 @@ Accelerator Weigher (group-based with RC+traits; sum-fit & product-fit policies)
 - Per RequestGroup calculation using Placement data.
 - "RC+traits" basis: an RP must both hold the RC inventory AND satisfy traits.
 - Policies:
-    sum-fit      : sum of per-group sum of RC slacks -> score = sum(sum)
-    product-fit  : sum of per-group product of RC slacks -> score = sum(product with epsilon)
+    sum-fit      : sum of group_slacks over groups
+                   -> score = sum(group_slacks)
+    product-fit  : product of (group_slack + epsilon) over groups
+                   -> score = product(group_slacks + epsilon) with epsilon to avoid 0
 - Placement access via Nova's SchedulerReportClient singleton.
 
 Tracing:
@@ -42,8 +44,8 @@ _ACCEL_OPTS = [
         default="sum-fit",
         choices=["sum-fit", "product-fit"],
         help=("Scoring policy: "
-              "sum-fit (sum of per-group sum of RC slacks) or "
-              "product-fit (sum of per-group product of RC slacks)."),
+              "sum-fit (sum of group slacks) or "
+              "product-fit (product of group_slacks with epsilon)."),
     ),
     cfg.FloatOpt(
         "accelerator_weight_multiplier",
@@ -312,7 +314,7 @@ def _group_slack(
     usages_dict: Dict[str, Dict[str, float]],
     stats: Dict,
 ) -> float:
-    """Compute group slack: min over RC ( total_free_rc - required_rc )."""
+    """Compute group slack: sum over RC of (total_free_rc - required_rc)."""
     _trace("Compute group_slack for resources=%s traits=%s", accel_resources, sorted(required_traits))
     slacks: List[float] = []
     for rc, amount in accel_resources.items():
@@ -328,30 +330,6 @@ def _group_slack(
     return gs
 
 
-def _group_product(
-    ptree: provider_tree.ProviderTree,
-    root_uuid: str,
-    accel_resources: Dict[str, int],
-    required_traits: Set[str],
-    usages_dict: Dict[str, Dict[str, float]],
-    stats: Dict,
-) -> float:
-    """Return product of per-RC slacks for a group (0 if any RC unmet)."""
-    _trace("Compute group_product for resources=%s traits=%s", accel_resources, sorted(required_traits))
-    prod = 1.0
-    for rc, amount in accel_resources.items():
-        free_total = _sum_free_for_rc_with_traits(ptree, root_uuid, rc, required_traits, usages_dict, stats=stats)
-        slack = free_total - float(amount)
-        _trace("RC=%s required=%.3f free_total=%.3f slack=%.3f", rc, float(amount), free_total, slack)
-        if slack < 0:
-            _trace("group_product -> 0 (unmet RC=%s; slack<0)", rc)
-            stats["groups_product_unmet"] = stats.get("groups_product_unmet", 0) + 1
-            return 0.0
-        prod *= (slack + EPS)
-    _trace("group_product (eps=%.6g) -> %.6f", EPS, prod)
-    return prod
-
-
 # ------------------------------ Main weigher ------------------------------
 
 class AcceleratorWeigher(weights.BaseHostWeigher):
@@ -361,7 +339,12 @@ class AcceleratorWeigher(weights.BaseHostWeigher):
         return CONF.accelerator_weigher.accelerator_weight_multiplier
 
     def _weigh_object(self, host_state, weight_properties):
-        """Score host per policy; any unmet group yields score=0 (no favor)."""
+        """Score host per policy.
+
+        sum-fit: score = sum of group_slacks (positive only).
+        product-fit: score = product of (group_slack + EPS) over groups (EPS avoids 0).
+        Any unmet group yields UNMET_FLOOR.
+        """
         # Per-call stats collector
         stats: Dict = {
             "http_calls": 0,
@@ -403,22 +386,18 @@ class AcceleratorWeigher(weights.BaseHostWeigher):
             return 0.0
 
         group_slacks: List[float] = []
-        group_products: List[float] = []
-        any_unmet = False
 
         for idx, (accel_resources, req_traits) in enumerate(groups):
             _trace("Processing group[%d] on host=%s ...", idx, host_name)
             gs = _group_slack(ptree, root_uuid, accel_resources, req_traits, usages_dict, stats=stats)
-            gp = _group_product(ptree, root_uuid, accel_resources, req_traits, usages_dict, stats=stats)
             group_slacks.append(gs)
-            group_products.append(gp)
-            _trace("group[%d] -> slack=%.3f product=%.6f", idx, gs, gp)
+            _trace("group[%d] -> slack=%.3f", idx, gs)
 
-        # Unmet if any group's slack == UNMET_FLOOR (product may be small but non-zero due to epsilon)
+        # Unmet if any group's slack == UNMET_FLOOR
         if any(gs == UNMET_FLOOR for gs in group_slacks):
             LOG.debug(
-                "Group unmet; host=%s slacks=%s products=%s -> score=%f",
-                getattr(host_state, "host", "?"), group_slacks, group_products
+                "Group unmet; host=%s slacks=%s -> score=%f",
+                getattr(host_state, "host", "?"), group_slacks
             )
             # Summary stats
             stats["final_score"] = UNMET_FLOOR
@@ -427,30 +406,29 @@ class AcceleratorWeigher(weights.BaseHostWeigher):
             stats["policy"] = CONF.accelerator_weigher.policy
             stats["multiplier"] = CONF.accelerator_weigher.accelerator_weight_multiplier
             stats["groups_slacks"] = group_slacks
-            stats["groups_products"] = group_products
             stats["duration_ms"] = (time.time() - t_start) * 1000.0
             _trace("STATS SUMMARY:\n%s", pprint.pformat(stats))
             _trace("==== weigh_object END (unmet group -> score=%f) host=%r ====", UNMET_FLOOR, host_name)
             return UNMET_FLOOR
 
         policy = CONF.accelerator_weigher.policy
-        if policy in ("sum-fit"):
+        if policy == "sum-fit":
             total_slack = sum(gs for gs in group_slacks if gs > 0)
             score = total_slack
             _trace("policy=%s total_slack=%.6f score(before mult)=%.6f", policy, total_slack, score)
-        else:  # product-fit
-            total_prod = sum(group_products)
-            score = total_prod
-            _trace("policy=%s total_product=%.6f score(before mult)=%.6f", policy, total_prod, score)
+        else:  # product-fit: product of (slack + EPS) over groups (EPS avoids 0)
+            score = 1.0
+            for gs in group_slacks:
+                score *= (gs + EPS)
+            _trace("policy=%s product(group_slacks+EPS)=%.6f score(before mult)=%.6f", policy, score, score)
 
         LOG.debug(
-            "AcceleratorWeigher host=%s root_rp=%s policy=%s groups=%d slacks=%s products=%s score=%.6f",
+            "AcceleratorWeigher host=%s root_rp=%s policy=%s groups=%d slacks=%s score=%.6f",
             host_name,
             root_uuid,
             policy,
             len(group_slacks),
             group_slacks,
-            group_products,
             float(score),
         )
 
@@ -461,7 +439,6 @@ class AcceleratorWeigher(weights.BaseHostWeigher):
         stats["policy"] = policy
         stats["multiplier"] = CONF.accelerator_weigher.accelerator_weight_multiplier
         stats["groups_slacks"] = group_slacks
-        stats["groups_products"] = group_products
         stats["duration_ms"] = (time.time() - t_start) * 1000.0
         stats["rc_pattern"] = CONF.accelerator_weigher.rc_pattern
 

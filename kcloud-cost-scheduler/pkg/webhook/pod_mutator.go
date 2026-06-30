@@ -65,20 +65,32 @@ func (m *PodMutator) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Allowed("No optimization needed")
 	}
 
+	// Always ensure the pod is routed to our cost-based-scheduler and tagged with basic intents
+	originalPod := pod.DeepCopy()
+	m.applyCostSchedulerAnnotations(pod)
+
 	// Find applicable WorkloadOptimizer
 	wo, err := m.findApplicableWorkloadOptimizer(ctx, pod)
 	if err != nil {
 		logger.Error(err, "Failed to find applicable WorkloadOptimizer")
-		return admission.Allowed("No WorkloadOptimizer found")
+		// Even if no WO is found, we still want to apply our scheduler annotations
+		patch, patchErr := createPatch(originalPod, pod)
+		if patchErr != nil {
+			return admission.Errored(500, patchErr)
+		}
+		return admission.PatchResponseFromRaw(req.Object.Raw, patch)
 	}
 
 	if wo == nil {
-		logger.V(1).Info("No applicable WorkloadOptimizer found", "pod", pod.Name)
-		return admission.Allowed("No applicable WorkloadOptimizer")
+		logger.V(1).Info("No applicable WorkloadOptimizer found, proceeding with basic scheduler routing", "pod", pod.Name)
+		patch, patchErr := createPatch(originalPod, pod)
+		if patchErr != nil {
+			return admission.Errored(500, patchErr)
+		}
+		return admission.PatchResponseFromRaw(req.Object.Raw, patch)
 	}
 
 	// Apply optimization to pod
-	originalPod := pod.DeepCopy()
 	if err := m.applyOptimizationToPod(pod, wo); err != nil {
 		logger.Error(err, "Failed to apply optimization to pod")
 		return admission.Errored(500, err)
@@ -532,4 +544,80 @@ func (m *PodMutator) getChanges(original, modified *corev1.Pod) []string {
 func (m *PodMutator) InjectDecoder(d admission.Decoder) error {
 	m.decoder = d
 	return nil
+}
+
+
+// applyCostSchedulerAnnotations injects necessary annotations for the cost-based-scheduler
+// including intent, accelerator types, scale, and preferences.
+func (m *PodMutator) applyCostSchedulerAnnotations(pod *corev1.Pod) {
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
+	}
+
+	// 1. Force route to our scheduler engine
+	pod.Spec.SchedulerName = "cost-based-scheduler"
+
+	// 2. Extract Accelerator Info (GPU/NPU count)
+	var gpuCount, npuCount int64
+	for _, container := range pod.Spec.Containers {
+		if container.Resources.Requests != nil {
+			if gpu, exists := container.Resources.Requests["nvidia.com/gpu"]; exists {
+				val, _ := strconv.ParseInt(gpu.String(), 10, 64)
+				gpuCount += val
+			}
+			if npu, exists := container.Resources.Requests["npu.com/npu"]; exists {
+				val, _ := strconv.ParseInt(npu.String(), 10, 64)
+				npuCount += val
+			}
+			if npu, exists := container.Resources.Requests["furiosa.ai/warboy"]; exists {
+				val, _ := strconv.ParseInt(npu.String(), 10, 64)
+				npuCount += val
+			}
+		}
+	}
+
+	accType := "cpu"
+	accCount := int64(0)
+	if gpuCount > 0 {
+		accType = "gpu"
+		accCount = gpuCount
+	} else if npuCount > 0 {
+		accType = "npu"
+		accCount = npuCount
+	}
+
+	pod.Annotations["sched.ai/acc-type"] = accType
+	pod.Annotations["sched.ai/acc-scale"] = strconv.FormatInt(accCount, 10)
+
+	// 3. Infer workload intent and preference
+	intent := pod.Annotations["sched.ai/intent"]
+	preference := pod.Annotations["sched.ai/preference"]
+	
+	if intent == "" {
+		podName := strings.ToLower(pod.Name)
+		ns := strings.ToLower(pod.Namespace)
+		
+		if strings.Contains(podName, "training") || strings.Contains(podName, "train") || strings.Contains(ns, "kubeflow") {
+			intent = "training"
+		} else if strings.Contains(podName, "batch") || strings.Contains(podName, "job") {
+			intent = "batch"
+		} else {
+			intent = "inference"
+		}
+		pod.Annotations["sched.ai/intent"] = intent
+	}
+
+	if preference == "" {
+		if intent == "training" || intent == "batch" {
+			preference = "throughput"
+		} else {
+			preference = "latency"
+		}
+		pod.Annotations["sched.ai/preference"] = preference
+	}
+
+	// Default batch size for training
+	if (intent == "training" || intent == "batch") && pod.Annotations["sched.ai/batch-size"] == "" {
+		pod.Annotations["sched.ai/batch-size"] = "32"
+	}
 }

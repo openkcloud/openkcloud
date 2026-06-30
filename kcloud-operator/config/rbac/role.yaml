@@ -5,8 +5,93 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - npu.ai
   resources:
+  - driverinstallpolicies
+  - nodedevicereports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - npu.ai
+  resources:
+  - driverupgradestates
   - npuclusterpolicies
   verbs:
   - create
@@ -19,14 +104,36 @@ rules:
 - apiGroups:
   - npu.ai
   resources:
-  - npuclusterpolicies/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - npu.ai
-  resources:
+  - driverupgradestates/status
   - npuclusterpolicies/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - npu.ai
+  resources:
+  - npuclusterpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

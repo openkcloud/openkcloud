@@ -1,0 +1,58 @@
+# linters - each project may have a different version with loose convergence
+# over time.
+astroid
+ansible-lint
+bandit
+bashate
+flake8
+flake8-docstrings
+flake8-import-order
+flake8-logging-format
+hacking
+isort
+mccabe
+mypy
+pep257
+pep8
+pre-commit
+pyflakes
+pycodestyle
+pylint
+yamllint
+
+# The following Neutron libraries need to be blacklisted
+# as they do not use cycle-with-intermediary.  The only time they
+# would be updated is at release time.
+networking-bagpipe
+networking-bgpvpn
+networking-l2gw
+networking-odl
+networking-sfc
+neutron
+neutron-dynamic-routing
+neutron-fwaas
+neutron-lbaas
+neutron-vpnaas
+vmware-nsxlib
+
+# Sahara uses cycle-with-rc, but it promises a stable plugin interface
+sahara
+
+# Projects are free to specify their own version of ansible
+ansible
+ansible-core
+
+# Tempest and its plugins are branchless which means master version of these
+# tools are used in testing the master + stable branches (except EM stable branch
+# where we pin the Tempest and plugins for testing). Keeping Tempest in the
+# u-c file will block testing the master + stable branches with Tempest master.
+# Bug#1916771 for more details.
+# Once any stable branch move to 'Extended Maintenance' and we pin the
+# older Tempest to test them then we can move it from here to u-c file.
+tempest
+
+# annoying from setuptools
+pkg_resources
+
+# We want to always have latest list of trusted Certificate Authorities
+certifi

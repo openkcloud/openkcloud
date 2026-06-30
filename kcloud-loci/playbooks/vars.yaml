@@ -1,0 +1,375 @@
+currentdate: "{{ now(utc=True,fmt='%Y%m%d') }}"
+local_registry: "172.17.0.1:5000"
+local_registry_image: "quay.io/airshipit/registry:2"
+image_registries:
+  - host: "quay.io"
+    org: "airshipit"
+container_command: docker
+apt_mirror: "[trusted=yes] https://{{ zuul_site_mirror_fqdn | default('archive.ubuntu.com') }}/{{ ansible_distribution | lower }}"
+
+base_image:
+  context: "."
+  dockerfile: "Dockerfile.base"
+  container_filename: "Dockerfile.base"
+  repository: "base"
+  tags: &tags
+    - "{{ image_tag }}"
+    - "{{ image_tag }}-{{ currentdate }}"
+  build_args:
+    - "FROM='{{ distro_image }}'"
+    - "CEPH_REPO='{{ ceph_repo }}'"
+    - "CEPH_KEY='http://download.ceph.com/keys/release.asc'"
+
+requirements_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "requirements"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/requirements"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='requirements'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+barbican_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/barbican"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='barbican'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "DIST_PACKAGES='python3-dev gcc'"
+    - "PIP_ARGS='--only-binary :none:'"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+cinder_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/cinder"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='cinder'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent lvm ceph qemu apache'"
+    - "PIP_PACKAGES='python-swiftclient'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+cyborg_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/cyborg"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='cyborg'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "DIST_PACKAGES='pciutils'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+designate_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/designate"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='designate'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+glance_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/glance"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='glance'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent ceph qemu-utils'"
+    - "PIP_PACKAGES='python-swiftclient os-brick python-cinderclient oslo-rootwrap'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+heat_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/heat"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='heat'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent apache'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "DIST_PACKAGES='curl'"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+horizon_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/horizon"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='horizon'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent apache'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "PIP_PACKAGES='pymemcache'"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+ironic_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/ironic"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='ironic'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent ipxe ipmi qemu tftp'"
+    - "DIST_PACKAGES='ethtool lshw iproute2'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+keystone_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/keystone"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='keystone'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent apache ldap {{ openstack_release }}'"
+    - "PIP_PACKAGES='python-openstackclient'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+manila_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/manila"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='manila'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+monasca_api_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/monasca-api"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='monasca-api'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='monasca api'"
+    - "PIP_PACKAGES='influxdb cassandra-driver sqlalchemy'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+neutron_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/neutron"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='neutron'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent linuxbridge openvswitch apache vpn baremetal'"
+    - "PIP_PACKAGES='tap-as-a-service'"
+    - "DIST_PACKAGES='jq ethtool lshw'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+nova_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/nova"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='nova'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='fluent ceph linuxbridge openvswitch configdrive qemu apache migration'"
+    - "DIST_PACKAGES='net-tools openssh-server'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+octavia_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/octavia"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='octavia'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+openstack_client_pip_packages:
+  - cmd2
+  - python-barbicanclient
+  - python-blazarclient
+  - python-cinderclient
+  - python-designateclient
+  - python-glanceclient
+  - python-heatclient
+  - python-ironicclient
+  - python-keystoneclient
+  - python-magnumclient
+  - python-manilaclient
+  - python-mistralclient
+  - python-monascaclient
+  - python-neutronclient
+  - python-novaclient
+  - python-octaviaclient
+  - python-swiftclient
+  - python-tackerclient
+  - python-troveclient
+  - python-vitrageclient
+  - python-watcherclient
+  - python-zaqarclient
+  - python-zunclient
+openstack_client_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/openstack-client"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='python-openstackclient'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "PIP_PACKAGES='{{ openstack_client_pip_packages | join(' ') }}'"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+placement_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/placement"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='placement'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "PROFILES='apache'"
+    - "PIP_PACKAGES='httplib2'"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+tacker_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/tacker"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='tacker'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"
+
+watcher_image:
+  context: "."
+  dockerfile: "Dockerfile"
+  container_filename: "Dockerfile"
+  target: "project"
+  registry: "{{ image_registry.host }}"
+  repository: "{{ image_registry.host }}/{{ image_registry.org }}/watcher"
+  tags: *tags
+  build_args:
+    - "FROM='base:{{ image_tag }}'"
+    - "PROJECT='watcher'"
+    - "PROJECT_REF={{ openstack_release }}"
+    - "WHEELS='{{ image_registries[0].host }}/{{ image_registries[0].org }}/requirements:{{ image_tag }}'"
+    - "KEEP_ALL_WHEELS=yes"
+    - "APT_MIRROR='{{ apt_mirror }}'"

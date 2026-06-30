@@ -1,6 +1,0 @@
-email,hashed_password,role,name,department
-dev,password,admin,dev,sales
-john.smith@company.com, password, admin, John Smith, Engineering
-sarah.johnson@company.com, password, admin, Sarah Johnson, Marketing
-mike.lee@company.com, password, admin, Mike Lee, Sales
-emma.wilson@company.com, password, admin, Emma Wilson, HR

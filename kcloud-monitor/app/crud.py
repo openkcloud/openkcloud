@@ -5,6 +5,7 @@ import json
 import io
 import csv
 import re
+import asyncio
 import logging
 from collections import defaultdict
 
@@ -2231,9 +2232,11 @@ async def get_enhanced_gpu_power_data(params: GPUQueryParams) -> GPUPowerRespons
     kepler_data = await get_gpu_power_data(params)
 
     try:
-        # Get DCGM data for the same instance/node
-        dcgm_metrics = await get_dcgm_gpu_metrics(params.instance)
-        dcgm_info = await get_dcgm_gpu_info(params.instance)
+        # Get DCGM data for the same instance/node (parallel - independent queries, Phase 11.1)
+        dcgm_metrics, dcgm_info = await asyncio.gather(
+            get_dcgm_gpu_metrics(params.instance),
+            get_dcgm_gpu_info(params.instance),
+        )
 
         # Create lookup dictionaries for DCGM data
         dcgm_metrics_map = {}
@@ -2334,89 +2337,271 @@ async def get_enhanced_gpu_power_data(params: GPUQueryParams) -> GPUPowerRespons
 # NPU Monitoring Functions (Placeholder - Phase 3.2)
 # ============================================================================
 
+# Candidate exporter label names (ponytail: confirm against the installed exporter).
+_NPU_SERIAL_LABELS = ("serial", "device_sn")
+_NPU_BDF_LABELS = ("bdf", "pci_bdf")
+_NPU_UUID_LABELS = ("uuid", "device_uuid")
+_NPU_DEVICE_LABELS = ("device", "npu", "index")
+
+
+def _npu_pick_label(labels: Dict[str, str], candidates) -> Optional[str]:
+    """Return the first present non-empty label value among candidates."""
+    for name in candidates:
+        if labels.get(name):
+            return labels[name]
+    return None
+
+
 async def get_npu_info(node: Optional[str] = None, vendor: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    Fetch NPU information from NPU-specific Prometheus exporters.
+    Fetch Furiosa NPU inventory from the Furiosa Metrics Exporter (`furiosa_npu_alive`).
 
-    NOTE: This is a placeholder implementation. Actual implementation will require:
-    - Furiosa AI NPU Exporter setup and metrics
-    - Rebellions NPU Exporter setup and metrics
-    - Proper metric name mapping for each vendor
+    Identifier preference: serial -> pci_bdf -> uuid (device_uuid reboot stability
+    is unverified, open_issues G-1). Rebellions NPU is not yet supported.
 
     Args:
         node: Optional node hostname filter
-        vendor: Optional vendor filter (furiosa/rebellions)
+        vendor: Optional vendor filter (furiosa)
 
     Returns:
         List of NPU information dictionaries
     """
-    # Placeholder: Return empty list since NPU exporters are not yet configured
-    # Real implementation would query Prometheus metrics like:
-    # - furiosa_npu_info{...}
-    # - rebellions_npu_info{...}
-    return []
+    if vendor and vendor.lower() != "furiosa":
+        return []
+
+    from app.services.collectors.furiosa import FuriosaNPUCollector, NODE_LABEL
+
+    collector = FuriosaNPUCollector(prometheus_client)
+    npus: List[Dict[str, Any]] = []
+    for series in collector.alive(node):
+        labels = series.get("metric", {})
+        serial = _npu_pick_label(labels, _NPU_SERIAL_LABELS)
+        bdf = _npu_pick_label(labels, _NPU_BDF_LABELS)
+        uuid = _npu_pick_label(labels, _NPU_UUID_LABELS)
+        device = _npu_pick_label(labels, _NPU_DEVICE_LABELS)
+        npus.append({
+            "npu_id": serial or bdf or uuid or device or "unknown",
+            "serial": serial,
+            "pci_bdf": bdf,
+            "uuid": uuid,
+            "device": device,
+            "memory_total_mb": _bytes_to_mb(_safe_float(_npu_pick_label(labels, ("memory_total_bytes", "memory_total")))),
+            "model_name": labels.get("modelname") or labels.get("model") or "Furiosa RNGD",
+            "vendor": "furiosa",
+            "hostname": labels.get(NODE_LABEL) or labels.get("node") or labels.get("instance"),
+            "alive": _safe_float(series.get("value", [0, "0"])[1]) == 1.0,
+        })
+    return npus
+
+
+def _npu_identity_key(labels: Dict[str, str]) -> str:
+    """Stable per-device key across furiosa_npu_* series (serial→bdf→uuid→device)."""
+    return (
+        _npu_pick_label(labels, _NPU_SERIAL_LABELS)
+        or _npu_pick_label(labels, _NPU_BDF_LABELS)
+        or _npu_pick_label(labels, _NPU_UUID_LABELS)
+        or _npu_pick_label(labels, _NPU_DEVICE_LABELS)
+        or "unknown"
+    )
+
+
+def _chip_for_npu(npu: Dict[str, Any]) -> Optional[str]:
+    """Best-effort hwmon chip name for an NPU (rngd<device-index>)."""
+    dev = npu.get("device")
+    if dev is not None and str(dev).isdigit():
+        return f"rngd{dev}"
+    return None
+
+
+def _apply_npu_hwmon_fallback(collector, node: Optional[str], metrics_by_id: Dict[str, Dict[str, Any]]) -> None:
+    """Fill missing temperature/power from node_hwmon_* when the exporter omits them (#19).
+
+    ponytail: chip↔device matching is best-effort (device index, or single-NPU host).
+    """
+    fields = ("npu_temperature_celsius", "board_temperature_celsius", "power_usage_watts")
+    if not any(m[f] is None for m in metrics_by_id.values() for f in fields):
+        return
+
+    from app.services.collectors.furiosa import NODE_LABEL, HWMON_SENSOR_PEAK, HWMON_SENSOR_AMBIENT
+
+    def _index(series_list):
+        out = {}
+        for s in series_list:
+            lbls = s.get("metric", {})
+            host = lbls.get(NODE_LABEL) or lbls.get("node") or lbls.get("instance")
+            out[(host, lbls.get("chip"))] = _safe_float(s.get("value", [0, None])[1])
+        return out
+
+    peak = _index(collector.hwmon_temperature(node, sensor=HWMON_SENSOR_PEAK))
+    ambient = _index(collector.hwmon_temperature(node, sensor=HWMON_SENSOR_AMBIENT))
+    power = _index(collector.hwmon_power(node))
+
+    per_host: Dict[Any, int] = {}
+    for m in metrics_by_id.values():
+        per_host[m["hostname"]] = per_host.get(m["hostname"], 0) + 1
+
+    for m in metrics_by_id.values():
+        host = m["hostname"]
+        chip = _chip_for_npu(m)
+        if chip is None and per_host.get(host) == 1:
+            chip = next((c for (h, c) in peak if h == host), None) \
+                or next((c for (h, c) in power if h == host), None)
+        if m["npu_temperature_celsius"] is None:
+            m["npu_temperature_celsius"] = peak.get((host, chip))
+        if m["board_temperature_celsius"] is None:
+            m["board_temperature_celsius"] = ambient.get((host, chip))
+        if m["power_usage_watts"] is None:
+            m["power_usage_watts"] = power.get((host, chip))
 
 
 async def get_npu_metrics(node: Optional[str] = None, npu_id: Optional[str] = None, vendor: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    Fetch comprehensive NPU metrics from NPU-specific exporters.
+    Fetch Furiosa NPU metrics from the Furiosa Metrics Exporter.
 
-    NOTE: This is a placeholder implementation. Real metrics would include:
-    - NPU utilization percentage
-    - Memory utilization and usage
-    - Power consumption (watts)
-    - Temperature (celsius)
-    - Core status (for Furiosa multi-core NPUs)
-    - Throughput (FPS) and latency (ms)
-    - Error counts
+    Sources: utilization=`furiosa_npu_core_utilization` (per-core %, averaged per NPU),
+    temperature=`furiosa_npu_hw_temperature` (peak=core, ambient=board),
+    power=`furiosa_npu_hw_power` (rms, chip total watts — no per-PE power).
+    Memory/throttle/clock are exporter-unavailable (aux collectors). Rebellions unsupported.
 
     Args:
         node: Optional node hostname filter
         npu_id: Optional NPU device ID filter
-        vendor: Optional vendor filter (furiosa/rebellions)
+        vendor: Optional vendor filter (furiosa)
 
     Returns:
-        List of NPU metrics dictionaries
+        List of per-NPU metrics dictionaries
     """
-    # Placeholder: Return empty list
-    # Real implementation would query metrics like:
-    # Furiosa:
-    #   - furiosa_npu_utilization_percent
-    #   - furiosa_npu_power_watts
-    #   - furiosa_npu_temperature_celsius
-    #   - furiosa_npu_memory_used_bytes
-    #   - furiosa_npu_core_status
-    # Rebellions:
-    #   - rebellions_npu_utilization_percent
-    #   - rebellions_npu_power_watts
-    #   - rebellions_npu_temperature_celsius
-    return []
+    if vendor and vendor.lower() != "furiosa":
+        return []
+
+    from app.services.collectors.furiosa import FuriosaNPUCollector, NODE_LABEL
+
+    collector = FuriosaNPUCollector(prometheus_client)
+
+    metrics_by_id: Dict[str, Dict[str, Any]] = {}
+    for series in collector.alive(node):
+        labels = series.get("metric", {})
+        key = _npu_identity_key(labels)
+        metrics_by_id[key] = {
+            "npu_id": key,
+            "vendor": "furiosa",
+            "hostname": labels.get(NODE_LABEL) or labels.get("node") or labels.get("instance"),
+            "alive": _safe_float(series.get("value", [0, "0"])[1]) == 1.0,
+            "npu_utilization_percent": None,
+            "npu_temperature_celsius": None,
+            "board_temperature_celsius": None,
+            "power_usage_watts": None,
+            "active_cores": None,
+            "idle_cores": None,
+            "memory_used_mb": None,
+            "memory_free_mb": None,
+        }
+
+    def _apply(series_list, field):
+        for s in series_list:
+            key = _npu_identity_key(s.get("metric", {}))
+            if key in metrics_by_id:
+                metrics_by_id[key][field] = _safe_float(s.get("value", [0, None])[1])
+
+    _apply(collector.power(node), "power_usage_watts")
+    _apply(collector.temperature(node, label="peak"), "npu_temperature_celsius")
+    _apply(collector.temperature(node, label="ambient"), "board_temperature_celsius")
+
+    # Per-core utilization -> average + active/idle core counts per NPU (granularity §1).
+    util_acc: Dict[str, List[float]] = {}
+    core_counts: Dict[str, List[int]] = {}
+    for s in collector.core_utilization(node):
+        key = _npu_identity_key(s.get("metric", {}))
+        value = _safe_float(s.get("value", [0, None])[1])
+        if key in metrics_by_id and value is not None:
+            acc = util_acc.setdefault(key, [0.0, 0.0])
+            acc[0] += value
+            acc[1] += 1
+            counts = core_counts.setdefault(key, [0, 0])  # [active, idle]
+            counts[0 if value > 0 else 1] += 1
+    for key, (total, count) in util_acc.items():
+        if count:
+            metrics_by_id[key]["npu_utilization_percent"] = round(total / count, 2)
+    for key, (active, idle) in core_counts.items():
+        metrics_by_id[key]["active_cores"] = active
+        metrics_by_id[key]["idle_cores"] = idle
+
+    # hwmon fallback for values the exporter did not provide (#19).
+    _apply_npu_hwmon_fallback(collector, node, metrics_by_id)
+
+    results = list(metrics_by_id.values())
+    if npu_id:
+        results = [m for m in results if m["npu_id"] == npu_id]
+    return results
+
+
+_NPU_CORE_LABELS = ("core", "pe", "core_id")
 
 
 async def get_npu_core_status(node: Optional[str] = None, npu_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    Fetch Furiosa NPU core-level status.
+    Fetch Furiosa NPU per-core/PE status from `furiosa_npu_core_utilization`.
 
-    NOTE: This is Furiosa-specific functionality for multi-core NPUs.
-    Returns detailed information about individual NPU cores including:
-    - Core state (idle/running/error)
-    - Core utilization
-    - Core temperature
-    - Process information running on each core
+    caveat: the exporter provides per-core utilization only. Temperature is exposed
+    per-chip (peak/ambient), not per-PE; power is chip-total (no per-PE power). So
+    per-core temperature is None and power is reported as whole-device elsewhere.
 
     Args:
         node: Optional node hostname filter
         npu_id: Optional NPU device ID filter
 
     Returns:
-        List of NPU core status dictionaries
+        List of per-core status dictionaries
     """
-    # Placeholder: Return empty list
-    # Real implementation would query Furiosa-specific metrics:
-    #   - furiosa_npu_core_state{npu_id="...", core_id="..."}
-    #   - furiosa_npu_core_utilization_percent{...}
-    #   - furiosa_npu_core_temperature_celsius{...}
-    return []
+    from app.services.collectors.furiosa import FuriosaNPUCollector
+
+    collector = FuriosaNPUCollector(prometheus_client)
+    cores: List[Dict[str, Any]] = []
+    for series in collector.core_utilization(node):
+        labels = series.get("metric", {})
+        key = _npu_identity_key(labels)
+        if npu_id and key != npu_id:
+            continue
+        util = _safe_float(series.get("value", [0, None])[1])
+        cores.append({
+            "npu_id": key,
+            "core_id": _npu_pick_label(labels, _NPU_CORE_LABELS),
+            "utilization_percent": util,
+            "state": "running" if (util or 0) > 0 else "idle",
+            "temperature_celsius": None,        # per-PE temp not exposed by exporter (caveat)
+            "power_source": "chip_total_only",  # no per-PE power (caveat)
+        })
+    return cores
+
+
+async def get_npu_summary(node: Optional[str] = None, vendor: Optional[str] = None) -> Dict[str, Any]:
+    """Aggregate per-NPU metrics into a summary (defines the previously-missing helper).
+
+    Includes caller-compat keys (total_power_watts, total_npus, avg_power_watts) used by
+    get_unified_power / get_accelerator_power.
+    """
+    metrics = await get_npu_metrics(node=node, vendor=vendor)
+    total = len(metrics)
+    utils = [m["npu_utilization_percent"] for m in metrics if m.get("npu_utilization_percent") is not None]
+    temps = [m["npu_temperature_celsius"] for m in metrics if m.get("npu_temperature_celsius") is not None]
+    powers = [m["power_usage_watts"] for m in metrics if m.get("power_usage_watts") is not None]
+    active = sum(1 for m in metrics if (m.get("npu_utilization_percent") or 0) > 0)
+    total_power = sum(powers) if powers else 0.0
+    return {
+        "total_npus": total,
+        "active_npus": active,
+        "idle_npus": total - active,
+        "error_npus": sum(1 for m in metrics if not m.get("alive", True)),
+        "furiosa_count": sum(1 for m in metrics if m.get("vendor") == "furiosa"),
+        "rebellions_count": 0,
+        "avg_npu_utilization_percent": round(sum(utils) / len(utils), 2) if utils else 0.0,
+        "max_npu_utilization_percent": round(max(utils), 2) if utils else 0.0,
+        "avg_temperature_celsius": round(sum(temps) / len(temps), 2) if temps else 0.0,
+        "max_temperature_celsius": round(max(temps), 2) if temps else 0.0,
+        "total_power_watts": round(total_power, 2),
+        "avg_power_watts": round(total_power / len(powers), 2) if powers else 0.0,
+        "max_power_watts": round(max(powers), 2) if powers else 0.0,
+    }
 
 
 # ============================================================================
@@ -3761,14 +3946,16 @@ async def get_power_efficiency(cluster: Optional[str] = None) -> Dict[str, Any]:
     from Prometheus. This implementation provides estimated values.
     """
     from datetime import datetime
+    from app.config import settings
 
     # Get IT power (compute equipment)
     unified_power = await get_unified_power(cluster)
     it_power = unified_power['data']['total_power_watts']
 
-    # Estimate cooling and overhead power (typically 30-50% of IT power)
-    # This should be replaced with actual facility power metrics
-    cooling_factor = 0.35  # 35% overhead estimate
+    # Estimate cooling and overhead power as a fraction of IT power.
+    # Facility-level power is external (BMS/PDU); see open_issues D-4. The factor
+    # is a configurable setting until real facility metrics are integrated.
+    cooling_factor = settings.PUE_COOLING_FACTOR
     cooling_power = it_power * cooling_factor
     total_facility_power = it_power + cooling_power
 
@@ -3791,6 +3978,7 @@ async def get_power_efficiency(cluster: Optional[str] = None) -> Dict[str, Any]:
 
     return {
         'timestamp': datetime.utcnow(),
+        'warnings': ['FACILITY_DATA_EXTERNAL'],
         'data': {
             'pue': round(pue, 2),
             'it_power_watts': it_power,

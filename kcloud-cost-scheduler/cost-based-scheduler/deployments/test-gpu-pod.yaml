@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: llm-training-gpt3-small
+  namespace: kcp-workload
+  labels:
+    cost-based-scheduling: "true"
+spec:
+  schedulerName: cost-based-scheduler
+  containers:
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+        nvidia.com/gpu: "1"

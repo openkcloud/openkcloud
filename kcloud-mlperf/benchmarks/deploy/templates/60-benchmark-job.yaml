@@ -1,0 +1,94 @@
+# consumes: KCLOUD_NAMESPACE RELEASE SA_NAME BENCH_IMAGE MODEL_ID N_SAMPLES MAX_TOKENS
+#           DEVICE_MODE DEVICE_RESOURCE DEVICE_RESOURCE_COUNT
+#           NODE_SELECTOR_KEY NODE_SELECTOR_VALUE
+#           HF_SECRET_NAME BENCH_SCRIPTS_CM RESULTS_PVC_NAME MANAGED_BY PART_OF
+#
+# OPTIONAL BLOCK STRATEGY (device request + nodeSelector):
+#   The installer render() strips lines between KCLOUD_BEGIN/END_DEVICE_REQUEST
+#   sentinels (sed range delete) BEFORE envsubst when DEVICE_RESOURCE is empty,
+#   and strips KCLOUD_BEGIN/END_NODESELECTOR sentinels when NODE_SELECTOR_KEY is
+#   empty. When non-empty, sentinel comment lines are valid YAML comments.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${RELEASE}-benchmark
+  namespace: ${KCLOUD_NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: ${MANAGED_BY}
+    app.kubernetes.io/part-of: ${PART_OF}
+    app.kubernetes.io/name: ${RELEASE}
+    app.kubernetes.io/component: benchmark
+    device-mode: ${DEVICE_MODE}
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: ${MANAGED_BY}
+        app.kubernetes.io/part-of: ${PART_OF}
+        app.kubernetes.io/name: ${RELEASE}
+        app.kubernetes.io/component: benchmark
+        device-mode: ${DEVICE_MODE}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: ${SA_NAME}
+# KCLOUD_BEGIN_NODESELECTOR
+      nodeSelector:
+        ${NODE_SELECTOR_KEY}: ${NODE_SELECTOR_VALUE}
+# KCLOUD_END_NODESELECTOR
+      containers:
+        - name: benchmark
+          image: ${BENCH_IMAGE}
+          command:
+            - bash
+            - -c
+            - |
+              set -euo pipefail
+              pip install -q datasets 2>&1 | tail -2
+              python3 /scripts/mlperf_cnndm100_fp8.py \
+                --model ${MODEL_ID} \
+                --output /mnt/datasets/results/${RELEASE}/result.json \
+                --n-samples ${N_SAMPLES} \
+                --max-tokens ${MAX_TOKENS}
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ${HF_SECRET_NAME}
+                  key: token
+                  optional: true
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ${HF_SECRET_NAME}
+                  key: token
+                  optional: true
+            - name: LOG_PATH
+              value: /mnt/datasets/logs/benchmarks/${RELEASE}.log
+          resources:
+            requests:
+              cpu: "8"
+              memory: "32Gi"
+# KCLOUD_BEGIN_DEVICE_REQUEST
+              ${DEVICE_RESOURCE}: "${DEVICE_RESOURCE_COUNT}"
+# KCLOUD_END_DEVICE_REQUEST
+            limits:
+              cpu: "16"
+              memory: "64Gi"
+# KCLOUD_BEGIN_DEVICE_REQUEST
+              ${DEVICE_RESOURCE}: "${DEVICE_RESOURCE_COUNT}"
+# KCLOUD_END_DEVICE_REQUEST
+          volumeMounts:
+            - mountPath: /mnt/datasets
+              name: results
+            - mountPath: /scripts
+              name: bench-script
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: ${RESULTS_PVC_NAME}
+        - name: bench-script
+          configMap:
+            name: ${BENCH_SCRIPTS_CM}
+            defaultMode: 0755

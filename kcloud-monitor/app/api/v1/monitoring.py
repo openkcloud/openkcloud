@@ -8,7 +8,7 @@ This module provides endpoints for:
 - Power efficiency metrics (PUE)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import Optional
 from datetime import datetime
 import logging
@@ -375,6 +375,7 @@ from app.services.stream import power_events_generator
            summary="Power events SSE stream",
            description="Server-Sent Events stream for power-related events.")
 async def power_events_stream(
+    request: Request,
     cluster: Optional[str] = Query(None, description="Filter by cluster name"),
     resource_type: Optional[str] = Query(None, description="Filter by resource type"),
     threshold_watts: Optional[float] = Query(None, description="Power threshold for alerts (watts)")
@@ -407,10 +408,12 @@ async def power_events_stream(
     - `power_spike`: Significant power change detected (>10%)
     - `error`: Error occurred during monitoring
     """
-    logger.info(f"SSE connection established: power events (cluster={cluster}, threshold={threshold_watts}W)")
+    # Resume after the client's Last-Event-ID on reconnect (design_contracts §7).
+    last_event_id = request.headers.get("Last-Event-ID")
+    logger.info(f"SSE connection established: power events (cluster={cluster}, threshold={threshold_watts}W, last_event_id={last_event_id})")
 
     return StreamingResponse(
-        power_events_generator(cluster, resource_type, threshold_watts),
+        power_events_generator(cluster, resource_type, threshold_watts, last_event_id=last_event_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

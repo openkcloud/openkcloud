@@ -287,10 +287,33 @@ async def metrics_stream_handler(
 # SSE (Server-Sent Events) Handlers
 # ============================================================================
 
+SSE_HEARTBEAT_SECONDS = 15  # design_contracts §7: heartbeat every 15s
+
+
+def _sse_heartbeat() -> str:
+    """SSE-formatted heartbeat event (design_contracts §7)."""
+    return f"event: heartbeat\ndata: {json.dumps({'timestamp': datetime.utcnow().isoformat()})}\n\n"
+
+
+def _sse_event(event_type: str, data: dict, event_id: int) -> str:
+    """SSE data event carrying an id for Last-Event-ID resumption (design_contracts §7)."""
+    return f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
+async def _fetch_power(cluster: Optional[str], resource_type: Optional[str]) -> dict:
+    """Fetch current power data for the SSE stream by resource type."""
+    if resource_type == 'accelerators':
+        return await crud.get_accelerator_power(cluster)
+    if resource_type == 'infrastructure':
+        return await crud.get_infrastructure_power(cluster)
+    return await crud.get_unified_power(cluster)
+
+
 async def power_events_generator(
     cluster: Optional[str] = None,
     resource_type: Optional[str] = None,
-    threshold_watts: Optional[float] = None
+    threshold_watts: Optional[float] = None,
+    last_event_id: Optional[str] = None
 ):
     """
     Generate power events for SSE stream.
@@ -299,6 +322,7 @@ async def power_events_generator(
         cluster: Cluster filter
         resource_type: Resource type filter
         threshold_watts: Power threshold for event generation
+        last_event_id: Client's Last-Event-ID header on reconnect (design_contracts §7)
 
     Yields:
         SSE formatted events
@@ -307,15 +331,36 @@ async def power_events_generator(
 
     previous_power = 0.0
 
+    # Event id sequence; on reconnect continue after the client's Last-Event-ID.
+    try:
+        event_id = int(last_event_id) if last_event_id else 0
+    except (TypeError, ValueError):
+        event_id = 0
+
+    if last_event_id:
+        # This is a live stream with no event store to replay missed events, so
+        # fall back to a current snapshot on reconnect (design_contracts §7).
+        try:
+            data = await _fetch_power(cluster, resource_type)
+            previous_power = data['data']['total_power_watts']
+            event_id += 1
+            yield _sse_event('snapshot', {
+                'timestamp': data['timestamp'].isoformat(),
+                'cluster': cluster,
+                'resource_type': resource_type,
+                'power_watts': previous_power
+            }, event_id)
+        except Exception as e:
+            logger.error(f"SSE snapshot fallback failed: {e}")
+            yield _sse_heartbeat()
+    else:
+        # Fresh connection: initial heartbeat within the first-event latency target (§2).
+        yield _sse_heartbeat()
+
     while True:
         try:
             # Get current power data
-            if resource_type == 'accelerators':
-                data = await crud.get_accelerator_power(cluster)
-            elif resource_type == 'infrastructure':
-                data = await crud.get_infrastructure_power(cluster)
-            else:
-                data = await crud.get_unified_power(cluster)
+            data = await _fetch_power(cluster, resource_type)
 
             current_power = data['data']['total_power_watts']
 
@@ -331,7 +376,8 @@ async def power_events_generator(
             if threshold_watts and current_power > threshold_watts:
                 event_data['event_type'] = 'threshold_exceeded'
                 event_data['threshold_watts'] = threshold_watts
-                yield f"event: threshold_exceeded\ndata: {json.dumps(event_data)}\n\n"
+                event_id += 1
+                yield _sse_event('threshold_exceeded', event_data, event_id)
 
             # Generate event for significant power change (>10%)
             if previous_power > 0:
@@ -340,12 +386,15 @@ async def power_events_generator(
                     event_data['event_type'] = 'power_spike'
                     event_data['change_percent'] = round(change_percent, 2)
                     event_data['previous_power_watts'] = previous_power
-                    yield f"event: power_spike\ndata: {json.dumps(event_data)}\n\n"
+                    event_id += 1
+                    yield _sse_event('power_spike', event_data, event_id)
 
             previous_power = current_power
 
-            # Periodic update (every 30 seconds)
-            await asyncio.sleep(30)
+            # Heartbeat every 15s while waiting for the next 30s data poll (§7).
+            for _ in range(2):
+                await asyncio.sleep(SSE_HEARTBEAT_SECONDS)
+                yield _sse_heartbeat()
 
         except Exception as e:
             logger.error(f"Error generating power events: {e}")
@@ -354,5 +403,7 @@ async def power_events_generator(
                 'timestamp': datetime.utcnow().isoformat(),
                 'error': str(e)
             }
-            yield f"event: error\ndata: {json.dumps(error_event)}\n\n"
-            await asyncio.sleep(30)
+            event_id += 1
+            yield _sse_event('error', error_event, event_id)
+            await asyncio.sleep(SSE_HEARTBEAT_SECONDS)
+            yield _sse_heartbeat()

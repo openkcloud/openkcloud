@@ -10,12 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+
+      # internal/crdapply/crd/*.yaml is a generated (gitignored) embed bundle.
+      # Populate it from the committed config/crd/bases so `//go:embed crd/*.yaml`
+      # has matching files; otherwise golangci-lint typecheck fails on a fresh clone.
+      - name: Generate CRD embed bundle
+        run: make embed-crds
 
       - name: Run linter
         uses: golangci/golangci-lint-action@v8

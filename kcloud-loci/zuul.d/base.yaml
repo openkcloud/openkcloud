@@ -1,0 +1,5 @@
+- job:
+    name: loci-buildset-registry
+    parent: opendev-buildset-registry
+    timeout: 10800
+    voting: false

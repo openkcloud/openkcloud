@@ -1,0 +1,12 @@
+apiVersion: npu.ai/v1alpha1
+kind: DriverInstallPolicy
+metadata: { name: furiosa-warboy }
+spec:
+  vendor: "furiosa"
+  model:  "warboy"
+  driver:
+    version: "1.7.8"
+    image: "129.254.202.88:5100/furiosa-driver-installer:1.7.8"
+  kernelAllowlist: ["5.15.*","6.8.*"]
+  containerdMinVersion: "1.7.0"
+  rebootStrategy: "IfNeeded"

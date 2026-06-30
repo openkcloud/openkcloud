@@ -25,4 +25,4 @@ resources:
 - npuclusterpolicy_admin_role.yaml
 - npuclusterpolicy_editor_role.yaml
 - npuclusterpolicy_viewer_role.yaml
-
+- detector_rbac.yaml

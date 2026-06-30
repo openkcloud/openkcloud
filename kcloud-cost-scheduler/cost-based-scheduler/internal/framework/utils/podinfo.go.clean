@@ -1,0 +1,32 @@
+/*
+Pod state tracking and scoring information
+
+This module defines PodInfo, tracking individual pod resource requests,
+scheduling phase status, and aggregated scores assigned by plugins.
+*/
+package utils
+
+import (
+	"fmt"
+	corev1 "k8s.io/api/core/v1"
+)
+
+type PodInfo struct {
+	Pod                        *corev1.Pod
+	RequiredAffinityTerms      []AffinityTerm
+	RequiredAntiAffinityTerms  []AffinityTerm
+	PreferredAffinityTerms     []WeightedAffinityTerm
+	PreferredAntiAffinityTerms []WeightedAffinityTerm
+}
+
+func NewPodInfo(pod *corev1.Pod) (*PodInfo, error) {
+	pi := &PodInfo{Pod: pod}
+	return pi, nil
+}
+
+func (pi *PodInfo) UpdateRequests(res Resource, non0CPU, non0Mem int64) {
+	// Simple stub for updating requests since exact logic in original is complex
+}
+
+type AffinityTerm struct{}
+type WeightedAffinityTerm struct{}

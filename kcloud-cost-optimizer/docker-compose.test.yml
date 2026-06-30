@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  # Policy Engine Application for Testing
+  policy-engine-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: policy-engine-test
+    ports:
+      - "8006:8005"
+    environment:
+      - CONFIG_FILE=/app/config/config.yaml
+      - LOG_LEVEL=debug
+      - SERVER_DEBUG=true
+      - STORAGE_TYPE=memory
+      - TEST_MODE=true
+    volumes:
+      - .:/app
+      - /app/vendor
+    depends_on:
+      - postgres-test
+      - redis-test
+    networks:
+      - test-network
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database for Testing
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: policy-postgres-test
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=policy_test_db
+      - POSTGRES_USER=policy_test_user
+      - POSTGRES_PASSWORD=policy_test_password
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - test-network
+    restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U policy_test_user -d policy_test_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Redis Cache for Testing
+  redis-test:
+    image: redis:7-alpine
+    container_name: policy-redis-test
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes --requirepass redis_test_password
+    volumes:
+      - redis-test-data:/data
+    networks:
+      - test-network
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Test Runner
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    container_name: policy-test-runner
+    environment:
+      - CONFIG_FILE=/app/config/config.yaml
+      - LOG_LEVEL=debug
+      - SERVER_DEBUG=true
+      - STORAGE_TYPE=memory
+      - TEST_MODE=true
+    volumes:
+      - .:/app
+      - /app/vendor
+    depends_on:
+      - postgres-test
+      - redis-test
+    networks:
+      - test-network
+    restart: "no"
+    command: ["go", "test", "-v", "-race", "-coverprofile=coverage.out", "./..."]
+    working_dir: /app
+
+  # Load Testing with Artillery
+  artillery:
+    image: artilleryio/artillery:latest
+    container_name: policy-artillery-test
+    volumes:
+      - ./tests/load/artillery.yml:/artillery.yml:ro
+      - ./tests/load:/tests:ro
+    depends_on:
+      - policy-engine-test
+    networks:
+      - test-network
+    restart: "no"
+    command: ["artillery", "run", "--output", "/tests/report.json", "/artillery.yml"]
+
+  # API Testing with Newman
+  newman:
+    image: postman/newman:latest
+    container_name: policy-newman-test
+    volumes:
+      - ./tests/api:/tests:ro
+    depends_on:
+      - policy-engine-test
+    networks:
+      - test-network
+    restart: "no"
+    command: ["newman", "run", "/tests/policy-engine.postman_collection.json", "--environment", "/tests/policy-engine.postman_environment.json", "--reporters", "cli,json", "--reporter-json-export", "/tests/newman-report.json"]
+
+volumes:
+  postgres-test-data:
+    driver: local
+  redis-test-data:
+    driver: local
+
+networks:
+  test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+
