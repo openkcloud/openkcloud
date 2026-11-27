@@ -1,0 +1,45 @@
+[build-system]
+requires = ["pbr>=6.1.1"]
+build-backend = "pbr.build"
+
+[project]
+name = "magnum-capi-helm"
+description = "OpenStack Magnum driver using helm to create K8s clusters with Cluster API"
+authors = [
+    {name = "OpenStack", email = "openstack-discuss@lists.openstack.org"},
+]
+readme = {file = "README.rst", content-type = "text/x-rst"}
+license = "Apache-2.0"
+dynamic = ["version", "dependencies"]
+requires-python = ">=3.11"
+classifiers = [
+  "Environment :: OpenStack",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: System Administrators",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[project.urls]
+Homepage = "https://docs.openstack.org/magnum-capi-helm/latest/"
+Repository = "https://opendev.org/openstack/magnum-capi-helm"
+
+[tool.setuptools]
+packages = [
+    "magnum_capi_helm",
+    "magnum_capi_helm.common"
+]
+
+[project.entry-points."magnum.drivers"]
+k8s_capi_helm_v1 = "magnum_capi_helm.driver:Driver"
+
+[project.entry-points."oslo.config.opts"]
+capi_helm = "magnum_capi_helm.conf:list_capi_opts"
+capi_helm_cluster_labels = "magnum_capi_helm.conf:list_capi_cluster_label_opts"

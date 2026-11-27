@@ -1,0 +1,16 @@
+- hosts: all
+  tasks:
+    - name: Set up ipv4 iptables rules for Kubernetes
+      become: yes
+      iptables:
+        state: present
+        action: insert
+        chain: INPUT
+        ip_version: ipv4
+        source: "{{ item }}"
+        jump: ACCEPT
+      with_items:
+        # Management cluster pod CIDR (flannel default / K8S_POD_NETWORK_CIDR)
+        - "10.244.0.0/16"
+        # Management cluster service CIDR (kubeadm default / K8S_SERVICE_NETWORK_CIDR)
+        - "10.96.0.0/12"

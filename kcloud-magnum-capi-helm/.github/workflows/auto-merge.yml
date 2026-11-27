@@ -1,0 +1,77 @@
+# Merge a pull request when a maintainer comments '/approve'.
+name: "Auto-merge in condition"
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  automerge:
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/approve') }}
+
+    runs-on: ubuntu-latest
+    # Labelling a pull request goes through the issues API, so read access is
+    # not enough -- the first run failed with "Resource not accessible by
+    # integration" on action-add-labels. The sibling repositories declare no
+    # permissions block at all and inherit the repository default; keeping it
+    # explicit here means it has to name everything the job actually uses.
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      # Anyone can comment, so check that this one may actually merge. Repo
+      # permission is what merging requires, so that is what is checked -- not
+      # membership of a maintainer team, which does not exist for this repo.
+      - name: Verify if commenter has repo permission
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          USER="${{ github.event.comment.user.login }}"
+          PERMISSION=$(gh api \
+            "repos/${{ github.repository }}/collaborators/${USER}/permission" \
+            --jq '.permission' 2>/dev/null || echo "none")
+
+          echo "user=${USER} permission=${PERMISSION}"
+
+          case "$PERMISSION" in
+            write|maintain|admin) ;;
+            *) echo "::error::${USER} does not have permission to merge (${PERMISSION})"
+               exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+
+      - uses: actions-ecosystem/action-add-labels@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          labels: |
+            approved
+
+      # The merge must be made by a PAT, not GITHUB_TOKEN. A push made with
+      # GITHUB_TOKEN does not trigger workflows, so merging with it would land
+      # the commit on kcloud without ever rebuilding the image -- the branch and
+      # the published image would silently drift apart.
+      - name: automerge-lgtm-approved
+        uses: "pascalgn/automerge-action@v0.16.4"
+        with:
+          args: "--trace"
+        env:
+          GITHUB_TOKEN: "${{ secrets.CR_PAT_RWD }}"
+          MERGE_LABELS: "approved,!wip,!hold"
+          # Without this the action exits 0 even when the merge was rejected, so
+          # the job goes green while the PR stays open and nothing says why.
+          # Note CR_PAT_RWD cannot merge a PR that touches .github/workflows/
+          # unless it carries the 'workflow' scope.
+          MERGE_ERROR_FAIL: "true"
+          MERGE_REMOVE_LABELS: ""
+          MERGE_METHOD: "merge"
+          MERGE_COMMIT_MESSAGE: "pull-request-title"
+          MERGE_FORKS: "true"
+          # kcloud is protected and requires build-magnum-and-push to pass, so
+          # the merge has to wait for that check rather than fail outright.
+          MERGE_RETRIES: "60"
+          MERGE_RETRY_SLEEP: "20000"
+          UPDATE_LABELS: "automerge"
+          UPDATE_METHOD: "merge"
