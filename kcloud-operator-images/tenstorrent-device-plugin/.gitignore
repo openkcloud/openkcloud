@@ -1,0 +1,26 @@
+# ============================================================
+# .gitignore: Tenstorrent device plugin 저장소 제외 파일 목록
+# 생성일: 2026-04-22 | 수정일: 2026-04-22
+# ============================================================
+
+# 빌드 산출물
+bin/
+*.log
+
+# OMC / Claude Code 내부 상태 (절대 커밋 금지)
+.omc/
+
+# Go 테스트 캐시
+*.test
+coverage.out
+*.coverprofile
+
+# IDE / 에디터
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

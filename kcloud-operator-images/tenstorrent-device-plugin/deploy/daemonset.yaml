@@ -1,0 +1,84 @@
+# ============================================================
+# daemonset.yaml: Tenstorrent Blackhole K8s Device Plugin DaemonSet
+# 상세: kube-system 에서 tenstorrent/blackhole=true 노드에만 배포해 /dev/tenstorrent 를
+#       kubelet device-plugin API 로 노출한다. 최소 권한(capDrop:ALL)+readOnlyRootFilesystem.
+# 생성일: 2026-04-22 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tt-device-plugin
+  namespace: kube-system
+  labels:
+    app: tt-device-plugin
+    vendor: tenstorrent
+spec:
+  selector:
+    matchLabels:
+      app: tt-device-plugin
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: tt-device-plugin
+        vendor: tenstorrent
+    spec:
+      priorityClassName: system-node-critical
+      # device plugin 은 kubelet 소켓과 직접 통신해 hostNetwork 가 필요하고, calico CNI
+      # 권한 오류도 피한다.
+      hostNetwork: true
+      nodeSelector:
+        tenstorrent/blackhole: "true"
+      tolerations:
+        # 모든 taint 허용 — device plugin 은 모든 노드 상태에서 실행되어야 함
+        - operator: Exists
+      containers:
+        - name: tt-device-plugin
+          image: ghcr.io/openkcloud/kcloud-tt-device-plugin:v0.1.0
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            # kubelet device-plugin 소켓 디렉토리 (필수, rw)
+            - name: device-plugin-sock
+              mountPath: /var/lib/kubelet/device-plugins
+            # Tenstorrent 디바이스 노드 (필수, rw — device file 접근)
+            - name: tenstorrent-dev
+              mountPath: /dev/tenstorrent
+            # sysfs — PCIe 정보 조회 (읽기 전용)
+            - name: sysfs
+              mountPath: /sys
+              readOnly: true
+            # 1G HugePages (선택 — Blackhole 고성능 DMA 경로)
+            - name: hugepages-1g
+              mountPath: /dev/hugepages-1G
+              readOnly: true
+      volumes:
+        - name: device-plugin-sock
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory
+        - name: tenstorrent-dev
+          hostPath:
+            path: /dev/tenstorrent
+            type: DirectoryOrCreate
+        - name: sysfs
+          hostPath:
+            path: /sys
+            type: Directory
+        - name: hugepages-1g
+          hostPath:
+            path: /dev/hugepages-1G
+            type: DirectoryOrCreate

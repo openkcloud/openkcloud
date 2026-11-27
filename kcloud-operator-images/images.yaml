@@ -1,0 +1,60 @@
+# ============================================================
+# images.yaml: GHCR 로 공개 발행하는 이미지의 빌드 컨텍스트 매니페스트
+# 상세: .github/workflows/publish-image.yml 이 이 파일을 읽어 디렉터리·Dockerfile·기본
+#       build-arg 를 정한다. 키가 곧 이미지 이름이고, build_args 의 ${TAG} 는 발행 태그로 치환된다.
+# 생성일: 2026-09-09 | 수정일: 2026-10-12
+# ============================================================
+images:
+  kcloud-host-exec:
+    dir: kcloud-host-exec
+    # 태그 규약: vX.Y.Z
+  kcloud-node-manager:
+    dir: node-device-detector
+    # 태그 규약: X.Y.Z (v 접두사 없음)
+  nvidia-driver-ds:
+    # vN(DKMS) 이미지는 NVIDIA 패키지를 담지 않는다(PREBAKE_DRIVER 기본 false) — 공개 빌드 가능.
+    # 커널별 사전 컴파일 이미지는 NVIDIA .deb 를 동봉하므로 내부에서만 굽는다(release-bundle 제외).
+    dir: driver-installer/nvidia
+    # 실사용 Dockerfile 은 v17 이다.
+    dockerfile: Dockerfile.v17
+    # 태그 규약: vN
+    # 커널별 사전 컴파일: make build-precompiled KERNEL=<커널> 로 <driverVersion>-k<커널>-v1
+    #   (예: 580.126.09-k5.15.0-171-generic-v1). Ubuntu linux-modules-nvidia 를 서명 .ko 로 동봉.
+  furiosa-driver-ds:
+    dir: driver-installer/furiosa
+    # 이미지가 자기 태그를 알아야 설치 마커를 판정할 수 있다.
+    build_args:
+      BUILD_VARIANT: "${TAG}"
+    # 태그 규약: vN
+    # build_args 에 PREBUILD_KERNEL=<kernel> PREBUILD_VARIANT=<rngd|warboy>
+    #   PREBUILD_PKG_VERSION=<ver> 를 주면 그 커널용 드라이버 모듈을 빌드 시 컴파일해 함께 굽는
+    #   사전 컴파일 이미지가 된다(태그 규약 <pkgVersion>-<variant>-k<kernel>-vN,
+    #   예: 2026.3.1-rngd-k6.8.0-138-generic-v1). 노드 커널이 일치하면 DKMS 빌드 없이 설치.
+    #   RNGD 는 공개 저장소라 자격 증명 불필요. Warboy 는 사설 저장소(인증 필요)라 이 경로 미지원.
+  tenstorrent-driver-ds:
+    dir: driver-installer/tenstorrent
+    # 태그의 kmd 버전과 이 두 값을 함께 올린다(이미지와 커널 모듈 버전이 1:1).
+    build_args:
+      TT_KMD_VERSION: "2.11.0"
+      TT_KMD_GIT_TAG: "ttkmd-2.11.0"
+    # 태그 규약: <kmd>-vN (예: 2.8.0-v1)
+    # build_args 에 PREBUILD_KERNEL=<kernel> 을 주면 그 커널용 prebuilt 모듈을 함께 굽는
+    #   사전 컴파일 이미지가 된다(태그 규약 <kmd>-k<kernel>-vN,
+    #   예: 2.11.0-k5.15.0-190-generic-v1). 노드 커널이 일치하면 DKMS 빌드 없이 설치.
+  kcloud-tt-device-plugin:
+    dir: tenstorrent-device-plugin
+    # 태그 규약: vX.Y.Z
+  furiosa-exporter:
+    dir: furiosa-exporter
+    # 빌드 단계가 벤더 apt 저장소에 접근하므로 러너에 인터넷이 필요하다.
+    # 태그 규약: X.Y.Z
+  generic-device-plugin:
+    dir: generic-device-plugin
+    # descriptor auto-apply 가 만드는 device-plugin DaemonSet 이미지
+    #   (deploy/helm/values.yaml generatedBackend.devicePlugin 이 참조).
+    # 태그 규약: vN (values.yaml 기본 v3 — sharing replicas 를 읽으려면 v3 이상)
+  generic-dra-driver:
+    dir: generic-dra-driver
+    # descriptor auto-apply 가 만드는 DRA driver DaemonSet 이미지
+    #   (deploy/helm/values.yaml generatedBackend.draDriver 이 참조).
+    # 태그 규약: vN (values.yaml 기본 v2 — sharing 과 무관)

@@ -1,0 +1,216 @@
+# ============================================================
+# Dockerfile.v17: NVIDIA driver v17 설치기 이미지 — 기본은 호스트 설치 위임
+# 상세: 기본 INSTALL_METHOD=hostnamespace 라 entrypoint-v17.sh 가 v16 entrypoint.sh 에 위임해 nsenter 로 호스트에 설치한다.
+#       containerized(컨테이너 안에서 nvidia.ko 를 빌드해 sideload)는 휴면이며, 그 DKMS 빌드 도구는 BUILD_TOOLS=true 빌드에만 든다.
+#       기본 빌드는 NVIDIA 패키지(PREBAKE_DRIVER)와 build-essential·dkms(BUILD_TOOLS)를 담지 않는다.
+#       PPA·software-properties-common 은 BUILD_TOOLS=true 이거나 PREBUILD_KERNEL 빌드일 때만 담는다.
+# 생성일: 2026-04-27 | 수정일: 2026-10-27
+# ============================================================
+FROM ubuntu:22.04
+
+# 노드 kernel 버전 — 빌드 시점에 prebake 하면 런타임 apt 미사용 가능
+ARG KERNEL_VERSION=""
+# nvidia driver 메이저 — image 1개당 1개 메이저 권장 (DIP 가 image tag 로 분리)
+ARG NVIDIA_DRIVER_MAJOR="590"
+# nvidia driver patch 까지 명시 — image label 검증 (verify-image.sh)
+#   사용: docker build --build-arg NVIDIA_DRIVER_VERSION=590.48.01 ...
+ARG NVIDIA_DRIVER_VERSION="590.48.01"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ----------------------------------------------------------- #
+# 활성 경로를 v16 nsenter host-install 로 전환한다. 기본 INSTALL_METHOD=hostnamespace 라
+# entrypoint-v17.sh 가 즉시 entrypoint.sh(v16)로 위임해 driver userspace 까지 host 에
+# 설치하고 /dev 노드를 보장한다. containerized 경로는 이미지에 dormant 로 남아
+# INSTALL_METHOD=containerized 로 재활성할 수 있다. 전환 근거는
+# driver-installer/nvidia/ADR-001-host-install-switch.md 참조.
+ENV INSTALL_METHOD=hostnamespace
+
+# ----------------------------------------------------------- #
+# 공통 도구 + (압축된 .ko 처리용) zstd / xz
+# ----------------------------------------------------------- #
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates curl wget gnupg \
+      iproute2 util-linux procps kmod pciutils jq \
+      gawk \
+      zstd xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------- #
+# 컴파일 도구 + DKMS 환경 + graphics-drivers PPA (선택, 기본 끔. PREBUILD_KERNEL 빌드는 PPA 를 따로 넣는다)
+#   - 컴파일 도구는 휴면 containerized 경로(entrypoint-v17.sh)만 컨테이너 안에서 쓴다. 활성
+#     경로는 nsenter 로 호스트 도구를 쓰므로 기본 빌드에서는 넣지 않는다. 되살리려면
+#     BUILD_TOOLS=true. PREBAKE_DRIVER=true 도 PPA 가 필요하면 BUILD_TOOLS=true 와 함께 준다.
+# ----------------------------------------------------------- #
+ARG BUILD_TOOLS=false
+RUN if [ "${BUILD_TOOLS}" = "true" ]; then \
+      apt-get update && \
+      apt-get install -y --no-install-recommends \
+        software-properties-common \
+        build-essential gcc make \
+        dkms && \
+      add-apt-repository -y ppa:graphics-drivers/ppa && \
+      apt-get update && \
+      rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "[build] BUILD_TOOLS=false — 컴파일 도구와 PPA 를 이미지에 넣지 않는다"; \
+    fi
+
+# ----------------------------------------------------------- #
+# v17.1: nvidia-container-toolkit repo GPG key 영구 import
+#   - apt-key 는 deprecated → keyrings.gpg + signed-by 패턴 (Ubuntu 22.04+ 권장)
+#   - 런타임 entrypoint 가 apt-get update 시 GPG verify fail 안 하도록 image 빌드 시점에 박아둠.
+#   - keyring 파일 위치: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+# ----------------------------------------------------------- #
+RUN curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+      | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg && \
+    chmod 0644 /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg && \
+    curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+      | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+      > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+# ----------------------------------------------------------- #
+# kernel headers prebake (선택)
+#   - KERNEL_VERSION ARG 지정 시 이미지에 해당 노드 헤더를 미리 포함.
+#   - 미지정 시 entrypoint 가 런타임에 install (container apt 만 사용).
+# nvidia gpu operator 동등 패턴.
+# ----------------------------------------------------------- #
+RUN if [ -n "${KERNEL_VERSION}" ]; then \
+      apt-get update && \
+      apt-get install -y --no-install-recommends "linux-headers-${KERNEL_VERSION}" && \
+      rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "[build] KERNEL_VERSION 미지정 — entrypoint 가 런타임 install 시도"; \
+    fi
+
+# ----------------------------------------------------------- #
+# nvidia driver dkms 패키지 prebake (선택, 기본 끔)
+#   - PREBAKE_DRIVER=true 일 때만 이미지에 드라이버 패키지를 넣는다. 활성 경로(hostnamespace)는
+#     호스트 apt 에서 설치하므로 이 패키지를 쓰지 않고, 넣으면 NVIDIA 바이너리 재배포가 된다.
+#   - containerized 경로는 prebake 가 없으면 런타임에 설치한다(entrypoint-v17.sh).
+# ----------------------------------------------------------- #
+ARG PREBAKE_DRIVER=false
+RUN if [ "${PREBAKE_DRIVER}" = "true" ]; then \
+      apt-get update && \
+      ( apt-get install -y --no-install-recommends \
+          "nvidia-driver-${NVIDIA_DRIVER_MAJOR}-server-open" \
+          "nvidia-dkms-${NVIDIA_DRIVER_MAJOR}-server-open" \
+        || apt-get install -y --no-install-recommends \
+          "nvidia-driver-${NVIDIA_DRIVER_MAJOR}" \
+          "nvidia-dkms-${NVIDIA_DRIVER_MAJOR}" \
+        || echo "[build] nvidia-driver-${NVIDIA_DRIVER_MAJOR} prebake 실패 — entrypoint 가 런타임 재시도" \
+      ) && rm -rf /var/lib/apt/lists/*; \
+    else \
+      echo "[build] PREBAKE_DRIVER=false — 드라이버 패키지를 이미지에 넣지 않는다"; \
+    fi
+
+# ----------------------------------------------------------- #
+# 커널별 사전 컴파일(prebuilt) 옵션: PREBUILD_KERNEL 지정 시 LRM(linux-modules-nvidia-<major>-
+# <kernel>, 메타+objects+signatures)을 받아 objects 의 bits/BUILD 로 서명 .ko 를 링크해
+# /opt/nvidia-deb/<kernel>/ 에 .deb 3종과 함께 굽는다(태그 <driverVersion>-k<kernel>-vN). 비어
+# 있으면 사전 컴파일 없는 기본 이미지로 동작한다. 이 이미지는 기본 INSTALL_METHOD=hostnamespace 로
+# entrypoint.sh(v16)에 위임하므로 실제 설치·버전 불일치 fail-closed 검사는 그 파일이 한다.
+ARG PREBUILD_KERNEL=""
+RUN if [ -n "${PREBUILD_KERNEL}" ]; then set -eu; \
+      dest="/opt/nvidia-deb/${PREBUILD_KERNEL}"; \
+      kodir="${dest}/lib/modules/${PREBUILD_KERNEL}/kernel/nvidia-${NVIDIA_DRIVER_MAJOR}"; \
+      work="$(mktemp -d)"; \
+      mkdir -p "${kodir}"; \
+      apt-get update; \
+      # 서명 .ko 링크(objects 의 bits/BUILD)에 binutils 가, 사용자 공간 .deb 의 정확한 버전
+      # 고정에 PPA 가 필요하다. BUILD_TOOLS 와 무관하게 이 RUN 이 직접 설치한다.
+      apt-get install -y --no-install-recommends binutils software-properties-common; \
+      add-apt-repository -y ppa:graphics-drivers/ppa; \
+      apt-get update; \
+      ( cd "${work}" && apt-get download \
+          "linux-modules-nvidia-${NVIDIA_DRIVER_MAJOR}-${PREBUILD_KERNEL}" \
+          "linux-objects-nvidia-${NVIDIA_DRIVER_MAJOR}-${PREBUILD_KERNEL}" \
+          "linux-signatures-nvidia-${PREBUILD_KERNEL}" ); \
+      dpkg-deb -x "${work}"/linux-objects-nvidia-*.deb "${work}/root"; \
+      dpkg-deb -x "${work}"/linux-signatures-nvidia-*.deb "${work}/root"; \
+      bits="${work}/root/lib/modules/${PREBUILD_KERNEL}/kernel/nvidia-${NVIDIA_DRIVER_MAJOR}/bits"; \
+      ( cd "${bits}" && sh ./BUILD ); \
+      src="${work}/root/lib/modules/${PREBUILD_KERNEL}/kernel/nvidia-${NVIDIA_DRIVER_MAJOR}"; \
+      got="$(modinfo -F version "${src}/nvidia.ko")"; \
+      vm="$(modinfo -F vermagic "${src}/nvidia.ko")"; \
+      echo "[build] prebuilt nvidia.ko version=${got} vermagic=${vm}"; \
+      [ "${got}" = "${NVIDIA_DRIVER_VERSION}" ] \
+        || { echo "[build] FAIL: modinfo version ${got} != NVIDIA_DRIVER_VERSION ${NVIDIA_DRIVER_VERSION}"; exit 1; }; \
+      case "${vm}" in *"${PREBUILD_KERNEL}"*) : ;; \
+        *) echo "[build] FAIL: vermagic '${vm}' 에 ${PREBUILD_KERNEL} 없음"; exit 1 ;; esac; \
+      cp -a "${src}"/*.ko "${kodir}/"; \
+      cp -a "${work}"/*.deb "${dest}/"; \
+      # 사용자 공간을 모듈과 같은 버전으로 함께 굽는다. 실행 중 apt 로 사용자 공간을
+      # 고르면 이미지와 독립적인 두 번째 버전 출처가 생겨 어긋날 수 있다(ADR-002).
+      usdest="${dest}/userspace"; \
+      mkdir -p "${usdest}"; \
+      uspkgs=""; \
+      for p in nvidia-kernel-common libnvidia-compute libnvidia-cfg1 \
+               nvidia-compute-utils nvidia-utils; do \
+        uspkgs="${uspkgs} ${p}-${NVIDIA_DRIVER_MAJOR}=${got}-*"; \
+      done; \
+      uspkgs="${uspkgs} nvidia-firmware-${NVIDIA_DRIVER_MAJOR}-${got}"; \
+      ( cd "${usdest}" && apt-get download ${uspkgs} ); \
+      for d in "${usdest}"/*.deb; do \
+        pv="$(dpkg-deb -f "$d" Version)"; \
+        case "${pv}" in "${got}"-*|"${got}") : ;; \
+          *) echo "[build] FAIL: $(basename "$d") version ${pv} 가 모듈 ${got} 과 다르다"; exit 1 ;; \
+        esac; \
+      done; \
+      echo "[build] userspace baked at ${usdest} ($(ls -1 "${usdest}" | wc -l) debs, version=${got})"; \
+      rm -rf "${work}" /var/lib/apt/lists/*; \
+      echo "[build] prebuilt baked at ${dest} (version=${got})"; \
+    else \
+      echo "[build] PREBUILD_KERNEL 미지정 — 사전 컴파일 없는 기본(호스트 설치 경로) 이미지"; \
+    fi
+
+# ----------------------------------------------------------- #
+# v17 스크립트 — host immutable 신규 경로
+# ----------------------------------------------------------- #
+COPY entrypoint-v17.sh /usr/local/bin/entrypoint-v17.sh
+COPY healthcheck-v17.sh /usr/local/bin/healthcheck-v17.sh
+RUN chmod +x /usr/local/bin/entrypoint-v17.sh /usr/local/bin/healthcheck-v17.sh
+
+# ----------------------------------------------------------- #
+# v16 legacy 스크립트도 포함 — INSTALL_METHOD=hostnamespace 위임 시 사용
+# (coexistence — v16 파일 자체는 수정하지 않음, COPY 만 함)
+# ----------------------------------------------------------- #
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY healthcheck.sh /usr/local/bin/healthcheck.sh
+COPY check-kernel-headers.sh /usr/local/bin/check-kernel-headers.sh
+COPY driver-manager.sh /usr/local/bin/driver-manager.sh
+# 이미지에 같이 담긴 legacy entrypoint.sh 가 source 하므로 파일은 둔다(v17 경로는 부르지 않음).
+COPY marker-migrate.sh /usr/local/bin/marker-migrate.sh
+COPY nvidia-blacklist.sh /usr/local/bin/nvidia-blacklist.sh
+COPY userspace-deps-check.sh /usr/local/bin/userspace-deps-check.sh
+COPY preflight.sh /usr/local/bin/preflight.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh \
+             /usr/local/bin/check-kernel-headers.sh /usr/local/bin/driver-manager.sh \
+             /usr/local/bin/preflight.sh
+
+# ----------------------------------------------------------- #
+# image label 검증용 — verify-image.sh 가 ai.npu.driver.full 비교
+# ----------------------------------------------------------- #
+RUN mkdir -p /opt/nvidia && echo "${NVIDIA_DRIVER_VERSION}" > /opt/nvidia/version.txt
+LABEL org.opencontainers.image.version="${NVIDIA_DRIVER_VERSION}"
+LABEL ai.npu.driver.major="${NVIDIA_DRIVER_MAJOR}"
+LABEL ai.npu.driver.full="${NVIDIA_DRIVER_VERSION}"
+LABEL ai.npu.driver.vendor="nvidia"
+LABEL ai.npu.driver.image-variant="v17.7"
+
+# ----------------------------------------------------------- #
+# 마운트 hint (operator 가 DS spec 에 반영)
+#   ro: read-only, rw: read-write
+# ----------------------------------------------------------- #
+LABEL kcloud.ai/v17.install-method="containerized"
+LABEL kcloud.ai/v17.host-mounts.lib-modules="ro:/host/lib/modules"
+LABEL kcloud.ai/v17.host-mounts.sys="rw:/host/sys"
+LABEL kcloud.ai/v17.host-mounts.proc-driver-nvidia="ro:/host/proc/driver/nvidia"
+LABEL kcloud.ai/v17.host-mounts.driver-root="rw:/run/nvidia/driver"
+LABEL kcloud.ai/v17.host-mounts.dev-nvidia="rw:/dev/nvidia*"
+LABEL kcloud.ai/v17.host-mounts.marker="rw:/var/lib/kcloud-operator"
+LABEL kcloud.ai/v17.required-caps="SYS_MODULE,SYS_ADMIN"
+LABEL kcloud.ai/v17.privileged="true"
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-v17.sh"]

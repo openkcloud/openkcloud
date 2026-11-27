@@ -1,0 +1,120 @@
+# ============================================================
+# publish-bundle.yml: release-bundle.yaml 의 한 묶음을 이미지마다 별도 job 으로 발행한다.
+# 상세: `bundle/<묶음 이름>` 태그 push 가 트리거다. 준비 job 이 목록을 읽어 matrix 를 만들고
+#       발행 job 이 전개한다. 빌드 경로·Dockerfile·build-arg·태그 중복 거절은 publish-image.yml 과 같다.
+# 생성일: 2026-10-03 | 수정일: 2026-10-11
+# ============================================================
+name: Publish bundle
+
+on:
+  push:
+    tags:
+      # bundle/<묶음 이름>. release-bundle.yaml 의 bundles 키가 묶음 이름이다.
+      - "bundle/*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prepare:
+    name: Resolve bundle
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.bundle.outputs.matrix }}
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v5
+
+      - name: Read release-bundle.yaml
+        id: bundle
+        run: |
+          set -euo pipefail
+          BUNDLE="${GITHUB_REF_NAME#bundle/}"
+          if [ -z "${BUNDLE}" ]; then
+            echo "!! 묶음 이름이 비어 있다 (ref=${GITHUB_REF_NAME})." >&2
+            exit 1
+          fi
+          if [ "$(BUNDLE="$BUNDLE" yq '.bundles | has(env(BUNDLE))' release-bundle.yaml)" != "true" ]; then
+            echo "!! release-bundle.yaml 에 ${BUNDLE} 묶음이 없다. 먼저 등록하라." >&2
+            exit 1
+          fi
+          MATRIX=$(BUNDLE="$BUNDLE" yq -o=json -I=0 '.bundles[env(BUNDLE)]' release-bundle.yaml)
+          if [ "${MATRIX}" = "null" ] || [ "${MATRIX}" = "[]" ]; then
+            echo "!! ${BUNDLE} 묶음에 발행할 이미지가 없다." >&2
+            exit 1
+          fi
+          echo ">> ${BUNDLE}: ${MATRIX}"
+          echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: ${{ matrix.image }}:${{ matrix.tag }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      # 하나가 실패해도 나머지 이미지의 발행 결과를 알 수 있어야 한다.
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v5
+
+      - name: Read images.yaml entry
+        # matrix 값은 run 스크립트에 직접 넣지 않고 env 로 넘긴다.
+        env:
+          IMAGE: ${{ matrix.image }}
+          TAG: ${{ matrix.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$(yq '.images | has(env(IMAGE))' images.yaml)" != "true" ]; then
+            echo "!! images.yaml 에 ${IMAGE} 항목이 없다. 발행 대상이면 먼저 등록하라." >&2
+            exit 1
+          fi
+          DIR=$(yq -r '.images[env(IMAGE)].dir' images.yaml)
+          DOCKERFILE=$(yq -r '.images[env(IMAGE)].dockerfile // "Dockerfile"' images.yaml)
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "DIR=${DIR}" >> "$GITHUB_ENV"
+          echo "DOCKERFILE=${DOCKERFILE}" >> "$GITHUB_ENV"
+          # 발행 네임스페이스는 저장소 소유자(소문자). 개인 fork 리허설도 같은 워크플로를 쓴다.
+          echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+          test -f "${DIR}/${DOCKERFILE}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 같은 태그를 다시 밀면 이미 배포된 노드가 받는 내용이 조용히 바뀐다.
+      - name: Refuse to overwrite an existing tag
+        run: |
+          set -euo pipefail
+          if docker manifest inspect "ghcr.io/${OWNER}/${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "!! ghcr.io/${OWNER}/${IMAGE}:${TAG} 가 이미 있다. 태그를 올려라." >&2
+            exit 1
+          fi
+
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          ARGS=()
+          while IFS= read -r kv; do
+            [ -n "$kv" ] || continue
+            ARGS+=(--build-arg "${kv//\$\{TAG\}/$TAG}")
+          done < <(yq -r \
+            '(.images[env(IMAGE)].build_args // {}) | to_entries | .[] | .key + "=" + .value' images.yaml)
+
+          IMAGE_REF="ghcr.io/${OWNER}/${IMAGE}:${TAG}"
+          echo ">> building ${IMAGE_REF} from ${DIR}/${DOCKERFILE}"
+          docker build \
+            -f "${DIR}/${DOCKERFILE}" \
+            -t "${IMAGE_REF}" \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            "${ARGS[@]}" \
+            "${DIR}"
+          docker push "${IMAGE_REF}"
+          echo ">> done: ${IMAGE_REF}"
