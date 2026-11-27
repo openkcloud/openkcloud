@@ -1,0 +1,234 @@
+---
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- nodeset:
+    name: openstack-helm-1node-ubuntu_focal
+    nodes:
+      - name: primary
+        label: ubuntu-focal
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: k8s_cluster
+        nodes:
+          - primary
+      - name: k8s_control_plane
+        nodes:
+          - primary
+
+- nodeset:
+    name: openstack-helm-3nodes-ubuntu_focal
+    nodes:
+      - name: primary
+        label: ubuntu-focal
+      - name: node-1
+        label: ubuntu-focal
+      - name: node-2
+        label: ubuntu-focal
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: nodes
+        nodes:
+          - node-1
+          - node-2
+      - name: k8s_cluster
+        nodes:
+          - primary
+          - node-1
+          - node-2
+      - name: k8s_control_plane
+        nodes:
+          - primary
+      - name: k8s_nodes
+        nodes:
+          - node-1
+          - node-2
+
+- nodeset:
+    name: openstack-helm-1node-32GB-ubuntu_focal
+    nodes:
+      - name: primary
+        # This label is available in vexxhost ca-ymq-1 region
+        # The flavor v3-standard-8 in this particular region has
+        # 32GB nodes. The number of such nodes is extremely limited.
+        label: ubuntu-focal-32GB
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: k8s_cluster
+        nodes:
+          - primary
+      - name: k8s_control_plane
+        nodes:
+          - primary
+
+- nodeset:
+    name: openstack-helm-1node-ubuntu_jammy
+    nodes:
+      - name: primary
+        label: ubuntu-jammy
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: k8s_cluster
+        nodes:
+          - primary
+      - name: k8s_control_plane
+        nodes:
+          - primary
+
+- nodeset:
+    name: openstack-helm-3nodes-ubuntu_jammy
+    nodes:
+      - name: primary
+        label: ubuntu-jammy
+      - name: node-1
+        label: ubuntu-jammy
+      - name: node-2
+        label: ubuntu-jammy
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: nodes
+        nodes:
+          - node-1
+          - node-2
+      - name: k8s_cluster
+        nodes:
+          - primary
+          - node-1
+          - node-2
+      - name: k8s_control_plane
+        nodes:
+          - primary
+      - name: k8s_nodes
+        nodes:
+          - node-1
+          - node-2
+
+- nodeset:
+    name: openstack-helm-1node-2nodes-ubuntu_jammy
+    nodes:
+      - name: primary
+        label: ubuntu-jammy
+      - name: node-1
+        label: ubuntu-jammy
+      - name: node-2
+        label: ubuntu-jammy
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: k8s_cluster
+        nodes:
+          - node-1
+          - node-2
+      - name: k8s_control_plane
+        nodes:
+          - node-1
+      - name: k8s_nodes
+        nodes:
+          - node-2
+
+- nodeset:
+    name: openstack-helm-1node-3nodes-ubuntu_jammy
+    nodes:
+      - name: primary
+        label: ubuntu-jammy
+      - name: node-1
+        label: ubuntu-jammy
+      - name: node-2
+        label: ubuntu-jammy
+      - name: node-3
+        label: ubuntu-jammy
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: k8s_cluster
+        nodes:
+          - node-1
+          - node-2
+          - node-3
+      - name: k8s_control_plane
+        nodes:
+          - node-1
+      - name: k8s_nodes
+        nodes:
+          - node-2
+          - node-3
+
+- nodeset:
+    name: openstack-helm-1node-32GB-ubuntu_jammy
+    nodes:
+      - name: primary
+        # This label is available in vexxhost ca-ymq-1 region
+        # The flavor v3-standard-8 in this particular region has
+        # 32GB nodes. The number of such nodes is extremely limited.
+        label: ubuntu-jammy-32GB
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: k8s_cluster
+        nodes:
+          - primary
+      - name: k8s_control_plane
+        nodes:
+          - primary
+
+- nodeset:
+    name: openstack-helm-5nodes-ubuntu_jammy
+    nodes:
+      - name: primary
+        label: ubuntu-jammy
+      - name: node-1
+        label: ubuntu-jammy
+      - name: node-2
+        label: ubuntu-jammy
+      - name: node-3
+        label: ubuntu-jammy
+      - name: node-4
+        label: ubuntu-jammy
+    groups:
+      - name: primary
+        nodes:
+          - primary
+      - name: nodes
+        nodes:
+          - node-1
+          - node-2
+          - node-3
+          - node-4
+      - name: k8s_cluster
+        nodes:
+          - primary
+          - node-1
+          - node-2
+          - node-3
+          - node-4
+      - name: k8s_control_plane
+        nodes:
+          - primary
+      - name: k8s_nodes
+        nodes:
+          - node-1
+          - node-2
+          - node-3
+          - node-4

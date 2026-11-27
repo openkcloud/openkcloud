@@ -1,0 +1,168 @@
+heat_template_version: '2021-04-16'
+
+parameters:
+  public_net:
+    type: string
+    default: public
+
+  image:
+    type: string
+    default: Cirros 0.6.2 64-bit
+
+  ssh_key:
+    type: string
+    default: heat-vm-key
+
+  cidr:
+    type: string
+    default: 192.168.128.0/24
+
+  dns_nameserver:
+    type: string
+    description: address of a dns nameserver reachable in your environment
+    default: 8.8.8.8
+
+  dpdk:
+    type: string
+    default: disabled
+    constraints:
+      - allowed_values:
+          - enabled
+          - disabled
+
+  is_ubuntu:
+    type: string
+    default: "false"
+    constraints:
+      - allowed_values:
+          - "true"
+          - "false"
+
+conditions:
+  dpdk_enable: {equals: [{get_param: dpdk}, "enabled"]}
+  is_ubuntu: {equals: [{get_param: is_ubuntu}, "true"]}
+
+resources:
+  flavor:
+    type: OS::Nova::Flavor
+    properties:
+      disk: 3
+      ram: 1024
+      vcpus: 2
+
+  flavor_dpdk:
+    type: OS::Nova::Flavor
+    properties:
+      disk: 3
+      ram: 2048
+      vcpus: 2
+      extra_specs:
+        "hw:mem_page_size": "2MB"
+
+  ubuntu_cloud_config:
+    type: OS::Heat::CloudConfig
+    properties:
+      cloud_config:
+        package_update: true
+        packages:
+          - iputils-ping
+        write_files:
+          - path: /etc/resolv.conf
+            content:
+              str_replace:
+                template: |
+                  nameserver $nameserver
+                params:
+                  $nameserver: {get_param: dns_nameserver}
+            owner: root:root
+            permissions: '0644'
+        runcmd:
+          - systemctl stop systemd-resolved
+          - systemctl disable systemd-resolved
+
+  server:
+    type: OS::Nova::Server
+    properties:
+      image:
+        get_param: image
+      flavor: {if: ["dpdk_enable", {get_resource: flavor_dpdk}, {get_resource: flavor}]}
+      key_name:
+        get_param: ssh_key
+      networks:
+        - port:
+            get_resource: server_port
+      user_data_format: RAW
+      user_data: {if: [is_ubuntu, {get_resource: ubuntu_cloud_config}, ""]}
+
+  router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info:
+        network:
+          get_param: public_net
+
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id:
+        get_resource: router
+      subnet_id:
+        get_resource: private_subnet
+
+  private_net:
+    type: OS::Neutron::Net
+
+  private_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network:
+        get_resource: private_net
+      cidr:
+        get_param: cidr
+      dns_nameservers:
+        - {get_param: dns_nameserver}
+
+  port_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: default_port_security_group
+      description: 'Default security group assigned to port.'
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: icmp
+
+  server_port:
+    type: OS::Neutron::Port
+    properties:
+      network:
+        get_resource: private_net
+      fixed_ips:
+        - subnet:
+            get_resource: private_subnet
+      security_groups:
+        - get_resource: port_security_group
+
+  server_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network:
+        get_param: public_net
+      port_id:
+        get_resource: server_port
+
+outputs:
+  floating_ip:
+    value:
+      get_attr:
+        - server_floating_ip
+        - floating_ip_address
+  instance_uuid:
+    value:
+      get_attr:
+        - server
+        - show
+        - id
