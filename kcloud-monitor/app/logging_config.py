@@ -1,5 +1,5 @@
 """
-Structured (JSON) logging with request-id correlation (Phase 11.3).
+Structured (JSON) logging with request-id correlation.
 
 Stdlib-only: a JSON formatter plus a filter that injects the current request id
 (set by RequestIDMiddleware via a ContextVar). No extra dependency.

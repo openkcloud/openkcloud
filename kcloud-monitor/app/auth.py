@@ -2,65 +2,26 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import Depends, HTTPException, status, Header
-from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from pydantic import BaseModel
 
 from app.config import Settings
 from app.deps import get_settings
 
 # Security schemes
-security_basic = HTTPBasic()
 security_bearer = HTTPBearer()
 security_bearer_optional = HTTPBearer(auto_error=False)
 
-# JWT Configuration - loaded from settings
-def get_jwt_config(settings: Settings = Depends(get_settings)):
-    return {
-        "secret_key": settings.JWT_SECRET_KEY,
-        "algorithm": settings.JWT_ALGORITHM,
-        "expire_minutes": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
-    }
+def check_password(username: str, password: str, settings: Settings) -> bool:
+    """Compare login credentials in constant time."""
+    correct_username = secrets.compare_digest(username, settings.API_AUTH_USERNAME)
+    correct_password = secrets.compare_digest(password, settings.API_AUTH_PASSWORD)
+    return correct_username and correct_password
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    expires_in: int
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
-
-def verify_credentials(
-    credentials: HTTPBasicCredentials = Depends(security_basic), 
-    settings: Settings = Depends(get_settings)
-) -> str:
-    """Verifies basic authentication credentials."""
-    correct_username = secrets.compare_digest(credentials.username, settings.API_AUTH_USERNAME)
-    correct_password = secrets.compare_digest(credentials.password, settings.API_AUTH_PASSWORD)
-    
-    if not (correct_username and correct_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credentials.username
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, settings: Settings = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta, settings: Settings) -> str:
     """Create JWT access token."""
-    if settings is None:
-        from app.deps import get_settings
-        settings = get_settings()
-    
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
-    return encoded_jwt
+    to_encode = {**data, "exp": datetime.utcnow() + expires_delta}
+    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 def _decode_jwt(token: str, settings: Settings) -> str:
     """Decode a JWT and return its subject (username). Raises 401 on failure."""
@@ -89,7 +50,11 @@ def verify_token(
 
 def verify_token_or_api_key(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer_optional),
-    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    x_api_key: Optional[str] = Header(
+        None,
+        alias="X-API-Key",
+        description="API 키 (Bearer 토큰 대신 사용, 서버에 API_KEY 가 설정된 경우만)",
+    ),
     settings: Settings = Depends(get_settings),
 ) -> str:
     """Accept a valid API key (X-API-Key) or a JWT bearer token — parallel auth.

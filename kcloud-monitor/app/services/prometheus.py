@@ -1,152 +1,161 @@
-import requests
-from datetime import datetime
-from typing import Optional, Dict, Any, Tuple, Union
+"""
+KCloud Monitor v2 — Prometheus HTTP 클라이언트.
 
-from app.config import Settings
-from app.utils.prometheus_validation import (
-    sanitize_label_value,
-    sanitize_metric_name,
-    build_label_matcher,
-    build_label_filter,
-    validate_step,
-    PromQLValidationError
-)
+데이터소스: Prometheus HTTP API (.env PROMETHEUS_URL 필수).
+"""
+import logging
+import math
+from datetime import datetime, timezone
+from typing import Optional
 
-# Updated to use available Kepler metrics instead of nvidia-smi
-PROMETHEUS_QUERIES = {
-    "gpu_power": "rate(kepler_node_platform_joules_total[5m])",  # Convert joules/s to watts
-    "gpu_utilization": "kepler_node_gpu_utilization",  # If available, fallback to 0
-    "gpu_temperature": "kepler_node_gpu_temperature",  # If available, fallback to 0
-    "gpu_memory_used": "kepler_node_gpu_memory_used_bytes",  # If available, fallback to 0
-    "gpu_memory_total": "kepler_node_gpu_memory_total_bytes",  # If available, fallback to 0
-    "kepler_node_power": "rate(kepler_node_platform_joules_total[5m])",
-    "kepler_pod_power": "rate(kepler_pod_package_joules_total[5m])",
-}
+import httpx
 
-class PrometheusException(Exception):
-    """Custom exception for Prometheus client errors."""
-    pass
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
 
 class PrometheusClient:
-    """A client for querying a Prometheus server."""
+    def __init__(self) -> None:
+        if not settings.PROMETHEUS_URL:
+            raise RuntimeError("PROMETHEUS_URL 환경변수가 설정되지 않았습니다. .env에 PROMETHEUS_URL을 지정하세요.")
+        self.base_url: str = settings.PROMETHEUS_URL
 
-    def __init__(self, settings: Settings):
-        self.base_url = settings.PROMETHEUS_URL.rstrip('/')
-        self.timeout = settings.PROMETHEUS_TIMEOUT
-        
-        self.auth: Optional[Tuple[str, str]] = None
-        if settings.PROMETHEUS_USERNAME and settings.PROMETHEUS_PASSWORD:
-            self.auth = (settings.PROMETHEUS_USERNAME, settings.PROMETHEUS_PASSWORD)
-            
-        self.verify: Union[str, bool] = True
-        if settings.PROMETHEUS_CA_BUNDLE:
-            self.verify = settings.PROMETHEUS_CA_BUNDLE
+    async def ping(self) -> bool:
+        """Prometheus 준비 상태 확인 — /-/ready (헬스체크용, 짧은 타임아웃).
 
-    def _request(self, method: str, url: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        연결 가능하고 200이면 True, 그 외(미도달·비정상)면 False.
+        """
+        url = f"{self.base_url}/-/ready"
         try:
-            response = requests.request(
-                method,
-                url,
-                params=params,
-                auth=self.auth,
-                timeout=self.timeout,
-                verify=self.verify
-            )
-            response.raise_for_status() # Raises HTTPError for bad responses (4xx or 5xx)
-            return response.json()
-        except requests.exceptions.Timeout as e:
-            raise PrometheusException(f"Request to Prometheus timed out: {e}") from e
-        except requests.exceptions.HTTPError as e:
-            raise PrometheusException(f"HTTP error occurred: {e} - {e.response.text}") from e
-        except requests.exceptions.RequestException as e:
-            raise PrometheusException(f"An error occurred while querying Prometheus: {e}") from e
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                r = await client.get(url)
+                return r.status_code == 200
+        except httpx.HTTPError as exc:
+            logger.warning("Prometheus ping failed: %s — url=%s", exc, url)
+            return False
 
-    def query(self, query: str) -> Dict[str, Any]:
-        """Performs an instant query."""
+    async def instant(self, query: str) -> list[dict]:
+        """즉시 쿼리(instant query).
+
+        GET {base_url}/api/v1/query?query={query}
+        성공 시 data.result 목록 반환, 오류 시 빈 리스트 반환.
+        """
         url = f"{self.base_url}/api/v1/query"
-        return self._request("get", url, params={"query": query})
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(url, params={"query": query})
+                r.raise_for_status()
+                return r.json()["data"]["result"]
+        except httpx.HTTPError as exc:
+            logger.warning("Prometheus instant query error: %s — query=%r", exc, query)
+            return []
 
-    def query_range(self, query: str, start: datetime, end: datetime, step: str) -> Dict[str, Any]:
-        """Performs a range query."""
+    async def active_targets(self) -> Optional[list[dict]]:
+        """Prometheus 가 직접 가져오는(pull) 수집 대상 목록.
+
+        GET {base_url}/api/v1/targets?state=active
+        성공 시 data.activeTargets, 오류 시 None (빈 목록과 구분).
+        """
+        url = f"{self.base_url}/api/v1/targets"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(url, params={"state": "active"})
+                r.raise_for_status()
+                return r.json()["data"]["activeTargets"]
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            logger.warning("Prometheus targets error: %s", exc)
+            return None
+
+    async def range_query(
+        self,
+        query: str,
+        start: str,
+        end: str,
+        step: str = "60s",
+        raise_errors: bool = False,
+    ) -> list[dict]:
+        """범위 쿼리(range query).
+
+        GET {base_url}/api/v1/query_range?query={query}&start={start}&end={end}&step={step}
+        성공 시 data.result 목록 반환, 오류 시 빈 리스트 반환.
+        raise_errors=True 면 오류를 그대로 올림 (빈 결과와 조회 실패를 구분해야 하는 미터링 계측용).
+        """
         url = f"{self.base_url}/api/v1/query_range"
-        params = {
-            "query": query,
-            "start": start.isoformat() + "Z",
-            "end": end.isoformat() + "Z",
-            "step": step
-        }
-        return self._request("get", url, params=params)
-
-    def get_label_values(self, label_name: str) -> list[str]:
-        """Gets all values for a given label from Prometheus."""
-        url = f"{self.base_url}/api/v1/label/{label_name}/values"
+        params = {"query": query, "start": start, "end": end, "step": step}
         try:
-            response_json = self._request("get", url)
-            if response_json.get("status") == "success":
-                return response_json.get("data", [])
-            return []
-        except PrometheusException:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                r = await client.get(url, params=params)
+                r.raise_for_status()
+                return r.json()["data"]["result"]
+        except httpx.HTTPError as exc:
+            if raise_errors:
+                raise
+            logger.warning(
+                "Prometheus range query error: %s — query=%r start=%s end=%s",
+                exc, query, start, end,
+            )
             return []
 
-    def check_health(self) -> str:
-        """Checks the health of the Prometheus server."""
-        # Try the health endpoint first, if it fails try a simple query
-        url = f"{self.base_url}/-/healthy"
-        try:
-            self._request("get", url)
-            return "connected"
-        except PrometheusException:
-            # Fallback: try a simple query to see if Prometheus is responsive
-            try:
-                self.query("up")
-                return "connected"
-            except PrometheusException:
-                return "disconnected"
 
-    def build_query(self, metric_name: str, instance: Optional[str] = None) -> str:
-        """
-        Builds a secure PromQL query with an optional instance filter.
+def esc(value: str) -> str:
+    """PromQL 라벨 값 이스케이프 (역슬래시, 큰따옴표)."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
-        This method prevents PromQL injection by validating all user inputs
-        before constructing the query string.
 
-        Args:
-            metric_name: The metric name (must be in PROMETHEUS_QUERIES)
-            instance: Optional instance/node filter (will be sanitized)
+def parse_float(raw) -> Optional[float]:
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
-        Returns:
-            A safe PromQL query string
 
-        Raises:
-            ValueError: If metric_name is not found
-            PromQLValidationError: If instance contains invalid characters
-        """
-        query = PROMETHEUS_QUERIES.get(metric_name)
-        if not query:
-            raise ValueError(f"Metric '{metric_name}' not found in PROMETHEUS_QUERIES mapping.")
+def parse_finite(raw) -> Optional[float]:
+    """parse_float + NaN/Inf 는 JSON 비호환이라 값 없음(None)으로 취급."""
+    value = parse_float(raw)
+    if value is None or math.isnan(value) or math.isinf(value):
+        return None
+    return value
 
-        if instance:
-            # Sanitize the instance value to prevent PromQL injection
-            try:
-                safe_instance = sanitize_label_value(instance)
-            except PromQLValidationError as e:
-                raise ValueError(f"Invalid instance value: {e}") from e
 
-            # Build a safe label matcher
-            label_filter = build_label_matcher("exported_instance", safe_instance)
+def sample_value(item: dict) -> Optional[float]:
+    """instant 결과 한 항목의 value 파싱. 없으면 None."""
+    try:
+        return parse_float(item["value"][1])
+    except (KeyError, IndexError, TypeError):
+        return None
 
-            # For Kepler metrics, we need to filter by exported_instance inside the query
-            # Handle both simple metrics and complex expressions like rate()
-            if "rate(" in query:
-                # Insert the filter inside the rate() function
-                # Example: rate(kepler_node_platform_joules_total[5m])
-                #       -> rate(kepler_node_platform_joules_total{exported_instance="node-01"}[5m])
-                query = query.replace("kepler_node_platform_joules_total",
-                                    f'kepler_node_platform_joules_total{{{label_filter}}}')
-            else:
-                # Simple metric, just append the filter
-                # Example: kepler_node_gpu_utilization
-                #       -> kepler_node_gpu_utilization{exported_instance="node-01"}
-                query += f'{{{label_filter}}}'
 
-        return query
+def first_value(results: list[dict]) -> Optional[float]:
+    """instant 결과 첫 항목의 value."""
+    return sample_value(results[0]) if results else None
+
+
+def first_finite(results: list[dict]) -> Optional[float]:
+    """first_value 와 같되 NaN/Inf 는 None."""
+    return parse_finite(first_value(results))
+
+
+def value_map(results: list[dict], *labels: str, finite: bool = False) -> dict:
+    """instant 결과를 라벨 값(여러 개면 튜플) → value 사전으로. 없는 라벨은 "", 값 없는 항목은 제외.
+
+    finite=True 면 NaN/Inf 도 값 없음으로 보고 제외.
+    """
+    out: dict = {}
+    for item in results:
+        metric = item.get("metric", {})
+        key = tuple(metric.get(label, "") for label in labels)
+        val = parse_finite(sample_value(item)) if finite else sample_value(item)
+        if val is not None:
+            out[key if len(labels) > 1 else key[0]] = val
+    return out
+
+
+def ts_iso(ts) -> Optional[str]:
+    """Prometheus epoch(초) → ISO 8601 UTC 문자열."""
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat()
+
+
+prometheus_client = PrometheusClient()

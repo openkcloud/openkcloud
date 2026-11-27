@@ -15,6 +15,7 @@ venv
 docs/
 tests/
 .claude/
+.agents/
 .env
 .env.*
 !.env.example

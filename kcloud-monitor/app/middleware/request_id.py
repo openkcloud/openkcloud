@@ -1,5 +1,5 @@
 """
-Request ID middleware - per-request correlation id (design_contracts §6).
+Request ID middleware - per-request correlation id.
 
 Reuses a valid inbound ``X-Request-ID`` (for trace propagation) or generates a
 new one, exposes it on ``request.state.request_id`` for handlers/response models,
@@ -28,7 +28,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         incoming = request.headers.get(REQUEST_ID_HEADER, "")
         request_id = incoming if _SAFE_REQUEST_ID.match(incoming) else uuid.uuid4().hex
         request.state.request_id = request_id
-        # Expose to logging for the duration of the request (design_contracts §6).
+        # Expose to logging for the duration of the request.
         token = request_id_var.set(request_id)
         try:
             response = await call_next(request)
