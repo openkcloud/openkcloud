@@ -1,0 +1,17 @@
+{% templatetag openblock %} load horizon {% templatetag closeblock %}
+{% templatetag openblock %} jstemplate {% templatetag closeblock %}
+{% templatetag openblock %} extends 'base.html' {% templatetag closeblock %}
+
+{% templatetag openblock %} load i18n {% templatetag closeblock %}
+{% templatetag openblock %} block title {% templatetag closeblock %}
+  {% templatetag openblock %} trans "{{ panel_name|title }}" {% templatetag closeblock %}
+{% templatetag openblock %} endblock {% templatetag closeblock %}
+
+{% templatetag openblock %} block page_header {% templatetag closeblock %}
+  {% templatetag openblock %} include "horizon/common/_page_header.html" with title=_("{{ panel_name|title }}") {% templatetag closeblock %}
+{% templatetag openblock %} endblock page_header {% templatetag closeblock %}
+
+{% templatetag openblock %} block main {% templatetag closeblock %}
+{% templatetag openblock %} endblock {% templatetag closeblock %}
+
+{% templatetag openblock %} endjstemplate {% templatetag closeblock %}

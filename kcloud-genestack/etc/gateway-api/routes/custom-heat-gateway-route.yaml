@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: heat
+    service: HTTPRoute
+  name: custom-heat-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - heat.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: heat-https
+  rules:
+    - backendRefs:
+        - name: heat-api
+          port: 8004

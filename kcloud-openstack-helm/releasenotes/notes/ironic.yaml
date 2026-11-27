@@ -1,0 +1,30 @@
+---
+ironic:
+  - 0.1.0 Initial Chart
+  - 0.1.1 Change helm-toolkit dependency version to ">= 0.1.0"
+  - 0.1.2 Added post-install and post-upgrade helm.sh/hook for jobs
+  - 0.2.0 Remove support for releases before T
+  - 0.2.1 Use policies in yaml format
+  - 0.2.2 Update htk requirements repo
+  - 0.2.3 Enable taint toleration for Openstack services
+  - 0.2.4 Update defaults to W release
+  - 0.2.5 Migrated PodDisruptionBudget resource to policy/v1 API version
+  - 0.2.6 Added OCI registry authentication
+  - 0.2.7 Use HTTP probe instead of TCP probe
+  - 0.2.8 Add helm3 hook supports to allow things like terraform deploys
+  - 0.2.9 Replace node-role.kubernetes.io/master with control-plane
+  - 0.2.10 Add standalone overrides
+  - 0.2.11 Enable custom annotations for Openstack pods
+  - 0.2.12 allow custom annotations on jobs
+  - 0.2.13 Enable custom annotations for Openstack secrets
+  - 0.2.14 Update images used by default
+  - 0.2.15 Allow enabling/disabling of conductor http and pxe containers and overriding their init and runtime scripts
+  - 0.2.16 Use quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal by default
+  - 0.2.17 Allow overriding of hostNetwork and hostIPC for Ironic conductor
+  - 0.2.18 Use service tokens
+  - 0.2.19 Allow extra containers for the conductor
+  - 0.2.20 ensure tempdir is set to a reasonable default
+  - 0.2.21 fix path to ironic.conf for 0.2.20's tempdir setting
+  - 0.2.22 Update Chart.yaml apiVersion to v2
+  - 2024.2.0 Update version to align with the Openstack release cycle
+...

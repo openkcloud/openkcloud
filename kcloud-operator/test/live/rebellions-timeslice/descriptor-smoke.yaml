@@ -1,0 +1,18 @@
+# ============================================================
+# descriptor-smoke.yaml: 확정 스모크용 AcceleratorDescriptor — 장치 노드 둘(/dev/rbln0, /dev/rsd0) 광고
+# 상세: 벤더 device-plugin 은 /dev/rsd0 만 주입해 NPU 자동탐지·컴파일이 막힌다. 범용 descriptor
+#       경로로 두 장치 노드를 함께 광고해 그 경로에서는 다른지 확인한다(descriptor.yaml 과 별도).
+# 생성일: 2026-09-29 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorDescriptor
+metadata:
+  name: rebellions-smoke
+spec:
+  vendor: rebellions
+  product: atom
+  allocationUnit: device
+  identity: {source: pciAddress, stableAcrossReboot: true}
+  deviceNodes: [/dev/rbln0, /dev/rsd0]
+  backends: [devicePlugin]
+  sharing: {mode: timeSliced, replicas: 2}

@@ -1,0 +1,35 @@
+<div class="modal-header">
+  <button type="button" class="close" ng-click="$dismiss()" aria-hidden="true" aria-label="Close">
+    <span aria-hidden="true" class="fa fa-times"></span>
+  </button>
+  <div class="h3 modal-title">
+    <translate>Sign Certificate To Cluster: {$ ctrl.model.cluster_name $}</translate>
+  </div>
+</div>
+
+<div ng-form="ctrl.form">
+  <div class="modal-body">
+    <div class="row">
+      <div class="col-sm-6">
+        <load-edit title="{$ ctrl.title $}"
+           model="ctrl.model.newCertificateSpec.csr"
+           max-bytes="{$ 16 * 1024 $}"
+           key="public-key"
+           rows=8 required="true">
+        </load-edit>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-footer">
+    <button class="btn btn-default" ng-click="$dismiss()">
+      <span class="fa fa-close"></span>
+      <translate>Cancel</translate>
+    </button>
+    <button class="btn btn-primary" ng-click="$close(ctrl.model)"
+           ng-disabled="ctrl.form.$invalid">
+      <span class="fa fa-upload"></span>
+      <translate>Sign Certificate</translate>
+    </button>
+  </div>
+</div>

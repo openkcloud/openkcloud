@@ -1,0 +1,15 @@
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts
+  value:
+  - mountPath: /tmp/k8s-webhook-server/serving-certs
+    name: webhook-cert
+    readOnly: true
+- op: add
+  path: /spec/template/spec/volumes
+  value:
+  - name: webhook-cert
+    secret:
+      secretName: webhook-server-cert

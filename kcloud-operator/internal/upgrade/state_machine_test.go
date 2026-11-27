@@ -1,9 +1,8 @@
 // ============================================================
 // state_machine_test.go: UpgradeStateMachine 단위 테스트
-// 상세: PreviousImage broken tag sanitization 검증
-//       Rollback exhaustion → Failed 터미널 정지 검증
-//       fake client 기반 — envtest 불필요
-// 생성일: 2026-04-28 | 수정일: 2026-04-29
+// 상세: PreviousImage broken tag 정리, Rollback 소진 시 Failed 터미널 정지, 소비된 rollback
+//       요청 어노테이션 재소비 차단을 fake client 로 검증한다.
+// 생성일: 2026-04-28 | 수정일: 2026-10-14
 // ============================================================
 
 package upgrade
@@ -11,6 +10,7 @@ package upgrade
 import (
 	"context"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,8 +75,8 @@ func makeIdleDIP(name, vendor, version string) *v1alpha1.DriverInstallPolicy {
 }
 
 // TestPreviousImage_BrokenTag_Cleared 는 reconcile 진입 시 plain tag (예: ":580.142") 가
-// PreviousImage 에 잔류하는 경우 자동 정리됨을 검증한다.
-// (architectural plan §3.4 defense-in-depth: broken tag rollback 회귀 차단)
+// PreviousImage 에 잔류하는 경우 자동 정리됨을 검증한다 — broken plain tag 가 rollback 시
+// 그대로 쓰이는 회귀를 막는다.
 func TestPreviousImage_BrokenTag_Cleared(t *testing.T) {
 	const (
 		nodeName    = "worker-sanitize-broken"
@@ -132,7 +132,7 @@ func TestPreviousImage_VerifiedTag_Kept(t *testing.T) {
 
 // TestHandleIdle_EmptyState_NormalizedToIdle 는 state="" 인 신규 DUS 가 현재버전==목표버전
 // 이어서 업그레이드 사이클을 거치지 않을 때, handleIdle 이 status.state 를 Idle 로 1회
-// 정규화함을 검증한다. (라이브 재배포 시 DUS state 가 빈 문자열로 남던 cosmetic nit 회귀 방지)
+// 정규화해 `kubectl get dus` STATE 가 빈 문자열로 남지 않게 하는지 검증한다.
 func TestHandleIdle_EmptyState_NormalizedToIdle(t *testing.T) {
 	const (
 		nodeName = "worker-empty-normalize"
@@ -200,6 +200,9 @@ func TestExtractImageVariantSuffix(t *testing.T) {
 		"registry/repo:1.7.8-v2":     "-v2",
 		"registry/repo:580.142":      "",
 		"registry/repo":              "",
+		// 커널 토큰은 variant 가 아니므로 재구성에 쓰지 않는다(kernelImages 는 previousImage
+		// 캡처만 사용). variant 접미사는 태그 맨 끝 -v1 이며, 그 앞의 커널 토큰은 무시된다.
+		"reg/kcloud/tenstorrent-driver-ds:2.11.0-k5.15.0-190-generic-v1": "-v1",
 	}
 	for image, expected := range cases {
 		if got := extractImageVariantSuffix(image); got != expected {
@@ -331,6 +334,8 @@ func TestVerifiedVersions_Empty_Skip(t *testing.T) {
 
 // makeRollbackDIP 는 maxRollbackAttempts 가 명시된 DIP 를 반환한다.
 // MaxRollbackAttempts 초과 시 Failed 전이 검증용.
+//
+//nolint:unparam // name·vendor 는 오늘 모든 호출에서 같다 — 롤백 시험이 공유하는 nvidia 픽스처 값이라
 func makeRollbackDIP(name, vendor string, maxRollback int32) *v1alpha1.DriverInstallPolicy {
 	return &v1alpha1.DriverInstallPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
@@ -346,6 +351,8 @@ func makeRollbackDIP(name, vendor string, maxRollback int32) *v1alpha1.DriverIns
 
 // makeRollbackDUS 는 Rollback 상태에서 RollbackAttempts 가 max 와 동일한 DUS 를 반환한다.
 // 다음 reconcile 1 회 호출 시 attempts 가 max+1 로 증가 → Failed 전이.
+//
+//nolint:unparam // name·nodeName·vendor 는 오늘 모든 호출에서 같다 — 롤백 시험이 공유하는 nvidia 픽스처 값이라
 func makeRollbackDUS(name, nodeName, vendor string, attempts int32) *v1alpha1.DriverUpgradeState {
 	return &v1alpha1.DriverUpgradeState{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
@@ -364,8 +371,8 @@ func makeRollbackDUS(name, nodeName, vendor string, attempts int32) *v1alpha1.Dr
 }
 
 // TestRollbackExhaustion_TransitionsToFailed 는 RollbackAttempts 가 maxRollbackAttempts 에
-// 도달한 상태에서 단 1 회의 reconcile 호출만으로 Failed 터미널 상태로 전이됨을 검증한다.
-// (architectural plan §R1 — rollback infinite-loop 차단)
+// 도달한 상태에서 단 1 회의 reconcile 호출만으로 Failed 터미널 상태로 전이됨을 검증한다 —
+// 무한 롤백 루프를 막는 차단선이다.
 func TestRollbackExhaustion_TransitionsToFailed(t *testing.T) {
 	const (
 		nodeName = "k8s-worker1"
@@ -445,5 +452,138 @@ func TestFailedState_IsTerminal_NoFurtherTransition(t *testing.T) {
 			t.Errorf("Failed 상태에서 RollbackAttempts 가 변경됨 (call #%d): got %d, want 4",
 				i+1, dus.Status.RollbackAttempts)
 		}
+	}
+}
+
+// podWithResource 는 지정한 extended resource 를 limits 에 요청하는 Pod 를 만든다.
+func podWithResource(resourceName string) *corev1.Pod {
+	return &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+		Resources: corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{corev1.ResourceName(resourceName): qty(1)},
+		},
+	}}}}
+}
+
+// TestPodUsesDevice_RecognizesEveryVendorResource 는 podUsesDevice(hasDeviceWorkloads 와
+// evictDevicePods 가 함께 쓰는 판정)가 등록된 벤더 넷의 가속기 리소스를 모두 인식하는지 본다.
+// 하드코딩 목록에서 벤더 하나라도 빠지면, 그 벤더의 파드가 드라이버 업그레이드 drain 에서 장치
+// 파드로 인식되지 못해 PDB 를 존중하는 eviction 대상에서 빠진다.
+func TestPodUsesDevice_RecognizesEveryVendorResource(t *testing.T) {
+	cases := []struct {
+		name     string
+		resource string
+		want     bool
+	}{
+		{"nvidia", "nvidia.com/gpu", true},
+		{"furiosa rngd", "furiosa.ai/rngd", true},
+		{"furiosa warboy", "beta.furiosa.ai/npu", true},
+		{"tenstorrent", "tenstorrent.com/blackhole", true},
+		{"rebellions", "rebellions.ai/ATOM", true},
+		{"non-accelerator", "cpu", false},
+	}
+	for _, c := range cases {
+		if got := podUsesDevice(podWithResource(c.resource)); got != c.want {
+			t.Errorf("%s: podUsesDevice(%q) = %v, want %v", c.name, c.resource, got, c.want)
+		}
+	}
+}
+
+// ─────────────────────────────────────────────
+// 소비된 rollback 요청 재소비 차단 테스트
+// ─────────────────────────────────────────────
+
+// TestRollbackRequest_StaleAnnotationNotReconsumed 는 이미 소비한 롤백 요청 어노테이션이
+// (제거 patch 실패 등으로) 남아 있을 때, 같은 값을 다시 Rollback 으로 받아들이지 않고
+// 어노테이션 정리만 재시도함을 검증한다.
+func TestRollbackRequest_StaleAnnotationNotReconsumed(t *testing.T) {
+	dus := makeIdleDUSWithCurrentVersion("w1-tenstorrent", "w1", "tenstorrent", "580.126.09")
+	dus.Status.PreviousVersion, dus.Status.PreviousImage = "580.100.00", "reg/tenstorrent-driver-ds:v3" // 롤백 가능한 형상
+	dus.Annotations = map[string]string{v1alpha1.RollbackRequestedAnnotation: "2026-10-08T01:02:03Z"}
+	dus.Status.ConsumedRollbackRequest = "2026-10-08T01:02:03Z" // 이미 한 번 소비됨
+	dip := makeIdleDIP("tenstorrent-generic", "tenstorrent", "580.126.09")
+	sm := newUpgradeSMWithRecorder(dus, dip)
+	ctx := context.Background()
+	if _, _, err := sm.TransitionState(ctx, dus, dip); err != nil {
+		t.Fatal(err)
+	}
+	if dus.Status.State == v1alpha1.UpgradeStateRollback {
+		t.Fatal("소비된 요청으로 다시 Rollback 에 들어갔다")
+	}
+	var got v1alpha1.DriverUpgradeState
+	if err := sm.Get(ctx, client.ObjectKeyFromObject(dus), &got); err != nil {
+		t.Fatal(err)
+	}
+	if _, still := got.Annotations[v1alpha1.RollbackRequestedAnnotation]; still {
+		t.Fatal("stale 어노테이션이 정리되지 않았다")
+	}
+}
+
+// TestRollbackRequest_RecordsConsumedValue 는 새 롤백 요청이 받아들여질 때 요청 값이
+// status.consumedRollbackRequest 에 기록됨을 검증한다(다음 reconcile 부터 재소비 차단 근거).
+func TestRollbackRequest_RecordsConsumedValue(t *testing.T) {
+	dus := makeIdleDUSWithCurrentVersion("w1-nvidia", "w1", "nvidia", "580.126.09")
+	dus.Status.PreviousVersion, dus.Status.PreviousImage = "580.100.00", "reg/nvidia-driver-ds:v3"
+	dus.Annotations = map[string]string{v1alpha1.RollbackRequestedAnnotation: "2026-10-08T02:00:00Z"}
+	dip := makeIdleDIP("nvidia-generic", "nvidia", "580.126.09")
+	sm := newUpgradeSMWithRecorder(dus, dip)
+	if _, _, err := sm.TransitionState(context.Background(), dus, dip); err != nil {
+		t.Fatal(err)
+	}
+	if dus.Status.State != v1alpha1.UpgradeStateRollback || dus.Status.ConsumedRollbackRequest != "2026-10-08T02:00:00Z" {
+		t.Fatalf("state=%s consumedRollbackRequest=%q", dus.Status.State, dus.Status.ConsumedRollbackRequest)
+	}
+}
+
+// TestValidatorsFor_WorkloadOnlyWhenEnabled 는 validatorsFor 가 기본 체인(DriverModule·
+// DevicePlugin) 둘만 반환하고, 정책이 workloadProbe 를 켜면 Workload 를 끝에 더하는 것을
+// 검증한다(정책 opt-in).
+func TestValidatorsFor_WorkloadOnlyWhenEnabled(t *testing.T) {
+	p := &v1alpha1.DriverInstallPolicy{}
+	if n := len(validatorsFor(p)); n != 2 {
+		t.Fatalf("기본 체인은 2개: %d", n)
+	}
+	// WorkloadProbe 가 설정돼 있어도 Enabled:false 면 체인에 들지 않는다 — nil 가드만으론
+	// 통과하는 변이를 잡기 위한 케이스(Enabled 가드 자체를 고정).
+	p.Spec.WorkloadProbe = &v1alpha1.WorkloadProbeSpec{Enabled: false, Image: "img", ResourceName: "nvidia.com/gpu"}
+	if n := len(validatorsFor(p)); n != 2 {
+		t.Fatalf("WorkloadProbe 가 있어도 Enabled:false 면 2개: %d", n)
+	}
+	p.Spec.WorkloadProbe.Enabled = true
+	if n := len(validatorsFor(p)); n != 3 {
+		t.Fatalf("켜면 3개: %d", n)
+	}
+}
+
+// ─────────────────────────────────────────────
+// UnverifiedVersion 자동 복귀 테스트
+// ─────────────────────────────────────────────
+
+// TestUnverifiedVersion_ReturnsToIdleWhenDesiredBecomesVerified 는 DUS 가
+// UnverifiedVersion 터미널 상태인 동안 DIP.spec.verifiedVersions 가 정책 버전을
+// 다시 포함하도록 바뀌면(화이트리스트 추가·버전 되돌림) 삭제·재생성 없이 Idle 로
+// 복귀함을 검증한다.
+func TestUnverifiedVersion_ReturnsToIdleWhenDesiredBecomesVerified(t *testing.T) {
+	dus := makeIdleDUSWithCurrentVersion("w3-tenstorrent", "w3", "tenstorrent", "2.11.0")
+	dus.Status.State, dus.Status.DesiredVersion = v1alpha1.UpgradeStateUnverifiedVersion, "2.12.0"
+	dip := makeDIPWithVerifiedVersions("tt-generic", "tenstorrent", "2.11.0", []string{"2.8.0", "2.11.0"}) // 정책이 되돌아감
+	sm := newUpgradeSMWithRecorder(dus, dip)
+	if _, _, err := sm.TransitionState(context.Background(), dus, dip); err != nil {
+		t.Fatal(err)
+	}
+	if dus.Status.State != v1alpha1.UpgradeStateIdle {
+		t.Fatalf("정책이 검증된 버전으로 돌아왔는데 터미널에 남아 있다: %s", dus.Status.State)
+	}
+}
+
+// TestUnverifiedVersion_StaysWhileDesiredUnverified 는 정책 버전이 여전히
+// verifiedVersions 밖이면 터미널 상태를 유지하고 60초 뒤 재확인함을 검증한다.
+func TestUnverifiedVersion_StaysWhileDesiredUnverified(t *testing.T) {
+	dus := makeIdleDUSWithCurrentVersion("w3-tenstorrent", "w3", "tenstorrent", "2.11.0")
+	dus.Status.State, dus.Status.DesiredVersion = v1alpha1.UpgradeStateUnverifiedVersion, "2.12.0"
+	dip := makeDIPWithVerifiedVersions("tt-generic", "tenstorrent", "2.12.0", []string{"2.8.0", "2.11.0"})
+	sm := newUpgradeSMWithRecorder(dus, dip)
+	requeue, after, err := sm.TransitionState(context.Background(), dus, dip)
+	if err != nil || dus.Status.State != v1alpha1.UpgradeStateUnverifiedVersion || !requeue || after != 60*time.Second {
+		t.Fatalf("미검증 버전이 그대로면 터미널 유지·60초 requeue: state=%s requeue=%v after=%v err=%v", dus.Status.State, requeue, after, err)
 	}
 }

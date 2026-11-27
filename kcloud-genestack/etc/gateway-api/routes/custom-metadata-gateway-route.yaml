@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: nova-metadata
+    service: HTTPRoute
+  name: custom-metadata-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - metadata.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: metadata-https
+  rules:
+    - backendRefs:
+        - name: nova-metadata
+          port: 8775

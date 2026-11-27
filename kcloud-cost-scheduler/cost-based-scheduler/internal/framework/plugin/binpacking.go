@@ -90,7 +90,7 @@ func (b *BinPacking) ScoreExtensions() framework.ScoreExtensions {
 	return b
 }
 
-func (b *BinPacking) NormalizeScore(ctx context.Context, pod *v1.Pod, scores utils.PluginResult) *utils.Status {
+func (b *BinPacking) NormalizeScore(ctx context.Context, pod *v1.Pod, scores utils.PluginResultMap) *utils.Status {
 	return utils.NewStatus(utils.Success, "")
 }
 

@@ -1,0 +1,539 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: acceleratorpartitionpolicies.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: AcceleratorPartitionPolicy
+    listKind: AcceleratorPartitionPolicyList
+    plural: acceleratorpartitionpolicies
+    shortNames:
+    - acpp
+    singular: acceleratorpartitionpolicy
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.vendor
+      name: VENDOR
+      type: string
+    - jsonPath: .status.phase
+      name: PHASE
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              AcceleratorPartitionPolicySpec 는 원하는 파티션 상태다. layout 과 sharing 둘 다 비면
+              정책이 아무것도 요청하지 않으므로 admission 에서 거부한다.
+            properties:
+              deletionPolicy:
+                default: Retain
+                description: |-
+                  DeletionPolicy 는 삭제 시 하드웨어 상태를 어디까지 되돌릴지 정한다. RestoreMode 는 vendor nvidia
+                  (MIG mode 복원)에서만 유효하고 다른 벤더는 webhook 이 거절한다 — 그 벤더의 삭제는 항상 Retain 이다.
+                enum:
+                - Retain
+                - RestoreMode
+                type: string
+              layout:
+                description: |-
+                  Layout 은 파티션 레이아웃 요청이다. 비우면 파티션 없음 — sharing 만 단독으로 쓸 수 있다
+                  (순수 시분할 등). 이때 파티션 apply 경로(cordon·MIG mode·GI)는 타지 않는다.
+                items:
+                  description: PartitionLayout 는 한 profile 의 파티션 레이아웃 요청이다.
+                  properties:
+                    countPerDevice:
+                      description: |-
+                        CountPerDevice 는 선택된 각 물리 장치에 생성할 해당 profile 인스턴스 수.
+                        FixedProfile backend(RNGD)는 선택적(주면 검증만), mixed backend(NVIDIA)는 필수.
+                      format: int32
+                      type: integer
+                    profile:
+                      description: 'Profile 은 벤더 공식 표기(RNGD: 2core.12gb|4core.24gb,
+                        NVIDIA: 1g.6gb 등).'
+                      type: string
+                  required:
+                  - profile
+                  type: object
+                type: array
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                type: object
+              sharing:
+                description: Sharing 은 공유 요청이다(nil = exclusive). layout 과 조합하면 partitioned-shared
+                  가 된다.
+                properties:
+                  mode:
+                    enum:
+                    - exclusive
+                    - timeSliced
+                    - mps
+                    type: string
+                  mps:
+                    description: |-
+                      MPSSpec 는 MPS 공유 요청이다. replica 는 광고 배수이며 물리 장치 수가 아니다.
+                      device-plugin config 의 sharing.mps.failRequestsGreaterThanOne 은 항상 true 로 강제 렌더된다
+                      (upstream historical MPS 안전장치 보존 — replicas>1 요청 거부). 이 스펙에는 이를 뒤집을 필드가 없다.
+                    properties:
+                      replicas:
+                        format: int32
+                        minimum: 2
+                        type: integer
+                    required:
+                    - replicas
+                    type: object
+                  timeSlicing:
+                    description: TimeSlicingSpec 는 시간공유 요청이다. replicas 는 성능 비율이 아니라
+                      광고 배수다.
+                    properties:
+                      failRequestsGreaterThanOne:
+                        description: FailRequestsGreaterThanOne 은 replica 1개 초과 요청을
+                          kubelet 단계에서 거절할지다.
+                        type: boolean
+                      replicas:
+                        format: int32
+                        maximum: 16
+                        minimum: 2
+                        type: integer
+                    required:
+                    - replicas
+                    type: object
+                required:
+                - mode
+                type: object
+              vendor:
+                enum:
+                - furiosa
+                - nvidia
+                - rebellions
+                - tenstorrent
+                type: string
+            required:
+            - vendor
+            type: object
+            x-kubernetes-validations:
+            - message: spec.layout and spec.sharing cannot both be empty
+              rule: (has(self.layout) && self.layout.size() > 0) || has(self.sharing)
+          status:
+            properties:
+              applyRecords:
+                items:
+                  description: ApplyRecord 는 nvidia MIG apply 의 durable journal +
+                    삭제 복원 snapshot 이다.
+                  properties:
+                    baselineGPUCount:
+                      format: int32
+                      type: integer
+                    cordonedByPolicy:
+                      description: |-
+                        CordonedByPolicy 는 MIG mode enable 절차가 노드를 cordon 했는지다. 운영자가 미리
+                        cordon 해 둔 노드를 정책이 멋대로 uncordon 하지 않도록, 우리가 잠근 노드만 되돌린다.
+                      type: boolean
+                    count:
+                      format: int32
+                      type: integer
+                    disableRebootAttempts:
+                      description: |-
+                        DisableRebootAttempts 는 deletionPolicy=RestoreMode 삭제 경로가 MIG mode 를 되돌리기 위해
+                        요청한 재부팅 횟수다. RebootAttempts(mode enable)와 별도 예산이다 — 공유하면 enable 이
+                        상한을 소진해 Failed 로 끝난 뒤에는 disable 이 재부팅을 한 번도 못 쓰고 finalizer 가 영구 유지된다.
+                      format: int32
+                      type: integer
+                    expectedFullGPUCount:
+                      format: int32
+                      type: integer
+                    expectedMigCount:
+                      format: int32
+                      type: integer
+                    generation:
+                      format: int64
+                      type: integer
+                    gpuPCIs:
+                      items:
+                        type: string
+                      type: array
+                    migPhase:
+                      type: string
+                    nodeName:
+                      type: string
+                    ownerUID:
+                      type: string
+                    profile:
+                      type: string
+                    rebootAttempts:
+                      description: |-
+                        RebootAttempts 는 MIG mode 확정을 위해 이 정책이 요청한 재부팅 횟수다. Job 생성
+                        직전에 증가·영속하며, 상한을 넘으면 재부팅 대신 Failed 로 끝낸다(무한 재부팅 방지).
+                      format: int32
+                      type: integer
+                    sharingMode:
+                      description: |-
+                        SharingMode/SharingReplicas 는 공유 적용 저널이다 — mutation 이전에 영속하고, 삭제 시
+                        이 값으로 device-plugin 설정 원복 대상을 판단한다(파티션 저널과 같은 규율).
+                      type: string
+                    sharingReplicas:
+                      format: int32
+                      type: integer
+                    sharingRolledBackGeneration:
+                      description: |-
+                        SharingRolledBackGeneration 은 같은 spec.generation 에서 sharing verify 가 이미 실패해
+                        rollback 됐음을 기록한다. 값이 acpp.Generation 과 같으면 재적용하지 않고 terminal Failed 로
+                        끝낸다 — 재시도 경로는 spec 변경(generation 증가)뿐이다.
+                      format: int64
+                      type: integer
+                  required:
+                  - nodeName
+                  type: object
+                type: array
+              observedGeneration:
+                format: int64
+                type: integer
+              phase:
+                type: string
+              targets:
+                items:
+                  properties:
+                    advertisement:
+                      properties:
+                        advertisedResources:
+                          additionalProperties:
+                            format: int32
+                            type: integer
+                          type: object
+                        mode:
+                          type: string
+                        profileNamedSupported:
+                          type: boolean
+                        reason:
+                          type: string
+                      type: object
+                    backend:
+                      description: BackendRef 는 apply 대상 + rollback 기준.
+                      properties:
+                        configurationScope:
+                          type: string
+                        kind:
+                          type: string
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                        rollback:
+                          description: RollbackInfo 는 apply 전 저장하는 복원 기준.
+                          properties:
+                            generation:
+                              format: int64
+                              type: integer
+                            prevPolicy:
+                              type: string
+                            resourceVersion:
+                              type: string
+                            templateHash:
+                              type: string
+                          type: object
+                        uid:
+                          type: string
+                        version:
+                          type: string
+                      type: object
+                    conditions:
+                      items:
+                        description: Condition contains details for one aspect of
+                          the current state of this API Resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              lastTransitionTime is the last time the condition transitioned from one status to another.
+                              This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              message is a human readable message indicating details about the transition.
+                              This may be an empty string.
+                            maxLength: 32768
+                            type: string
+                          observedGeneration:
+                            description: |-
+                              observedGeneration represents the .metadata.generation that the condition was set based upon.
+                              For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                              with respect to the current state of the instance.
+                            format: int64
+                            minimum: 0
+                            type: integer
+                          reason:
+                            description: |-
+                              reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                              Producers of specific condition types may define expected values and meanings for this field,
+                              and whether the values are considered a guaranteed API.
+                              The value should be a CamelCase string.
+                              This field may not be empty.
+                            maxLength: 1024
+                            minLength: 1
+                            pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                            type: string
+                          status:
+                            description: status of the condition, one of True, False,
+                              Unknown.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
+                          type:
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                            maxLength: 316
+                            pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - message
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                    devices:
+                      items:
+                        properties:
+                          allocationAPIs:
+                            description: 'AllocationAPIs 는 이 장치를 노출할 수 있는 API 다(MVP:
+                              devicePlugin).'
+                            items:
+                              type: string
+                            type: array
+                          id:
+                            type: string
+                          isolationCapability:
+                            description: IsolationCapability 는 실측 근거가 있는 격리 등급이다(미실측은
+                              빈 문자열).
+                            properties:
+                              compute:
+                                type: string
+                              fault:
+                                type: string
+                              memory:
+                                type: string
+                            type: object
+                          model:
+                            type: string
+                          operations:
+                            properties:
+                              apply:
+                                properties:
+                                  reason:
+                                    type: string
+                                  supported:
+                                    type: boolean
+                                required:
+                                - supported
+                                type: object
+                              rollback:
+                                properties:
+                                  reason:
+                                    type: string
+                                  supported:
+                                    type: boolean
+                                required:
+                                - supported
+                                type: object
+                            type: object
+                          partitionCapability:
+                            properties:
+                              hardwareSupported:
+                                type: boolean
+                              mixedProfilesSupported:
+                                type: boolean
+                              partitionModel:
+                                type: string
+                              profiles:
+                                items:
+                                  properties:
+                                    maxInstancesPerDevice:
+                                      format: int32
+                                      type: integer
+                                    name:
+                                      type: string
+                                    supportLevel:
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type: array
+                              reason:
+                                type: string
+                              verification:
+                                description: |-
+                                  Verification 은 required|verified|notApplicable. HardwareSupported=false 의 뜻을
+                                  갈라준다: verified 면 "측정했고 이 하드웨어는 파티션을 못 한다", required 면
+                                  "관측 자체가 실패해 아직 모른다". 빈 문자열은 구버전 리포트(미기록)다.
+                                type: string
+                            required:
+                            - hardwareSupported
+                            type: object
+                          pciAddress:
+                            type: string
+                          sharingCapability:
+                            description: SharingCapability 는 공유 방식별 지원·검증 상태다.
+                            properties:
+                              brokered:
+                                description: SharingModeSupport 는 한 공유 방식의 지원·검증 상태다.
+                                properties:
+                                  maxReplicas:
+                                    description: MaxReplicas 는 time-slicing 최대 replica(0=미정).
+                                    format: int32
+                                    type: integer
+                                  reason:
+                                    type: string
+                                  supported:
+                                    type: boolean
+                                  verification:
+                                    description: Verification 은 required|verified|notApplicable.
+                                      실측 전에는 required 로 남긴다.
+                                    type: string
+                                required:
+                                - supported
+                                type: object
+                              multiProcess:
+                                description: SharingModeSupport 는 한 공유 방식의 지원·검증 상태다.
+                                properties:
+                                  maxReplicas:
+                                    description: MaxReplicas 는 time-slicing 최대 replica(0=미정).
+                                    format: int32
+                                    type: integer
+                                  reason:
+                                    type: string
+                                  supported:
+                                    type: boolean
+                                  verification:
+                                    description: Verification 은 required|verified|notApplicable.
+                                      실측 전에는 required 로 남긴다.
+                                    type: string
+                                required:
+                                - supported
+                                type: object
+                              timeSlicing:
+                                description: SharingModeSupport 는 한 공유 방식의 지원·검증 상태다.
+                                properties:
+                                  maxReplicas:
+                                    description: MaxReplicas 는 time-slicing 최대 replica(0=미정).
+                                    format: int32
+                                    type: integer
+                                  reason:
+                                    type: string
+                                  supported:
+                                    type: boolean
+                                  verification:
+                                    description: Verification 은 required|verified|notApplicable.
+                                      실측 전에는 required 로 남긴다.
+                                    type: string
+                                required:
+                                - supported
+                                type: object
+                            type: object
+                        type: object
+                      type: array
+                    driverVersion:
+                      type: string
+                    nodeName:
+                      type: string
+                    observedLayout:
+                      items:
+                        properties:
+                          backendPolicy:
+                            type: string
+                          observedCountPerDevice:
+                            format: int32
+                            type: integer
+                        type: object
+                      type: array
+                    operations:
+                      properties:
+                        apply:
+                          properties:
+                            reason:
+                              type: string
+                            supported:
+                              type: boolean
+                          required:
+                          - supported
+                          type: object
+                        rollback:
+                          properties:
+                            reason:
+                              type: string
+                            supported:
+                              type: boolean
+                          required:
+                          - supported
+                          type: object
+                      type: object
+                    phase:
+                      type: string
+                    requestedLayout:
+                      description: 3-state layout — RNGD 는 DS 전역이라 target 수준(device
+                        아님).
+                      items:
+                        description: PartitionLayout 는 한 profile 의 파티션 레이아웃 요청이다.
+                        properties:
+                          countPerDevice:
+                            description: |-
+                              CountPerDevice 는 선택된 각 물리 장치에 생성할 해당 profile 인스턴스 수.
+                              FixedProfile backend(RNGD)는 선택적(주면 검증만), mixed backend(NVIDIA)는 필수.
+                            format: int32
+                            type: integer
+                          profile:
+                            description: 'Profile 은 벤더 공식 표기(RNGD: 2core.12gb|4core.24gb,
+                              NVIDIA: 1g.6gb 등).'
+                            type: string
+                        required:
+                        - profile
+                        type: object
+                      type: array
+                    resolvedLayout:
+                      items:
+                        properties:
+                          backendPolicy:
+                            type: string
+                          expectedCountPerDevice:
+                            format: int32
+                            type: integer
+                          profile:
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

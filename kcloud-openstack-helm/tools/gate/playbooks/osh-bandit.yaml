@@ -1,0 +1,5 @@
+- hosts: primary
+  roles:
+    - ensure-python
+    - ensure-pip
+    - osh-bandit

@@ -38,7 +38,7 @@ This guide provides comprehensive information for developers working on the KClo
 
 2. **Install dependencies**
    ```bash
-   make deps
+   go mod download
    ```
 
 3. **Generate code**

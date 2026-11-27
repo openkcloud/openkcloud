@@ -1,0 +1,22 @@
+# npu_v1alpha1_acceleratorpartitionpolicy_shared.yaml: MIG 파티션 + time-slicing 공유 샘플 | 생성일: 2026-07-29
+# 주의 1: replicas 는 성능 배분이 아니라 광고 배수다 — 조각 1개를 pod 2개가 시분할한다(격리 없음).
+# 주의 2: 적용 범위 = device-plugin DaemonSet 전체(클러스터 전역)다. ConfigMap 도 DS 도 단일 전역
+#         객체이므로 아래 nodeSelector 는 파티션(MIG) 대상만 한정하고, 공유 설정은 모든 nvidia 노드의
+#         광고에 적용된다. 노드별 공유(--config-file-src + 노드 라벨)는 후속 과제.
+# 주의 3: 배수는 이 노드가 광고 중인 nvidia 리소스 전체(MIG 조각 + 남은 full-GPU)에 걸린다 —
+#         리소스별 선택 축은 아직 spec 에 없다.
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorPartitionPolicy
+metadata:
+  name: a30-mig-shared
+spec:
+  vendor: nvidia
+  nodeSelector:
+    kubernetes.io/hostname: k8s-worker1
+  layout:
+    - profile: 1g.6gb
+      countPerDevice: 4
+  sharing:
+    mode: timeSliced
+    timeSlicing:
+      replicas: 2

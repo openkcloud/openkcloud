@@ -1,0 +1,16 @@
+<div ng-controller="LaunchInstanceNetworkController as ctrl">
+  <p class="step-description" translate>
+    Networks provide the communication channels for instances in the cloud. You can select ports instead of networks or a mix of both.
+  </p>
+
+  <transfer-table tr-model="ctrl.tableDataMulti" help-text="ctrl.tableHelpText" limits="ctrl.tableLimits" clone-content>
+    <hz-dynamic-table
+        config="$isAvailableTable ? ctrl.availableTableConfig : ctrl.allocatedTableConfig"
+        items="$isAvailableTable ? ($sourceItems | filterAvailable:trCtrl.allocatedIds) : $sourceItems"
+        validate-number-min="{$ ctrl.tableDataMulti.minItems $}" ng-model="ctrl.tableDataMulti.allocated.length"
+        item-actions="trCtrl.itemActions"
+        filter-facets="$isAvailableTable && ctrl.networkFacets"
+        table="ctrl">
+    </hz-dynamic-table>
+  </transfer-table> <!-- End Networks Transfer Table -->
+</div>

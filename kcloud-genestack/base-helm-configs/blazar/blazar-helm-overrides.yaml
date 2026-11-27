@@ -1,0 +1,106 @@
+---
+images:
+  tags:
+    blazar_api: "ghcr.io/rackerlabs/genestack-images/blazar:2024.1-latest"
+    blazar_db_sync: "ghcr.io/rackerlabs/genestack-images/blazar:2024.1-latest"
+    blazar_manager: "ghcr.io/rackerlabs/genestack-images/blazar:2024.1-latest"
+    bootstrap: "ghcr.io/rackerlabs/genestack-images/heat:2024.1-latest"
+    db_drop: "ghcr.io/rackerlabs/genestack-images/heat:2024.1-latest"
+    db_init: "ghcr.io/rackerlabs/genestack-images/heat:2024.1-latest"
+    dep_check: "ghcr.io/rackerlabs/genestack-images/kubernetes-entrypoint:latest"
+    ks_endpoints: "ghcr.io/rackerlabs/genestack-images/heat:2024.1-latest"
+    ks_service: "ghcr.io/rackerlabs/genestack-images/heat:2024.1-latest"
+    ks_user: "ghcr.io/rackerlabs/genestack-images/heat:2024.1-latest"
+
+endpoints:
+  reservation:
+    hosts:
+      public: blazar-api
+  oslo_db:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_messaging:
+    hosts:
+      default: rabbitmq-nodes
+    host_fqdn_override:
+      default: rabbitmq.openstack.svc.cluster.local
+  oslo_cache:
+    hosts:
+      default: memcached
+    host_fqdn_override:
+      default: memcached.openstack.svc.cluster.local
+  fluentd:
+    namespace: fluentbit
+
+dependencies:
+  static:
+    api:
+      jobs:
+        - blazar-db-sync
+        - blazar-ks-user
+        - blazar-ks-endpoints
+    manager:
+      jobs:
+        - blazar-db-sync
+        - blazar-ks-user
+        - blazar-ks-endpoints
+    db_sync:
+      jobs: null
+
+conf:
+  blazar:
+    DEFAULT:
+      host_href: "http://blazar-api.openstack.svc.cluster.local:1234"
+      enable_notification_events: true
+      notification_format: versioned
+    cache:
+      enabled: true
+      backend: dogpile.cache.memcached
+    database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    keystone_authtoken:
+      service_token_roles: service
+      service_token_roles_required: true
+      auth_type: password
+      auth_version: v3
+      memcache_security_strategy: ENCRYPT
+      service_type: reservation
+    oslo_middleware:
+      enable_proxy_headers_parsing: true
+    oslo_messaging_rabbit:
+      amqp_durable_queues: false
+      rabbit_ha_queues: false
+      rabbit_quorum_queue: true
+      rabbit_transient_quorum_queue: false
+      use_queue_manager: false
+      rabbit_interval_max: 10
+      heartbeat_rate: 3
+      heartbeat_timeout_threshold: 60
+      heartbeat_in_pthread: true
+      kombu_reconnect_delay: 0.5
+    oslo_messaging_notifications:
+      driver: messagingv2
+      topics:
+        - notifications
+    manager:
+      plugins: physical.host.plugin,flavor.instance.plugin,virtual.floatingip.plugin # Overriding the plugins to remove "virtual.instance.plugin" for disabling virtual instance based reservation.
+  logging:
+    logger_root:
+      handlers:
+        - stdout
+      level: INFO
+
+manifests:
+  ingress_api: false
+  job_rabbit_init: false
+  service_ingress_api: false
+  job_db_init: false

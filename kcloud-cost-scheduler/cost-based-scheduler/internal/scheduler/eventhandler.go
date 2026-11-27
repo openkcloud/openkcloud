@@ -231,6 +231,11 @@ func (sched *Scheduler) updatePodInCache(oldObj, newObj any) {
 	if err := sched.Cache.UpdatePod(oldPod, newPod); err != nil {
 		logger.Warn(fmt.Sprintf("[event] cache UpdatePod 실패: pod=%s/%s err=%v", oldPod.Namespace, oldPod.Name, err))
 	}
+
+	// Assigned pod reaching a terminal phase frees resources → retry waiting pods.
+	if assignedPod(newPod) && podTerminal(newPod) && !podTerminal(oldPod) {
+		sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue()
+	}
 }
 
 func (sched *Scheduler) deletePodFromCache(obj any) {
@@ -251,17 +256,33 @@ func (sched *Scheduler) deletePodFromCache(obj any) {
 	}
 
 	logger.Info(fmt.Sprintf("[event] delete pod {%s} from cache\n", pod.Name))
+	wasAssigned := assignedPod(pod)
 	if err := sched.Cache.RemovePod(pod); err != nil {
 		klog.ErrorS(err, "[error] scheduler cache remove pod failed", "pod", klog.KObj(pod))
 	}
+	if wasAssigned {
+		sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue()
+	}
+}
 
+func podTerminal(pod *v1.Pod) bool {
+	if pod == nil {
+		return false
+	}
+	return pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed
 }
 
 func assignedPod(pod *v1.Pod) bool {
 	return len(pod.Spec.NodeName) != 0
 }
 
+// SchedulerName is the schedulerName this scheduler serves.
+const SchedulerName = "keti-cost-scheduler"
+
+// legacySchedulerName is accepted until existing manifests are migrated.
+const legacySchedulerName = "cost-based-scheduler"
+
 func responsibleForPod(pod *v1.Pod) bool {
-	responsibleForPod := (pod.Spec.SchedulerName == "cost-based-scheduler")
-	return responsibleForPod
+	name := pod.Spec.SchedulerName
+	return name == SchedulerName || name == legacySchedulerName
 }

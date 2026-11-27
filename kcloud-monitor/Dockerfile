@@ -36,10 +36,7 @@ EXPOSE ${PORT:-8000}
 
 # Liveness healthcheck via the public probe endpoint (no curl needed in slim image)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8000')+'/api/v1/system/livez').read()" || exit 1
+    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8000')+'/api/v2/system/health').read()" || exit 1
 
 # Run the application with environment variables
-# WARNING: Multi-worker mode (UVICORN_WORKERS>1) requires Redis for shared cache
-# Current in-memory cache does NOT sync across workers
-# For production: Use UVICORN_WORKERS=1 OR implement Redis cache
 CMD uvicorn app.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000} --workers ${UVICORN_WORKERS:-1}

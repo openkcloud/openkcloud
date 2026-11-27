@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: placement
+    service: HTTPRoute
+  name: custom-placement-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - placement.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: placement-https
+  rules:
+    - backendRefs:
+        - name: placement-api
+          port: 8778

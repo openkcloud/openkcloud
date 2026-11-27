@@ -1,3 +1,5 @@
+//go:build legacy_policy_handler
+
 package handlers
 
 import (

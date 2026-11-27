@@ -1,0 +1,4 @@
+sortOptions:
+  order: fifo
+resources:
+  - https://github.com/rabbitmq/messaging-topology-operator/releases/download/v1.19.1/messaging-topology-operator-with-certmanager.yaml

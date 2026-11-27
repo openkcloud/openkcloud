@@ -1,0 +1,75 @@
+---
+exclude: ^submodules/
+
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+repos:
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages:
+          - commit-msg
+        args:
+          - "--strict"
+  - repo: https://github.com/jumanjihouse/pre-commit-hooks
+    rev: 3.0.0
+    hooks:
+      - id: shellcheck
+        stages:
+          - commit-msg
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        stages:
+          - commit-msg
+      - id: trailing-whitespace
+        stages:
+          - commit-msg
+      - id: mixed-line-ending
+        stages:
+          - commit-msg
+      - id: check-byte-order-marker
+        stages:
+          - commit-msg
+      - id: check-executables-have-shebangs
+        stages:
+          - commit-msg
+      - id: check-merge-conflict
+        stages:
+          - commit-msg
+      - id: check-symlinks
+        stages:
+          - commit-msg
+      - id: check-yaml
+        stages:
+          - commit-msg
+        files: .*\.(yaml|yml)$
+        args:
+          - "--allow-multiple-documents"
+          - "--unsafe"
+      - id: debug-statements
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        stages:
+          - manual
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        stages:
+          - manual
+  - repo: https://github.com/ansible-community/ansible-lint
+    rev: v24.9.2
+    hooks:
+      - id: ansible-lint
+        stages:
+          - manual
+        files: ^(ansible/.*\.(yaml|yml)|requirements\.yml|\.ansible-lint)$
+        additional_dependencies:
+          - ansible-core==2.17.14

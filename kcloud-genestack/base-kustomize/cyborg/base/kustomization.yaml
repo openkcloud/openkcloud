@@ -1,0 +1,9 @@
+---
+sortOptions:
+  order: fifo
+resources:
+  - cyborg-mariadb-database.yaml
+  - cyborg-rabbitmq-queue.yaml
+  - hpa-cyborg-api.yaml
+  - policies.yaml
+  - all.yaml

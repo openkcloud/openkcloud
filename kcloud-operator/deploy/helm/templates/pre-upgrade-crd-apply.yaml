@@ -1,9 +1,8 @@
 {{/*
-pre-upgrade-crd-apply.yaml: helm upgrade 시 operator 바이너리의 apply-crds 서브명령으로 CRD를 자동 적용하는 pre-upgrade Job.
-상세: Helm은 설계상 crds/ 디렉토리를 install 시에만 처리하고 upgrade에서는 건드리지 않음.
-      이 Job이 operator 이미지(apply-crds 서브명령 내장)를 재사용하여 CRD를 server-side apply로 반영함.
-      post-install hook(DIP/NCP) 이전에 실행되도록 weight=-10 지정.
-생성일: 2026-04-17 | 수정일: 2026-04-17
+pre-upgrade-crd-apply.yaml: helm upgrade 시 CRD 를 자동 적용하는 pre-upgrade Job
+상세: Helm 은 crds/ 를 install 시에만 처리해 upgrade 에서 CRD 가 갱신되지 않는다. 이 Job 이
+      operator 이미지의 apply-crds 로 server-side apply 하며, DIP/NCP hook 전에 weight=-10 으로 돈다.
+생성일: 2026-04-17 | 수정일: 2026-10-11
 */}}
 {{- if .Values.crdUpgrade.enabled }}
 ---
@@ -58,11 +57,34 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 2
-  ttlSecondsAfterFinished: 300
+  # 실패한 Job 의 로그가 사유를 읽을 수 있는 유일한 자리다(이 Job 은 붙일 객체가 없어
+  # 이벤트를 남기지 않는다). 거절 사유 — 클러스터와 이미지의 릴리스 라인·버전 — 는
+  # 여기에만 있으므로, 운영자가 다음 근무일에 와도 읽히도록 24시간을 준다.
+  # 성공 경로는 helm 의 hook-delete-policy(hook-succeeded)가 먼저 지우고, 실패한 Job 도
+  # 다음 upgrade 의 before-hook-creation 이 지우므로 24시간이 쌓이지는 않는다.
+  ttlSecondsAfterFinished: 86400
   template:
     spec:
       serviceAccountName: {{ .Release.Name }}-crd-upgrade
       restartPolicy: OnFailure
+      # cordoned worker 로만 스케줄되면 pre-upgrade hook 이 hang 해 helm upgrade 가 멈춘다.
+      # control-plane taint 를 tolerate 해 workers 전량 cordon 시에도 스케줄 가능하게 하고,
+      # preferred affinity 로 control-plane 에 우선 배치한다(apply-crds 는 API 접근만 필요).
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
       containers:
         - name: apply-crds
           image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.image.repository "tag" .Values.image.tag) }}"

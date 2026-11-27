@@ -1,0 +1,16 @@
+# ============================================================
+# site-values.example.yaml: Add-on 이 만들 site-values.yaml 의 본보기
+# 상세: Add-on 이 이 내용을 복사해 대상 환경에 맞게 고친 site-values.yaml 을 만들고, 차트
+#       프리셋(values-k8s1.34.yaml) 뒤에 -f 로 붙인다 — 이 파일 자체는 설치에 넘기지 않는다.
+#       벤더 선택은 없다(operator 가 노드 장치를 감지해 있는 벤더만 배치). 공개 인터넷이라
+#       두 값이 차트 기본값과 같아도 파일은 생략하지 않는다 — helm 은 -f 파일이 없으면 실패한다.
+# 생성일: 2026-09-10 | 수정일: 2026-10-11
+# ============================================================
+global:
+  registry: ghcr.io/openkcloud        # 자체 미러: <harbor>/<프로젝트>
+  vendorRegistry: ""                  # 자체 미러: <harbor>/<프로젝트>
+# 자체 미러를 쓸 때만 아래 완성 경로 필드도 함께 지정한다(global 값으로 조립되지 않음).
+# nvidia: {devicePluginImage: <harbor>/<프로젝트>/nvidia/k8s-device-plugin:v0.17.1, dcgmExporter: {image: <harbor>/<프로젝트>/nvidia/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04}}
+# furiosa: {devicePluginImage: <harbor>/<프로젝트>/furiosa-ai/k8s-device-plugin:0.10.1}
+# driverInstallPolicies: {nvidia: {toolkit: {image: <harbor>/<프로젝트>/nvidia/container-toolkit:v1.17.8-ubuntu20.04}}}
+# crdUpgrade: {kubectlImage: <harbor>/<프로젝트>/bitnamilegacy/kubectl:1.28}

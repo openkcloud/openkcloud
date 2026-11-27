@@ -1,0 +1,94 @@
+{{/*
+post-delete-crds.yaml: helm uninstall 뒤 npu.ai CRD 를 지우는 post-delete Job.
+상세: Helm 은 crds/ 를 삭제하지 않는다. CR 은 pre-delete 게이트가 이미 지웠으므로 이 Job 은
+      깨끗한 uninstall 을 위해 CRD 정의만 지운다(uninstall.purgeCRDs=false 로 끈다).
+생성일: 2026-09-10 | 수정일: 2026-10-11
+*/}}
+{{- if .Values.uninstall.purgeCRDs }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-purge-crds
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-purge-crds
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-purge-crds
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-purge-crds
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-purge-crds
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-purge-crds
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: {{ .Release.Name }}-purge-crds
+      restartPolicy: OnFailure
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      containers:
+        - name: purge-crds
+          image: "{{ .Values.crdUpgrade.kubectlImage | default (include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.crdUpgrade.kubectlUpstream "repo" .Values.crdUpgrade.kubectlRepository "tag" .Values.crdUpgrade.kubectlTag)) }}"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              # 이름을 나열하지 않고 그룹으로 고른다 — CRD 가 늘어도 이 Job 은 그대로다.
+              names=$(kubectl get crd -o jsonpath='{range .items[?(@.spec.group=="npu.ai")]}{.metadata.name}{"\n"}{end}')
+              if [ -z "${names}" ]; then
+                echo "npu.ai CRD 없음 — 지울 것이 없다"
+                exit 0
+              fi
+              echo "${names}" | xargs kubectl delete crd --ignore-not-found
+              echo "npu.ai CRD 삭제 완료"
+{{- end }}

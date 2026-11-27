@@ -1,0 +1,21 @@
+{% extends "horizon/common/_modal_form.html" %}
+{% load i18n %}
+
+{% block modal-body-right %}
+  <p><strong>{% trans "Volume Backup:" %}</strong>
+  {% blocktrans %}
+  Volume Backups are stored using one of cinder-backup drivers
+  (object storage service, Ceph, NFS, etc ...).
+  You must have one of these services activated in order to create a backup.
+  {% endblocktrans %}</p>
+  <p>{% blocktrans %}
+  If a snapshot is specified here only the specified snapshot of the volume
+  will be backed up.
+  </p>
+  {% endblocktrans %}
+  <p>{% blocktrans %}
+  If no container name is provided, a default container named volumebackups
+  will be provisioned for you.
+  Backups will be the same size as the volume they originate from.
+  {% endblocktrans %}</p>
+{% endblock %}

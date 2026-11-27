@@ -1,0 +1,22 @@
+---
+sortOptions:
+  order: fifo
+resources:
+  - neutron-mariadb-database.yaml
+  - neutron-rabbitmq-queue.yaml
+  - all.yaml
+  - hpa-neutron-server.yaml
+  - policies.yaml
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: neutron-bin
+      version: v1
+    patch: |-
+      - op: replace
+        path: /data/neutron-ovn-init.sh
+        value: |-
+          #!/bin/bash
+          mkdir -p /tmp/pod-shared
+          touch /tmp/pod-shared/ovn.ini

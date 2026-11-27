@@ -1,4 +1,4 @@
-# KCloud Monitor - External Prometheus Setup
+# KCloud Monitor v2 (scaffold)
 # Host network mode as requested
 
 services:
@@ -10,34 +10,54 @@ services:
       args:
         PYTHON_VERSION: 3.12
     container_name: kcloud-monitor-api
+    # 설정은 전부 .env 에서 읽음. 계정, 비밀번호 기본값 없음 (없으면 기동 거부)
     env_file:
       - .env
     environment:
-      # Override defaults at runtime if needed
       HOST: ${HOST:-0.0.0.0}
       PORT: ${PORT:-8000}
-      # WARNING: Multi-worker (>1) requires Redis for shared cache
-      # Current in-memory cache does NOT sync across workers
-      # Use UVICORN_WORKERS=1 for single worker or setup Redis
       UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
-      PROMETHEUS_URL: ${PROMETHEUS_URL:-https://prometheus.example.com}
-      PROMETHEUS_TIMEOUT: ${PROMETHEUS_TIMEOUT:-30}
-      API_AUTH_USERNAME: ${API_AUTH_USERNAME:-admin}
-      API_AUTH_PASSWORD: ${API_AUTH_PASSWORD:-changeme}
-      DEBUG: ${DEBUG:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_AUTH_USERNAME: ${API_AUTH_USERNAME:?}
+      API_AUTH_PASSWORD: ${API_AUTH_PASSWORD:?}
+      # 알람 저장소. compose 안의 db 서비스로 연결. 외부 PostgreSQL을 쓰면 .env 의 DATABASE_URL 이 우선
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}}
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - ./app:/app/app:ro
     ports:
       - "0.0.0.0:${PORT:-8000}:${PORT:-8000}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/api/v1/system/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${PORT:-8000}/api/v2/system/health"]
       interval: 30s
       timeout: 10s
       retries: 3
     restart: unless-stopped
 
-# Usage:
-# 1. Copy .env.example to .env and update PROMETHEUS_URL (and credentials if needed).
-# 2. Run: docker-compose up -d
-# 3. Verify health: curl http://localhost:8000/api/v1/system/health
+  # PostgreSQL: 알람 정책, 채널, 활성 알람, 이력 저장. (추후 resource-map 원장도 여기)
+  db:
+    image: postgres:16-alpine
+    container_name: kcloud-monitor-db
+    # 포트를 바깥에 열지 않음. api 컨테이너만 내부 이름 db 로 접속
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+# 사용법
+# 1. .env.example 을 .env 로 복사하고 API_AUTH_*, POSTGRES_* 값을 채움 (기본값 없음)
+# 2. docker compose up -d --build
+# 3. curl http://localhost:8000/api/v2/system/health

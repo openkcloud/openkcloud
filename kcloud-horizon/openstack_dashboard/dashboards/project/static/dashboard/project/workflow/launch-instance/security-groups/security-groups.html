@@ -1,0 +1,13 @@
+<div ng-controller="LaunchInstanceSecurityGroupsController as ctrl">
+  <p class="step-description" translate>Select the security groups to launch the instance in.</p>
+
+  <transfer-table tr-model="ctrl.tableData" help-text="ctrl.tableHelp" limits="ctrl.tableLimits" clone-content>
+    <hz-dynamic-table
+        config="$isAvailableTable ? ctrl.availableTableConfig : ctrl.allocatedTableConfig"
+        items="$isAvailableTable ? ($sourceItems | filterAvailable:trCtrl.allocatedIds) : $sourceItems"
+        item-actions="trCtrl.itemActions"
+        filter-facets="$isAvailableTable && ctrl.filterFacets"
+        table="ctrl">
+    </hz-dynamic-table>
+  </transfer-table> <!-- End Security Groups Transfer Table -->
+</div> <!-- End Controller -->

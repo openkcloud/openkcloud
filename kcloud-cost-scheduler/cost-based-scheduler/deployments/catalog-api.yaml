@@ -1,0 +1,100 @@
+# Catalog API (P2 bootstrap).
+#
+# The scheduler never opens the SQLite file; it only talks to this Service.
+# SQLite plus hostPath is the bootstrap storage, so this Deployment is pinned to
+# the node that owns the results directory. Replacing SQLite with Postgres later
+# changes this manifest and the repository adapter, not the HTTP contract.
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api
+  namespace: kcp-control-plane
+  labels:
+    app: catalog-api
+spec:
+  selector:
+    app: catalog-api
+  ports:
+    - name: http
+      port: 8099
+      targetPort: 8099
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  namespace: kcp-control-plane
+  labels:
+    app: catalog-api
+spec:
+  replicas: 1
+  strategy:
+    # SQLite hostPath is single-writer; never run two pods against one file.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: catalog-api
+  template:
+    metadata:
+      labels:
+        app: catalog-api
+    spec:
+      # Must be the node holding /var/lib/kcloud. Update together with the
+      # scheduler nodeSelector when the cluster layout is finalised.
+      nodeSelector:
+        kubernetes.io/hostname: gpu-node-01
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+        - name: catalog-api
+          image: python:3.11-slim
+          command: ["python3"]
+          args:
+            - /opt/kcloud/scripts/catalog/catalog_api.py
+            - --db
+            # Measured R1 DB (environment_key column + 3 envs). Rename/symlink if needed.
+            - /var/lib/kcloud/catalog/2026-09-17-r1-measured-envs.db
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8099"
+          ports:
+            - name: http
+              containerPort: 8099
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8099
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8099
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: scripts
+              mountPath: /opt/kcloud/scripts
+              readOnly: true
+            - name: catalog-db
+              mountPath: /var/lib/kcloud/catalog
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+      volumes:
+        - name: scripts
+          hostPath:
+            # Must exist on gpu-node-01. Sync local scripts here before apply.
+            path: /opt/kcloud/scripts
+            type: Directory
+        - name: catalog-db
+          hostPath:
+            path: /var/lib/kcloud/catalog
+            type: DirectoryOrCreate

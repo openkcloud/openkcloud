@@ -7,16 +7,13 @@ spec:
   model: generic
   rebootStrategy: IfNeeded
   kernelAllowlist: ["5.15.*", "6.8.*"]
-  containerdMinVersion: "1.7.0"
   driver:
     installer: apt
     version: "nvidia-driver-535"
-    image: 129.254.202.88:5100/nvidia-driver-installer:1.0
+    image: registry.example.com:5000/nvidia-driver-installer:1.0
   toolkit:
     enabled: true
-    method: apt
-    version: ""
-    image: 129.254.202.88:5100/nvidia-driver-installer:1.0
+    image: registry.example.com:5000/nvidia-driver-installer:1.0
 ---
 apiVersion: npu.ai/v1alpha1
 kind: DriverInstallPolicy
@@ -27,8 +24,7 @@ spec:
   model: warboy
   rebootStrategy: IfNeeded
   kernelAllowlist: ["5.15.*", "6.8.*"]
-  containerdMinVersion: "1.7.0"
   driver:
     version: "1.0"
-    image: "129.254.202.88:5100/furiosa-driver-installer:1.0"
+    image: "registry.example.com:5000/furiosa-driver-installer:1.0"
 

@@ -1,0 +1,51 @@
+# AI 노트북 LLM 배포용 서빙 런타임 (개발 클러스터에서 직접 만들어 쓰던 것, 2026-09-29 파일로 정리)
+# 모델 형식 "vllm"을 고르면 KServe가 이 런타임을 자동으로 쓴다. GPU 전용 이미지다.
+# NPU에서는 vllm-rbln(Rebellions) 또는 furiosa-llm(RNGD) 이미지로 바꾼 런타임을 따로 만든다.
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  name: vllm-openai
+spec:
+  annotations:
+    prometheus.kserve.io/path: /metrics
+    prometheus.kserve.io/port: "8000"
+  containers:
+  - name: kserve-container
+    image: docker.io/vllm/vllm-openai:v0.6.3
+    args:
+    - --port=8080
+    - --served-model-name={{.Name}}
+    env:
+    - name: HF_HOME
+      value: /cache
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    resources:
+      requests:
+        cpu: "2"
+        memory: 6Gi
+      limits:
+        cpu: "6"
+        memory: 12Gi
+    volumeMounts:
+    - mountPath: /cache
+      name: cache
+    - mountPath: /dev/shm
+      name: shm
+  protocolVersions:
+  - v2
+  - v1
+  supportedModelFormats:
+  - autoSelect: true
+    name: vllm
+    priority: 1
+    version: "1"
+  volumes:
+  - name: cache
+    emptyDir:
+      sizeLimit: 10Gi
+  - name: shm
+    emptyDir:
+      medium: Memory
+      sizeLimit: 2Gi

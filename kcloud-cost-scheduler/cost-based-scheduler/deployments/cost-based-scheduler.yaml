@@ -6,13 +6,13 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: cost-based-scheduler
+  name: keti-cost-scheduler
   namespace: kcp-control-plane
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: cost-based-scheduler
+  name: keti-cost-scheduler
 rules:
 - apiGroups: [""]
   resources: ["pods"]
@@ -45,17 +45,21 @@ rules:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: cost-based-scheduler
+  name: keti-cost-scheduler
 subjects:
 - kind: ServiceAccount
-  name: cost-based-scheduler
+  name: keti-cost-scheduler
   namespace: kcp-control-plane
 roleRef:
   kind: ClusterRole
-  name: cost-based-scheduler
+  name: keti-cost-scheduler
   apiGroup: rbac.authorization.k8s.io
 ---
-# accelerator-config.yaml을 ConfigMap으로 관리
+# accelerator-config: placeholder below is NOT enough to schedule.
+# Before apply, replace data with the real file contents, e.g.:
+#   kubectl -n kcp-control-plane create configmap accelerator-config \
+#     --from-file=accelerator-config.yaml=config/accelerator-config.yaml \
+#     --dry-run=client -o yaml | kubectl apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -63,46 +67,74 @@ metadata:
   namespace: kcp-control-plane
 data:
   accelerator-config.yaml: |
-    # See config/accelerator-config.yaml for the full content.
-    # kubectl create configmap accelerator-config \
-    #   --from-file=accelerator-config.yaml=config/accelerator-config.yaml \
-    #   -n kcp-control-plane --dry-run=client -o yaml | kubectl apply -f -
+    # PLACEHOLDER — replace with config/accelerator-config.yaml before E2E.
+    # Empty/comment-only ConfigMap will break accelerator-aware plugins.
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: cost-based-scheduler
-  name: cost-based-scheduler
+    app: keti-cost-scheduler
+  name: keti-cost-scheduler
   namespace: kcp-control-plane
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cost-based-scheduler
+      app: keti-cost-scheduler
   template:
     metadata:
       labels:
-        app: cost-based-scheduler
-      name: cost-based-scheduler
+        app: keti-cost-scheduler
+      name: keti-cost-scheduler
     spec:
-      serviceAccountName: cost-based-scheduler
+      serviceAccountName: keti-cost-scheduler
+      # Set the hostname to match your accelerator node.
       nodeSelector:
-        kubernetes.io/hostname: gpu-server-01
+        kubernetes.io/hostname: gpu-node-01
       tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
       containers:
-        - name: cost-based-scheduler
-          image: ketidevit2/cost-based-scheduler:0.4.2
+        - name: keti-cost-scheduler
+          # E2E Gate: rebuild/push after LookupEnvironment change; record digest.
+          # Do NOT assume ketidevit2/keti-cost-scheduler:0.4.2 contains env_lookup Score path.
+          image: ketidevit2/keti-cost-scheduler:0.4.2
           imagePullPolicy: Always
           env:
           - name: ACCELERATOR_CONFIG_PATH
             value: /etc/scheduler/accelerator-config.yaml
           - name: ANALYSIS_ENGINE_URL
             value: "http://analysis-engine.kcp-control-plane.svc.cluster.local:8080"
+          # WorkloadAwareCost/Power의 정규화 기준값. 실측값 확보 전까지는 예측
+          # fixture 범위를 감싸는 고정값을 쓰며, 실험마다 재빌드하지 않도록
+          # 여기서 덮어쓴다. 기준값이 fixture보다 크면 후보 점수가 뭉개진다.
+          - name: SCHED_MAX_COST_USD
+            value: "0.05"
+          - name: SCHED_GPU_TDP_WATTS
+            value: "300"
+          - name: SCHED_NPU_TDP_WATTS
+            value: "200"
+          # Catalog-aware scoring. An unset SCHED_CATALOG_MODE silently means
+          # "off", so it is pinned here to keep shadow recording from being
+          # disabled by omission. Promoting to "enforce" additionally requires
+          # SCHED_SHADOW_SCORE_WEIGHT > 0 and a replay/canary gate.
+          - name: SCHED_CATALOG_MODE
+            value: "shadow"
+          - name: SCHED_CATALOG_URL
+            value: "http://catalog-api.kcp-control-plane.svc.cluster.local:8099"
+          - name: SCHED_CATALOG_TIMEOUT_MS
+            value: "100"
+          - name: SCHED_CATALOG_CACHE_TTL_SEC
+            value: "30"
+          - name: SCHED_SHADOW_SCORE_WEIGHT
+            value: "0"
+          - name: SCHED_PREDICTION_MIN_CONFIDENCE
+            value: "MEASURED"
+          - name: SCHED_EXPERIMENT_ID
+            value: "2026-09-03-k8s"
           volumeMounts:
           - name: accelerator-config
             mountPath: /etc/scheduler

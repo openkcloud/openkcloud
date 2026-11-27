@@ -1,0 +1,30 @@
+<div class="item">
+  <dl class="col-xs-4">
+    <dt translate>Min Disk (GB)</dt>
+    <dd>
+      {$ (item.properties ? item.min_disk : item.volume_image_metadata.min_disk) || '--' $}
+    </dd>
+  </dl>
+  <dl class="col-xs-4">
+    <dt translate>Min RAM (MB)</dt>
+    <dd>
+      {$ (item.properties ? item.min_ram : item.volume_image_metadata.min_ram) || '--' $}
+    </dd>
+  </dl>
+</div>
+
+<div ng-if="model.metadataDefs.image || model.metadataDefs.volume">
+  <div ng-if="item.properties && model.metadataDefs.image">
+    <metadata-display
+        available="::model.metadataDefs.image"
+        existing="::item.properties">
+    </metadata-display>
+  </div>
+
+  <div ng-if="item.volume_image_metadata && model.metadataDefs.volume">
+    <metadata-display
+        available="::model.metadataDefs.volume"
+        existing="::item.volume_image_metadata">
+    </metadata-display>
+  </div>
+</div>

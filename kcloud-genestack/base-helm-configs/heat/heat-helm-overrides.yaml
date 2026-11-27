@@ -1,0 +1,227 @@
+---
+images:
+  tags:
+    bootstrap: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_drop: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_init: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    dep_check: "quay.io/rackspace/rackerlabs-kubernetes-entrypoint:latest-ubuntu_jammy"
+    heat_api: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    heat_cfn: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    heat_cloudwatch: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    heat_db_sync: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    heat_engine: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    heat_engine_cleaner: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    heat_purge_deleted: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    image_repo_sync: "quay.io/rackspace/rackerlabs-docker:17.07.0"
+    ks_endpoints: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_service: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_user: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    rabbit_init: "quay.io/rackspace/rackerlabs-rabbitmq:3.13-management"
+    test: "quay.io/rackspace/rackerlabs-xrally-openstack:2.0.0"
+
+# NOTE: (brew) requests cpu/mem values based on a three node
+# hyperconverged lab (/scripts/hyperconverged-lab.sh).
+# limit values based on defaults from the openstack-helm charts unless defined
+pod:
+  lifecycle:
+    upgrades:
+      deployments:
+        revision_history: 3
+        pod_replacement_strategy: RollingUpdate
+        rolling_update:
+          max_unavailable: 20%
+          max_surge: 3
+    disruption_budget:
+      api:
+        min_available: 0
+      cfn:
+        min_available: 0
+      cloudwatch:
+        min_available: 0
+    termination_grace_period:
+      api:
+        timeout: 60
+      cfn:
+        timeout: 60
+      cloudwatch:
+        timeout: 60
+      engine:
+        timeout: 60
+  resources:
+    enabled: true
+    api:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits: {}
+    cfn:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits: {}
+    engine:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits: {}
+
+conf:
+  heat:
+    DEFAULT:
+      num_engine_workers: 2
+      server_keystone_endpoint_type: public
+    clients_keystone:
+      endpoint_type: publicURL
+    database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    heat_api:
+      workers: 2
+    heat_api_cfn:
+      workers: 2
+    heat_api_cloudwatch:
+      workers: 2
+    keystone_authtoken:
+      auth_type: password
+      auth_version: v3
+      interface: public
+      memcache_security_strategy: ENCRYPT
+      service_token_roles: service
+      service_token_roles_required: true
+      service_type: orchestration
+    oslo_concurrency:
+      lock_path: /tmp/heat
+    oslo_messaging_rabbit:
+      amqp_durable_queues: false
+      rabbit_ha_queues: false
+      rabbit_quorum_queue: true
+      rabbit_transient_quorum_queue: false
+      use_queue_manager: false
+      rabbit_interval_max: 10
+      # Send more frequent heartbeats and fail unhealthy nodes faster
+      # heartbeat_timeout / heartbeat_rate / 2.0 = 30 / 3 / 2.0 = 5
+      # https://opendev.org/openstack/oslo.messaging/commit/36fb5bceabe08a982ebd52e4a8f005cd26fdf6b8
+      heartbeat_rate: 3
+      heartbeat_timeout_threshold: 60
+      # DEPRECIATION:  (warning) heartbeat_in_pthread will be deprecated in 2024.2
+      heartbeat_in_pthread: true
+      # Setting lower kombu_reconnect_delay should resolve issue with HA failing when one node is down
+      # https://lists.openstack.org/pipermail/openstack-discuss/2023-April/033314.html
+      # https://review.opendev.org/c/openstack/oslo.messaging/+/866617
+      kombu_reconnect_delay: 0.5
+  heat_api_cfn_uwsgi:
+    uwsgi:
+      processes: 2
+      threads: 1
+  heat_api_uwsgi:
+    uwsgi:
+      processes: 2
+      threads: 1
+  logging:
+    logger_root:
+      handlers:
+        - stdout
+      level: INFO
+  rabbitmq:
+    policies: []
+
+dependencies:
+  static:
+    api:
+      jobs:
+        - heat-db-sync
+        - heat-ks-user
+        - heat-trustee-ks-user
+        - heat-domain-ks-user
+        - heat-ks-endpoints
+        - heat-bootstrap
+    cfn:
+      jobs:
+        - heat-db-sync
+        - heat-ks-user
+        - heat-trustee-ks-user
+        - heat-domain-ks-user
+        - heat-ks-endpoints
+        - heat-bootstrap
+    cloudwatch:
+      jobs:
+        - heat-db-sync
+        - heat-ks-user
+        - heat-trustee-ks-user
+        - heat-domain-ks-user
+        - heat-ks-endpoints
+        - heat-bootstrap
+    db_sync:
+      jobs: []
+    engine:
+      jobs:
+        - heat-db-sync
+        - heat-ks-user
+        - heat-trustee-ks-user
+        - heat-domain-ks-user
+        - heat-ks-endpoints
+        - heat-bootstrap
+
+endpoints:
+  cloudformation:
+    port:
+      api:
+        default: 8000
+        internal: 8000
+        public: 80
+        service: 8000
+  cloudwatch:
+    port:
+      api:
+        default: 8003
+        internal: 8003
+        public: 80
+        service: 8003
+  fluentd:
+    namespace: fluentbit
+  identity:
+    port:
+      api:
+        default: 5000
+        internal: 5000
+        public: 80
+        service: 5000
+  orchestration:
+    port:
+      api:
+        default: 8004
+        internal: 8004
+        public: 80
+        service: 8004
+  oslo_db:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_cache:
+    host_fqdn_override:
+      default: memcached.openstack.svc.cluster.local
+    hosts:
+      default: memcached
+  oslo_messaging:
+    host_fqdn_override:
+      default: rabbitmq.openstack.svc.cluster.local
+    hosts:
+      default: rabbitmq-nodes
+
+manifests:
+  ingress_api: false
+  ingress_cfn: false
+  job_db_init: false
+  job_rabbit_init: false
+  pod_rally_test: false
+  secret_ingress_tls: false
+  service_ingress_api: false
+  service_ingress_cfn: false
+  service_ingress_cloudwatch: false

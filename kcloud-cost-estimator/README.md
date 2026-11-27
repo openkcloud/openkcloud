@@ -224,19 +224,30 @@ make run
 make test
 ```
 
-### Docker 실행
+### Docker에서 전력 예측 API 실행
+
+`make run`은 로컬 수집 API를 8001번 포트에서 실행합니다. 이 저장소의
+Dockerfile은 전력 예측 API를 컨테이너의 8000번 포트에서 실행합니다.
+
 ```bash
-# Docker 이미지 빌드
 make docker-build
+docker run --detach --rm --name kcloud-power-predictor \
+  --publish 127.0.0.1:8001:8000 kcloud-cost-estimator:latest
+```
 
-# Docker 컨테이너 실행
-make docker-run
+서버가 시작되면 아래 요청으로 상태와 모델 로딩 여부를 확인합니다.
 
-# 로그 확인
-make logs
+```bash
+curl --fail --silent --show-error http://127.0.0.1:8001/health
+```
 
-# 컨테이너 정리
-make docker-clean
+`service`가 `ml-power-predictor`이고 `model_trained`가 `true`이면
+[`/docs`](http://127.0.0.1:8001/docs)에서 `POST /api/v1/predict/power`를
+실행할 수 있습니다. 모델이 준비되지 않으면 예측 요청은 HTTP 503을 반환합니다.
+
+```bash
+docker logs kcloud-power-predictor
+docker stop kcloud-power-predictor
 ```
 
 ### Kubernetes 배포

@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: cost-based-scheduler
+  name: keti-cost-scheduler
   namespace: kcloud-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: cost-based-scheduler-role
+  name: keti-cost-scheduler-kcloud-system
 rules:
 - apiGroups: [""]
   resources: ["pods", "nodes", "namespaces", "configmaps", "persistentvolumeclaims"]
@@ -22,35 +22,35 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: cost-based-scheduler-binding
+  name: keti-cost-scheduler-kcloud-system
 subjects:
 - kind: ServiceAccount
-  name: cost-based-scheduler
+  name: keti-cost-scheduler
   namespace: kcloud-system
 roleRef:
   kind: ClusterRole
-  name: cost-based-scheduler-role
+  name: keti-cost-scheduler-kcloud-system
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cost-based-scheduler
+  name: keti-cost-scheduler
   namespace: kcloud-system
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cost-based-scheduler
+      app: keti-cost-scheduler
   template:
     metadata:
       labels:
-        app: cost-based-scheduler
+        app: keti-cost-scheduler
     spec:
-      serviceAccountName: cost-based-scheduler
+      serviceAccountName: keti-cost-scheduler
       containers:
       - name: scheduler
-        image: kcloud-cost-scheduler:latest
+        image: ketidevit2/keti-cost-scheduler:0.4.2
         imagePullPolicy: IfNotPresent
         resources:
           requests:

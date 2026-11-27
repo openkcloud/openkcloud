@@ -1,0 +1,19 @@
+{{- /* [openkcloud] Istio DestinationRule - 다중 replica 로그인 세션 고정 */ -}}
+{{- if and .Values.istio.enabled .Values.istio.stickySession.enabled }}
+{{- $svcHost := printf "%s-http.%s.svc.%s" (include "keycloak.fullname" .) (include "keycloak.namespace" .) .Values.clusterDomain }}
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: {{ include "keycloak.fullname" . }}-dr
+  namespace: {{ include "keycloak.namespace" . }}
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+  host: {{ $svcHost }}
+  trafficPolicy:
+    loadBalancer:
+      consistentHash:
+        httpCookie:
+          name: {{ .Values.istio.stickySession.cookieName }}
+          ttl: 0s
+{{- end }}

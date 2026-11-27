@@ -1,0 +1,96 @@
+# mnt-ainb 배포 — ConfigMap + Secret(예시) + Deployment + Service
+# 이미지: harbor.io:7443/mnt/mnt-ainb:<TAG>
+# 노트북은 서비스 클러스터에서 돈다 — 그 클러스터 kubeconfig 를 Secret(mnt-ainb-kubeconfig, 키 config)으로 넣는다:
+#   kubectl -n openkcloud-mnt create secret generic mnt-ainb-kubeconfig --from-file=config=<서비스 클러스터 kubeconfig>
+# 1대로만 운영한다 — 노트북 IDE 연결(port-forward)과 성능 분석 상태를 프로세스가 들고 있다.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mnt-ainb-config
+  namespace: openkcloud-mnt
+data:
+  SERVICE_NAME: "mnt-ainb"
+  API_PREFIX: "/api/ainb"
+  CORS_ORIGINS: ""
+  CORE_API_BASE: "http://mnt-core.openkcloud-mnt.svc.cluster.local"
+  TEMPORAL_API_BASE: "mnt-workflow.openkcloud-mnt.svc.cluster.local:7233"   # Temporal 서버(gRPC)
+  PUBLIC_BASE_URL: "https://portal.kcloud.etri:25443"   # 브라우저가 여는 포털 주소 — IDE 주소 발급용
+  KUBECONFIG: "/etc/mnt-ainb/kubeconfig/config"         # 서비스 클러스터
+  DEFAULT_NAMESPACE: "okc"
+  ACCEL_RESOURCE: "furiosa.ai/rngd"
+  GPU_RUNTIME_CLASS: ""
+---
+# ⚠️ 예시 — 실제 값 커밋 금지
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mnt-ainb-secret
+  namespace: openkcloud-mnt
+type: Opaque
+stringData:
+  CMP_SESSION_SECRET: "CHANGE_ME"      # IDE 세션 서명 키(임의의 긴 문자열)
+  MODEL_STORE_KEY: "CHANGE_ME"         # 서비스 클러스터 KFP MinIO 접근키
+  MODEL_STORE_SECRET: "CHANGE_ME"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mnt-ainb
+  namespace: openkcloud-mnt
+  labels: { app: mnt-ainb }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: mnt-ainb }
+  template:
+    metadata:
+      labels: { app: mnt-ainb }
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+      containers:
+        - name: mnt-ainb
+          image: harbor.io:7443/mnt/mnt-ainb:TAG
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: mnt-ainb-config }
+            - secretRef: { name: mnt-ainb-secret }
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /etc/mnt-ainb/kubeconfig
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 20
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: mnt-ainb-kubeconfig
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mnt-ainb
+  namespace: openkcloud-mnt
+  labels: { app: mnt-ainb }
+spec:
+  selector: { app: mnt-ainb }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+# 게이트웨이(Istio VirtualService): prefix /api/ainb 와 /notebook/ (IDE 프록시) → mnt-ainb:80

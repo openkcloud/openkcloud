@@ -1,0 +1,44 @@
+# 수집 관리 API 전용 계정.
+# monitoring 네임스페이스의 수집 설정 3종(ServiceMonitor, PodMonitor, ScrapeConfig)을
+# 읽고 고치는 것만 허용한다. 만들기, 지우기, 다른 자원 접근은 모두 거절된다.
+#
+# 적용:      kubectl apply -f collection-rbac.yaml
+# 토큰 발급: kubectl create token kcloud-monitor-collection -n monitoring --duration=24h
+#            출력된 값을 API 서버 .env 의 K8S_TOKEN 에 넣는다 (저장소에 올리지 않는다)
+# 권한 확인: kubectl auth can-i patch servicemonitors -n monitoring \
+#              --as=system:serviceaccount:monitoring:kcloud-monitor-collection   → yes
+#            kubectl auth can-i delete pods -n monitoring \
+#              --as=system:serviceaccount:monitoring:kcloud-monitor-collection   → no
+# 삭제:      kubectl delete -f collection-rbac.yaml
+#
+# 다른 네임스페이스의 수집 설정(예: kcloud-gpu 의 DCGM PodMonitor)까지 조정하려면
+# Role 과 RoleBinding 을 그 네임스페이스 이름으로 한 벌 더 만든다.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kcloud-monitor-collection
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kcloud-monitor-collection
+  namespace: monitoring
+rules:
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["servicemonitors", "podmonitors", "scrapeconfigs"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kcloud-monitor-collection
+  namespace: monitoring
+subjects:
+  - kind: ServiceAccount
+    name: kcloud-monitor-collection
+    namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kcloud-monitor-collection

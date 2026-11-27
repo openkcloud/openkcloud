@@ -49,8 +49,8 @@ def main():
 접속 URL:
   - API 문서 (Swagger): http://localhost:8000/docs
   - API 문서 (ReDoc): http://localhost:8000/redoc
-  - 헬스체크: http://localhost:8000/api/v1/system/health
-  - 메트릭: http://localhost:8000/api/v1/system/metrics
+  - 헬스체크: http://localhost:8000/api/v2/system/health
+  - 메트릭: http://localhost:8000/api/v2/system/metrics
         """
     )
 
@@ -98,38 +98,22 @@ def main():
         print("⚠️  reload 모드에서는 다중 워커를 사용할 수 없습니다. reload를 비활성화합니다.")
         args.reload = False
 
-    # Multi-worker cache warning
-    if args.workers > 1:
-        print("\n" + "="*60)
-        print("⚠️  경고: 멀티 워커 모드 감지")
-        print("="*60)
-        print("현재 인메모리 캐시는 워커 간 동기화되지 않습니다.")
-        print("멀티 워커 환경에서는 다음 중 하나를 선택하세요:")
-        print("  1. Redis 기반 캐시 사용 (권장)")
-        print("  2. 워커 수를 1로 설정 (--workers 1)")
-        print("  3. 캐시 히트율 감소 및 Prometheus 부하 증가 감수")
-        print("="*60 + "\n")
-
-    # 환경변수 로드 확인
+    # 환경변수 로드 확인 (스캐폴드 단계: 데이터소스 설정은 placeholder)
     try:
         from app.config import settings
-        print(f"✅ 환경변수 로드 완료")
-        print(f"   - Prometheus URL: {settings.PROMETHEUS_URL}")
-        print(f"   - Default Cluster: {settings.DEFAULT_CLUSTER}")
-        if settings.PROMETHEUS_CLUSTERS:
-            print(f"   - Multi-cluster mode: Enabled")
+        print(f"✅ 환경변수 로드 완료 (LOG_LEVEL={settings.LOG_LEVEL})")
     except Exception as e:
         print(f"⚠️  환경변수 로드 실패: {e}")
         print(f"   기본 설정으로 실행합니다.")
 
     print(f"\n{'='*60}")
-    print(f"🚀 AI Accelerator & Infrastructure Monitoring API")
+    print(f"🚀 KCloud Monitor API (v2 scaffold)")
     print(f"{'='*60}")
     print(f"📡 Server: http://{args.host}:{args.port}")
     print(f"📚 API Docs (Swagger): http://{args.host}:{args.port}/docs")
     print(f"📖 API Docs (ReDoc): http://{args.host}:{args.port}/redoc")
-    print(f"❤️  Health Check: http://{args.host}:{args.port}/api/v1/system/health")
-    print(f"📊 Metrics: http://{args.host}:{args.port}/api/v1/system/metrics")
+    print(f"❤️  Health Check: http://{args.host}:{args.port}/api/v2/system/health")
+    print(f"📊 Metrics: http://{args.host}:{args.port}/api/v2/system/metrics")
     print(f"🧵 Workers: {args.workers}")
     print(f"{'='*60}\n")
 

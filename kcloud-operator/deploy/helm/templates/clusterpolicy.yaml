@@ -1,35 +1,81 @@
 {{- if .Values.deployClusterPolicy }}
 # clusterpolicy.yaml: NPUClusterPolicy 샘플 CR
-# 생성일: 2026-03-25
+# 생성일: 2026-03-25 | 수정일: 2026-10-24
 apiVersion: npu.ai/v1alpha1
 kind: NPUClusterPolicy
 metadata:
   name: {{ .Values.clusterPolicy.name }}
   namespace: {{ .Values.clusterPolicy.namespace | default .Release.Namespace }}
 spec:
+  {{- with .Values.imagePullSecrets }}
+  # 컨트롤러가 detector/device-plugin 자식 DS + 생성 SA 에 전파한다.
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   detector:
-    image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.detector.repository "tag" .Values.detector.tag) }}"
+    image: "{{ .Values.detector.image | default (include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.detector.repository "tag" .Values.detector.tag)) }}"
   nvidia:
     enabled: {{ .Values.nvidia.enabled }}
+    {{- with .Values.nvidia.advertiseBy }}
+    advertiseBy: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.nvidia.managementMode }}
+    {{- if not (has . (list "managed" "delegated" "external")) }}{{ fail (printf "nvidia.managementMode must be managed, delegated, or external, got %q" .) }}{{- end }}
+    managementMode: {{ . | quote }}
+    {{- end }}
     devicePluginImage: "{{ .Values.nvidia.devicePluginImage }}"
     {{- if .Values.nvidia.nodeSelector }}
     nodeSelector:
       {{- toYaml .Values.nvidia.nodeSelector | nindent 6 }}
     {{- end }}
+    {{- if .Values.nvidia.dcgmExporter }}
+    dcgmExporter:
+      enabled: {{ .Values.nvidia.dcgmExporter.enabled }}
+      {{- if .Values.nvidia.dcgmExporter.image }}
+      image: "{{ .Values.nvidia.dcgmExporter.image }}"
+      {{- end }}
+    {{- end }}
+    {{- if .Values.nvidia.dra }}
+    dra:
+      enabled: {{ .Values.nvidia.dra.enabled }}
+      image: "{{ include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.nvidia.dra.upstream "repo" .Values.nvidia.dra.repository "tag" .Values.nvidia.dra.tag) }}"
+    {{- end }}
   furiosa:
     enabled: {{ .Values.furiosa.enabled }}
+    {{- with .Values.furiosa.advertiseBy }}
+    advertiseBy: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.furiosa.managementMode }}
+    {{- if not (has . (list "managed" "delegated" "external")) }}{{ fail (printf "furiosa.managementMode must be managed, delegated, or external, got %q" .) }}{{- end }}
+    managementMode: {{ . | quote }}
+    {{- end }}
     devicePluginImage: "{{ .Values.furiosa.devicePluginImage }}"
     configMapName: "{{ .Values.furiosa.configMapName }}"
     {{- if .Values.furiosa.nodeSelector }}
     nodeSelector:
       {{- toYaml .Values.furiosa.nodeSelector | nindent 6 }}
     {{- end }}
+    {{- if .Values.furiosa.unified }}
+    unified: {{ .Values.furiosa.unified.enabled }}
+    unifiedDevicePluginImage: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.furiosa.unified.devicePluginRepository "tag" .Values.furiosa.unified.devicePluginTag) }}"
+    {{- end }}
     {{- if .Values.furiosa.rngd }}
     rngd:
       enabled: {{ .Values.furiosa.rngd.enabled }}
-      devicePluginImage: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.furiosa.rngd.devicePluginRepository "tag" .Values.furiosa.rngd.devicePluginTag) }}"
+      {{- with .Values.furiosa.rngd.advertiseBy }}
+      advertiseBy: {{ . | quote }}
+      {{- end }}
+      devicePluginImage: "{{ include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.furiosa.rngd.devicePluginUpstream "repo" .Values.furiosa.rngd.devicePluginRepository "tag" .Values.furiosa.rngd.devicePluginTag) }}"
       resourceName: "{{ .Values.furiosa.rngd.resourceName }}"
       partitionPolicy: {{ .Values.furiosa.rngd.partitionPolicy | default "none" | quote }}
+      {{- if hasKey .Values.furiosa.rngd "debugMode" }}
+      debugMode: {{ .Values.furiosa.rngd.debugMode }}
+      {{- end }}
+      {{- if .Values.furiosa.rngd.dra }}
+      dra:
+        enabled: {{ .Values.furiosa.rngd.dra.enabled }}
+        image: "{{ include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.furiosa.rngd.dra.upstream "repo" .Values.furiosa.rngd.dra.repository "tag" .Values.furiosa.rngd.dra.tag) }}"
+      {{- end }}
       {{- if .Values.furiosa.rngd.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.furiosa.rngd.nodeSelector | nindent 8 }}
@@ -38,7 +84,17 @@ spec:
   {{- if .Values.rebellions }}
   rebellions:
     enabled: {{ .Values.rebellions.enabled }}
-    devicePluginImage: {{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.rebellions.devicePluginRepository "tag" .Values.rebellions.devicePluginTag) | quote }}
+    {{- with .Values.rebellions.advertiseBy }}
+    advertiseBy: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.rebellions.managementMode }}
+    {{- if not (has . (list "managed" "delegated" "external")) }}{{ fail (printf "rebellions.managementMode must be managed, delegated, or external, got %q" .) }}{{- end }}
+    managementMode: {{ . | quote }}
+    {{- end }}
+    devicePluginImage: {{ include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.rebellions.devicePluginUpstream "repo" .Values.rebellions.devicePluginRepository "tag" .Values.rebellions.devicePluginTag) | quote }}
+    {{- with .Values.rebellions.devicePluginGeneration }}
+    devicePluginGeneration: {{ . | quote }}
+    {{- end }}
     resourceName: {{ .Values.rebellions.resourceName | quote }}
     resourcePrefix: {{ .Values.rebellions.resourcePrefix | quote }}
     namespace: {{ .Values.rebellions.namespace | quote }}
@@ -46,6 +102,36 @@ spec:
     {{- with .Values.rebellions.nodeSelector }}
     nodeSelector:
       {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- if .Values.rebellions.dra }}
+    dra:
+      enabled: {{ .Values.rebellions.dra.enabled }}
+      image: "{{ include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.rebellions.dra.upstream "repo" .Values.rebellions.dra.repository "tag" .Values.rebellions.dra.tag) }}"
+    {{- end }}
+  {{- end }}
+  {{- if .Values.tenstorrent }}
+  tenstorrent:
+    enabled: {{ .Values.tenstorrent.enabled }}
+    {{- with .Values.tenstorrent.advertiseBy }}
+    advertiseBy: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.tenstorrent.managementMode }}
+    {{- if not (has . (list "managed" "delegated" "external")) }}{{ fail (printf "tenstorrent.managementMode must be managed, delegated, or external, got %q" .) }}{{- end }}
+    managementMode: {{ . | quote }}
+    {{- end }}
+    devicePluginImage: {{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.tenstorrent.devicePluginRepository "tag" .Values.tenstorrent.devicePluginTag) | quote }}
+    resourceName: {{ .Values.tenstorrent.resourceName | quote }}
+    {{- with .Values.tenstorrent.nodeSelector }}
+    nodeSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- if .Values.tenstorrent.dra }}
+    dra:
+      enabled: {{ .Values.tenstorrent.dra.enabled }}
+      image: "{{ include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.tenstorrent.dra.upstream "repo" .Values.tenstorrent.dra.repository "tag" .Values.tenstorrent.dra.tag) }}"
+      {{- with .Values.tenstorrent.dra.fabricManager }}
+      fabricManagerImage: "{{ include "kcloud-operator.vendorImage" (dict "registry" $.Values.global.vendorRegistry "upstream" .upstream "repo" .repository "tag" .tag) }}"
+      {{- end }}
     {{- end }}
   {{- end }}
 {{- end }}

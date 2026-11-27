@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keti-cost-scheduler
+  namespace: kcp-control-plane
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: keti-cost-scheduler
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods/binding"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["patch", "update"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch", "update"]
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "csinodes", "csidrivers", "csistoragecapacities"]
+  verbs: ["get", "list", "watch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: keti-cost-scheduler
+subjects:
+- kind: ServiceAccount
+  name: keti-cost-scheduler
+  namespace: kcp-control-plane
+roleRef:
+  kind: ClusterRole
+  name: keti-cost-scheduler
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,45 @@
+- job:
+    name: horizon-nodejs20-run-lint
+    parent: nodejs-run-lint
+    description: |
+      Run lint using Node 20 for horizon plugins.
+    vars:
+      node_version: 20
+      tox_constraints_file: "{{ ansible_user_dir }}/{{ zuul.projects['opendev.org/openstack/requirements'].src_dir }}/upper-constraints.txt"
+    nodeset: debian-bullseye
+    pre-run: playbooks/horizon-nodejs/pre.yaml
+    required-projects:
+      - openstack/horizon
+      - openstack/requirements
+
+- job:
+    name: horizon-nodejs20-run-test
+    parent: nodejs-run-test-browser
+    description: |
+      Run test using Node 20 for horizon plugins.
+    vars:
+      node_version: 20
+      tox_constraints_file: "{{ ansible_user_dir }}/{{ zuul.projects['opendev.org/openstack/requirements'].src_dir }}/upper-constraints.txt"
+    pre-run: playbooks/horizon-nodejs/pre.yaml
+    nodeset: debian-bullseye
+    required-projects:
+      - openstack/horizon
+      - openstack/requirements
+
+- project-template:
+    name: horizon-nodejs-jobs
+    description: |
+      This project template is defined to run lint and test jobs using
+      Node LTS version (i.e. 20 now) for horizon plugins. horizon plugins
+      can use this template to run nodejs jobs. So if we want to update
+      nodejs version in horizon plugins we can update this template to use
+      the job with the latest node version and not many changes are required
+      in the horizon plugins side.
+    check:
+      jobs:
+        - horizon-nodejs20-run-lint
+        - horizon-nodejs20-run-test
+    gate:
+      jobs:
+        - horizon-nodejs20-run-lint
+        - horizon-nodejs20-run-test

@@ -1,0 +1,123 @@
+{{/* --reuse-values 로 올라온 릴리스는 api 맵에 console 키가 없다 — 값 조회를 nil-safe 하게
+     한다. enabled 는 hasKey 로 본다(default true 는 사용자가 명시한 false 를 뒤집는다). */}}
+{{- $csa := ((.Values.api.console | default dict).serviceAccount | default dict) -}}
+{{- $csaOn := ternary (default false $csa.enabled) true (hasKey $csa "enabled") -}}
+{{- if and .Values.api.enabled $csaOn }}
+# ============================================================
+# console-rbac.yaml: 관리 콘솔(/ui/) 접속용 ServiceAccount + ClusterRole
+# 상세: 콘솔은 브라우저가 사용자 Bearer 토큰으로 /api/v1/* 를 직접 부르므로, operator SA 대신
+#       실제 요구 verb 만 담은 전용 SA 를 쓴다(role: viewer=조회만, operator=정책·드라이버 제어도).
+# 생성일: 2026-09-03 | 수정일: 2026-10-11
+# ============================================================
+{{- $fullname := include "kcloud-operator.fullname" . -}}
+{{- $sa := printf "%s-console" $fullname }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $sa }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $fullname }}-console-viewer
+rules:
+  # 조회 라우트가 거는 게이트 그대로다(internal/apiserver/server.go Handler).
+  # status·nodes/{node}·accelerators·capabilities·preview 가 corev1.Node 를 읽는다.
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "events"]
+    verbs: ["list"]
+  - apiGroups: ["npu.ai"]
+    resources:
+      - "driverinstallpolicies"
+      - "nodedevicereports"
+      - "acceleratorpartitionpolicies"
+      - "acceleratorclasses"
+      - "acceleratorworkloads"
+      # vendors/capabilities 가 evidence 를 읽는다
+      - "acceleratorevidences"
+      # vendors/capabilities 가 evidence 신선도 감시축을 이 정책에서 해석한다
+      - "acceleratorverificationpolicies"
+      # accelerators 가 건강 판정을 읽는다
+      - "acceleratorhealths"
+    verbs: ["list"]
+  # 1.28 라인에는 이 리소스들이 없을 수 있지만 SAR 은 RBAC 만 보므로 게이트는 선다.
+  # resourceslices·deviceclasses 는 capabilities·accelerators·preview 가 intent.Load 로 읽는다.
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceclaims", "resourceslices", "deviceclasses"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $fullname }}-console-operator
+rules:
+  # 정책·배포 만들기·되돌리기(POST/DELETE /api/v1/policies, /api/v1/workloads).
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorpartitionpolicies", "acceleratorworkloads"]
+    verbs: ["create", "delete"]
+  # 드라이버 업그레이드·롤백은 DIP patch, 벤더 토글은 NCP patch 를 요구한다.
+  - apiGroups: ["npu.ai"]
+    resources: ["driverinstallpolicies", "npuclusterpolicies"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}-console-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $fullname }}-console-viewer
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ .Release.Namespace }}
+{{- if eq (default "viewer" $csa.role) "operator" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}-console-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $fullname }}-console-operator
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sa }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- range $i, $extra := (default list (.Values.api.console | default dict).extraServiceAccounts) }}
+{{- $role := default "viewer" $extra.role }}
+{{- if not (or (eq $role "viewer") (eq $role "operator")) }}
+{{- fail (printf "api.console.extraServiceAccounts[%d].role=%q — viewer 또는 operator 만 허용" $i $role) }}
+{{- end }}
+{{- $name := printf "%s-console-%s" $fullname (required "api.console.extraServiceAccounts[].name 은 필수" $extra.name) }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-viewer
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ $fullname }}-console-viewer}
+subjects: [{kind: ServiceAccount, name: {{ $name }}, namespace: {{ $.Release.Namespace }}}]
+{{- if eq $role "operator" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-operator
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ $fullname }}-console-operator}
+subjects: [{kind: ServiceAccount, name: {{ $name }}, namespace: {{ $.Release.Namespace }}}]
+{{- end }}
+{{- end }}
+{{- end }}

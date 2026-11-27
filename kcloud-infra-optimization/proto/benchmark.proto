@@ -28,12 +28,24 @@ message WorkloadSpec {
 
 // 측정된 성능 지표
 message PerformanceMetrics {
-  float throughput_qps = 1;  // 초당 처리 건수
-  float latency_p50_ms = 2;
+  float throughput_qps = 1;  // 초당 처리 건수 (CNN: images/s, LLM: requests/s)
+  float latency_p50_ms = 2;  // CNN: 배치 latency | LLM: end-to-end request latency
   float latency_p95_ms = 3;
   float latency_p99_ms = 4;
   float power_w        = 5;  // 측정 평균 전력 (W)
   float memory_used_mb = 6;
+  // LLM serving 전용 (CNN 벤치마크에서는 0)
+  float ttft_p50_ms = 7;  // Time To First Token
+  float ttft_p95_ms = 8;
+  float ttft_p99_ms = 9;
+  float tpot_p50_ms = 10; // Time Per Output Token (decode)
+  float tpot_p95_ms = 11;
+  float tpot_p99_ms = 12;
+  // LLM token accounting (집계·세션 기록용)
+  int32 tokens_prompt_total     = 13;  // 요청 prompt 토큰 합(또는 마지막 턴 prompt)
+  int32 tokens_completion_total = 14;  // 생성 토큰 합
+  int32 tokens_session_total    = 15;  // prompt+completion 누적
+  int32 max_context_tokens      = 16;  // vLLM max_model_len
 }
 
 // 전송 단위

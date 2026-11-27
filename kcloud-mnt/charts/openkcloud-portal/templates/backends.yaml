@@ -1,0 +1,156 @@
+{{- $g := .Values.global -}}
+{{- $root := . -}}
+{{- range $name, $b := .Values.backends }}
+{{- if ne (toString $b.enabled) "false" }}
+{{- $full := printf "mnt-%s" $name }}
+{{- $port := default 8000 $b.port }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $full }}-config
+  namespace: {{ $g.namespace }}
+  labels:
+    app: {{ $full }}
+    {{- include "okc.labels" $root | nindent 4 }}
+data:
+{{- range $k, $v := $b.env }}
+  {{ $k }}: {{ $v | quote }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $full }}
+  namespace: {{ $g.namespace }}
+  labels:
+    app: {{ $full }}
+    {{- include "okc.labels" $root | nindent 4 }}
+spec:
+  replicas: {{ default 1 $b.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $full }}
+  template:
+    metadata:
+      labels:
+        app: {{ $full }}
+      annotations:
+        checksum/secret: {{ include (print $root.Template.BasePath "/secrets.yaml") $root | sha256sum }}  # 시크릿이 바뀌면 다시 시작
+        checksum/config: {{ toYaml $b.env | sha256sum }}  # env(ConfigMap)가 바뀌면 다시 시작 — 환경변수는 시작할 때만 읽는다
+    spec:
+      {{- if $b.clusterStoreSecret }}
+      serviceAccountName: {{ $full }}   # 서비스 클러스터 접속 정보 보관 Secret 권한(아래 Role)
+      {{- end }}
+      {{- with $g.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $g.nodeSelectorWorkerOnly }}
+      {{- include "okc.workerAffinity" $root | nindent 6 }}
+      {{- end }}
+      containers:
+        - name: {{ $full }}
+          image: {{ printf "%s/%s:%s" $g.image.registry $b.image (default $g.image.tag $b.tag) }}
+          imagePullPolicy: {{ $g.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $port }}
+          envFrom:
+            - configMapRef:
+                name: {{ $full }}-config
+            {{- if $b.secretName }}
+            - secretRef:
+                name: {{ $b.secretName }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ $port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ $port }}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            {{- toYaml (default $g.resources $b.resources) | nindent 12 }}
+          {{- if $b.kubeconfigSecret }}
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /etc/{{ $full }}/kubeconfig
+              readOnly: true
+          {{- end }}
+      {{- if $b.kubeconfigSecret }}
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: {{ $b.kubeconfigSecret }}
+            optional: true   # 없으면 비운 채 시작한다(시크릿 하나 때문에 파드가 생성 대기에 묶이지 않게)
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}
+  namespace: {{ $g.namespace }}
+  labels:
+    app: {{ $full }}
+    {{- include "okc.labels" $root | nindent 4 }}
+spec:
+  selector:
+    app: {{ $full }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ $port }}
+{{- if $b.clusterStoreSecret }}
+---
+# 이 모듈 전용 ServiceAccount — 서비스 클러스터 접속 정보(MNT-PAAS kubeconfig)를 보관하는 Secret 만 다룬다
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $full }}
+  namespace: {{ $g.namespace }}
+  labels:
+    app: {{ $full }}
+    {{- include "okc.labels" $root | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $full }}-cluster-store
+  namespace: {{ $g.namespace }}
+  labels:
+    app: {{ $full }}
+    {{- include "okc.labels" $root | nindent 4 }}
+rules:
+  # 처음 한 번 만든다(create 는 이름으로 제한할 수 없다) — 그 뒤로는 그 Secret 만 읽고 고친다
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $b.clusterStoreSecret | quote }}]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $full }}-cluster-store
+  namespace: {{ $g.namespace }}
+  labels:
+    app: {{ $full }}
+    {{- include "okc.labels" $root | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $full }}-cluster-store
+subjects:
+  - kind: ServiceAccount
+    name: {{ $full }}
+    namespace: {{ $g.namespace }}
+{{- end }}
+{{- end }}
+{{- end }}

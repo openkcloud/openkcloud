@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 DB_DSN = os.getenv("DATABASE_URL",
-    "postgresql://platform:platform1234@timescaledb.data-pipeline.svc.cluster.local:5432/workload_data"
+    ""
 )
 
 INSERT_SQL = 

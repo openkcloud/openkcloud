@@ -1,0 +1,129 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: acceleratorclasses.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: AcceleratorClass
+    listKind: AcceleratorClassList
+    plural: acceleratorclasses
+    shortNames:
+    - aclass
+    singular: acceleratorclass
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.class
+      name: CLASS
+      type: string
+    - jsonPath: .spec.requirements.minimumIsolation
+      name: ISOLATION
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AcceleratorClassSpec 는 등급 선언이다.
+            properties:
+              class:
+                description: Class 는 사람이 읽는 등급 라벨(small|medium|large 등)이다. 매칭에 쓰지
+                  않는다.
+                type: string
+              mappings:
+                description: Mappings 는 이 클래스를 실현할 수 있는 벤더 목록이다. 순서가 기본 선호 순서다.
+                items:
+                  description: AcceleratorMapping 은 한 벤더에서 이 클래스가 무엇으로 실현되는지다.
+                  properties:
+                    deviceClassName:
+                      description: |-
+                        DeviceClassName 은 이 벤더를 DRA 로 요청할 때 쓸 DeviceClass 이름이다.
+                        DRADriver 와 함께 있어야 하며, 없으면 이 벤더는 DRA 경로를 지원하지 않는다.
+                      type: string
+                    draDriver:
+                      description: |-
+                        DRADriver 는 그 DeviceClass 가 고르는 ResourceSlice.spec.driver 다.
+                        노드 후보 판정에 쓴다 — DeviceClass 의 CEL 을 해석하지 않기 위해 명시받는다.
+                      type: string
+                    nativeProfile:
+                      description: |-
+                        NativeProfile 은 partitioned 계열 모드에서 요구하는 벤더 공식 profile
+                        (NVIDIA 1g.6gb / 2g.12gb, RNGD 2core.12gb / 4core.24gb)이다.
+                        exclusive/shared 전용 매핑은 비워 둔다.
+                      type: string
+                    product:
+                      description: |-
+                        Product 는 사람이 읽는 제품 표기(A30, rngd 등)다. 벤더 아래 제품이 하나뿐이면 생략 가능하고,
+                        둘 이상이면(furiosa: rngd/warboy) 리소스명을 이것으로 가르므로 필수다 — 비우면 webhook 이
+                        거절한다.
+                      type: string
+                    vendor:
+                      enum:
+                      - nvidia
+                      - furiosa
+                      - rebellions
+                      - tenstorrent
+                      type: string
+                  required:
+                  - vendor
+                  type: object
+                minItems: 1
+                type: array
+              requirements:
+                description: |-
+                  AcceleratorRequirements 는 장치가 만족해야 할 최소 조건이다.
+                  빈 값은 "요구 없음" 이고, 값이 있는데 장치 쪽 근거가 없으면 거절한다(fail closed).
+                properties:
+                  minimumIsolation:
+                    description: |-
+                      MinimumIsolation 은 최소 격리 등급이다. 실측 근거가 없는 장치는
+                      IsolationCapability 가 빈 문자열이며, 그런 장치는 이 요구를 만족하지 않는 것으로 본다.
+                    enum:
+                    - none
+                    - process
+                    - subdevice
+                    - device
+                    - hardware
+                    type: string
+                  minimumMemory:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      MinimumMemory 는 워크로드 하나가 쓸 수 있어야 하는 최소 장치 메모리다(예 8Gi).
+                      전체 장치 모드는 NodeDeviceReport 의 memoryMiB 와, 분할 모드는 profile 이름에
+                      인코딩된 메모리(1g.6gb → 6Gi)와 비교한다.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                type: object
+            required:
+            - mappings
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}

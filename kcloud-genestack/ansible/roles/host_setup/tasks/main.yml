@@ -1,0 +1,175 @@
+---
+# Copyright 2024, Rackspace Technology, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Gather variables for each operating system
+  ansible.builtin.include_vars: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_facts['distribution'] | lower }}-{{ ansible_facts['distribution_version'] | lower }}.yml"
+        - "{{ ansible_facts['distribution'] | lower }}-{{ ansible_facts['distribution_major_version'] | lower }}.yml"
+        - "{{ ansible_facts['os_family'] | lower }}-{{ ansible_facts['distribution_major_version'] | lower }}.yml"
+        - "{{ ansible_facts['distribution'] | lower }}.yml"
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+      paths:
+        - "{{ role_path }}/vars"
+  tags:
+    - always
+
+# Environment configuration applies to all nodes
+- name: Add global_environment_variables to environment file
+  ansible.builtin.blockinfile:
+    dest: "/etc/environment"
+    state: present
+    marker: "# {mark} Managed by genestack"
+    insertbefore: EOF
+    block: "{{ lookup('template', 'environment.j2') }}"
+  tags:
+    - hosts-config
+
+- name: Ensure environment is applied during sudo
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/sudo
+    line: "session    required   pam_env.so readenv=1 user_readenv=0"
+    regexp: 'session\s+required\s+pam_env\.so'
+    insertbefore: '^@include'
+  when:
+    - ansible_facts['distribution'] | lower == 'debian'
+
+- name: Create systemd global directory
+  ansible.builtin.file:
+    path: /etc/systemd/system.conf.d/
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+- name: Get systemd version
+  tags:
+    - always
+    - skip_ansible_lint
+  block:
+    - name: Pull systemd version
+      ansible.builtin.command: >-
+        /usr/bin/systemctl --version --no-pager
+      register: get_systemd_version
+      changed_when: false
+      check_mode: false
+    - name: Set systemd version
+      ansible.builtin.set_fact:
+        systemd_version: "{{ get_systemd_version.stdout_lines[0].split()[-1] }}"
+
+- name: Add DefaultEnvironment to systemd
+  ansible.builtin.template:
+    src: genestack-default-environment.conf.j2
+    dest: /etc/systemd/system.conf.d/genestack-default-environment.conf
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify:
+    - Systemd daemon reload
+
+- name: Remove the blacklisted packages
+  ansible.builtin.package:
+    name: "{{ host_package_list | selectattr('state', 'equalto', 'absent') | map(attribute='name') | list }}"
+    state: absent
+
+# Configure bare metal nodes: Kernel, sysctl, sysstat, hosts files packages
+- name: Including configure_hosts tasks
+  ansible.builtin.include_tasks: configure_hosts.yml
+  args:
+    apply:
+      tags:
+        - hosts-install
+  tags:
+    - always
+
+- name: Pin kernel version and disable unattended-upgrades
+  ansible.builtin.include_tasks: pin_kernel.yml
+  when:
+    - ansible_facts['os_family'] | lower == 'debian'
+  tags:
+    - always
+
+- name: Update package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 600
+  when:
+    - ansible_facts['os_family'] | lower == 'debian'
+
+- name: Set CPU frequency governor
+  ansible.builtin.include_tasks: CPU_frequency.yml
+  when:
+    - ansible_facts['os_family'] | lower == 'debian'
+
+- name: Install distro packages
+  ansible.builtin.package:
+    name: "{{ host_distro_packages }}"
+    state: "{{ host_package_state }}"
+  when:
+    - host_distro_packages | length > 0
+  register: install_packages
+  until: install_packages is success
+  retries: 5
+  delay: 2
+
+- name: Install user defined extra distro packages
+  ansible.builtin.package:
+    name: "{{ host_extra_distro_packages }}"
+    state: "{{ host_package_state }}"
+  when:
+    - host_extra_distro_packages | length > 0
+  register: install_packages
+  until: install_packages is success
+  retries: 5
+  delay: 2
+
+# NOTE(cloudnull): This configuration will ensure that LLDP is working on all interfaces
+#                  except our overlay and tenant networks.
+- name: Create base LLDPD configuration
+  ansible.builtin.copy:
+    content: |
+      DAEMON_ARGS="-c -I *,!tap*,!ovn*,!genev*,!mirror*,!o-hm*"
+    dest: /etc/default/lldpd
+    mode: "0644"
+  notify:
+    - Restart lldpd
+
+- name: Ensure timesyncd is running
+  ansible.builtin.service:
+    name: systemd-timesyncd
+    state: started
+    enabled: true
+  notify: Reload systemd-timesyncd
+
+- name: Create systemd-timesyncd configuration file
+  ansible.builtin.template:
+    src: timesyncd.conf.j2
+    dest: /etc/systemd/timesyncd.conf
+    mode: "0644"
+  notify: Reload systemd-timesyncd
+
+- name: Configure custom multipath.conf
+  ansible.builtin.include_tasks: custom_multipath.yml
+
+- name: Configure custom lvm.conf
+  ansible.builtin.include_tasks: lvm_config.yml
+
+- name: Install RAID controller CLI tools
+  ansible.builtin.include_tasks: raid_cli_tools.yml
+
+- name: Disable ICMP Redirects
+  ansible.builtin.include_tasks: disable_icmp_redirect.yml

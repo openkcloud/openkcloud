@@ -6,13 +6,8 @@ This plugin provides the default logic to bind a Pod to a Node using the Kuberne
 package plugin
 
 import (
-	"bytes"
-	"crypto/tls"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"time"
 
 	framework "github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/framework"
 	utils "github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/framework/utils"
@@ -26,8 +21,7 @@ import (
 const DefaultBinderName = "DefaultBinder"
 
 type DefaultBinder struct {
-	client     kubernetes.Interface
-	httpClient *http.Client
+	client kubernetes.Interface
 }
 
 var _ framework.BindPlugin = &DefaultBinder{}
@@ -35,12 +29,6 @@ var _ framework.BindPlugin = &DefaultBinder{}
 func NewDefaultBinder(client kubernetes.Interface) *DefaultBinder {
 	return &DefaultBinder{
 		client: client,
-		httpClient: &http.Client{
-			Timeout: 20 * time.Second,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		},
 	}
 }
 
@@ -50,34 +38,6 @@ func (d *DefaultBinder) Name() string {
 
 func (d *DefaultBinder) Bind(ctx context.Context, pod *v1.Pod, nodeName string) *utils.Status {
 	logger := klog.FromContext(ctx)
-
-	if hasGPURequest(pod) {
-		klog.V(2).InfoS("Delegating GPU pod binding to HAMi Extender", "pod", klog.KObj(pod), "node", nodeName)
-		
-		args := ExtenderBindingArgs{
-			PodName:      pod.Name,
-			PodNamespace: pod.Namespace,
-			PodUID:       string(pod.UID),
-			Node:         nodeName,
-		}
-		
-		payload, _ := json.Marshal(args)
-		url := "https://hami-scheduler.kube-system.svc.cluster.local:443/bind"
-		
-		resp, err := d.httpClient.Post(url, "application/json", bytes.NewBuffer(payload))
-		if err == nil && resp.StatusCode == http.StatusOK {
-			klog.V(2).InfoS("Successfully delegated bind to HAMi Extender", "pod", klog.KObj(pod))
-			resp.Body.Close()
-			return utils.NewStatus(utils.Success, "")
-		}
-		
-		if err != nil {
-			klog.Warningf("HAMi Extender bind failed (TLS/Network): %v, falling back to default bind", err)
-		} else {
-			klog.Warningf("HAMi Extender bind returned status %d, falling back to default bind", resp.StatusCode)
-			resp.Body.Close()
-		}
-	}
 
 	logger.V(3).Info("Attempting to bind pod to node via direct API", "pod", klog.KObj(pod), "node", nodeName)
 

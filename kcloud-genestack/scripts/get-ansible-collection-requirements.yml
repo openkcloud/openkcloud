@@ -1,0 +1,115 @@
+---
+# Copyright 2024-Present, Rackspace Technology, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+- name: Clone the role ansible-role-requirements
+  hosts: localhost
+  connection: local
+  user: root
+  gather_facts: false
+  tasks:
+    - name: Read the list of user collections
+      set_fact:
+        user_collection_names: "{{ user_collections.collections | default([]) | map(attribute='name') | list }}"
+
+    - name: Generate a list of required collections excluding user overridden collections
+      set_fact:
+        galaxy_collections_list: "{{ galaxy_collections_list + [ item ] }}"
+      when:
+        - item.name not in user_collection_names
+      loop: "{{ required_collections.collections }}"
+
+    - name: Append user collections to filtered required collections
+      set_fact:
+        galaxy_collections_list: "{{ galaxy_collections_list + [ item ] }}"
+      loop: "{{ user_collections.collections }}"
+      when:
+        - user_collections.collections is defined
+
+    - name: Check if local collections directory exists
+      stat:
+        path: "{{ local_collections_path }}"
+      register: local_collections_dir
+
+    - name: Install collections from local directory
+      when:
+        - local_collections_dir.stat.exists
+        - use_local_collections | default(false) | bool
+      block:
+        - name: Find all collection tar.gz files in local directory
+          find:
+            paths: "{{ local_collections_path }}"
+            patterns: "*.tar.gz"
+          register: local_collection_files
+
+        - name: Install each collection from local directory
+          command: >
+            ansible-galaxy collection install --force
+            "{{ item.path }}"
+            -p "{{ ansible_collections_install_path }}"
+          loop: "{{ local_collection_files.files }}"
+          register: local_install_results
+          when: local_collection_files.files | length > 0
+
+        - name: Show local collection install output
+          debug:
+            msg: "Installed {{ item.item.path | basename }} successfully."
+          loop: "{{ local_install_results.results }}"
+          when:
+            - local_install_results.results is defined
+            - item is not skipped
+            - item.rc == 0
+
+    - name: Install collections from Ansible Galaxy (fallback)
+      when:
+        - not local_collections_dir.stat.exists or not (use_local_collections | default(false) | bool)
+      block:
+        - name: Create temporary file for galaxy collection requirements
+          tempfile:
+          register: collection_requirements_tmpfile
+
+        - name: Copy content into galaxy collection requirements temporary file
+          copy:
+            content: "{{ galaxy_collections | to_nice_yaml }}"
+            dest: "{{ collection_requirements_tmpfile.path }}"
+
+        - name: Install collection requirements with ansible galaxy
+          command: >
+            ansible-galaxy collection install --force
+            -r "{{ collection_requirements_tmpfile.path }}"
+          register: collection_install
+          until: collection_install is success
+          retries: 5
+          delay: 2
+
+        - name: Show collection install output
+          debug: msg="{{ collection_install.stdout.split('\n') }}"
+
+        - name: Clean up temporary file
+          file:
+            path: "{{ collection_requirements_tmpfile.path }}"
+            state: absent
+
+  vars:
+    galaxy_collections_list: []
+    galaxy_collections:
+      collections: "{{ galaxy_collections_list }}"
+    collections_file: "/opt/genestack/ansible-collection-requirements.yml"
+    required_collections: "{{ lookup('file', collections_file) | from_yaml }}"
+    # Local collection configuration (optional, only used if the user sets them)
+    local_collections_path: "{{ lookup('env', 'LOCAL_COLLECTIONS_PATH') | default(omit) }}"
+    use_local_collections: "{{ lookup('env', 'USE_LOCAL_COLLECTIONS') | default(omit) | bool }}"
+    ansible_collections_install_path: "{{ lookup('env', 'ANSIBLE_COLLECTIONS_PATH') | default('~/.ansible/collections', true) }}"
+    # user_collections: "{{ lookup('file', user_collections_path, errors='ignore')|default([], true) | from_yaml }}"
+    # user_collections_path: "{{ lookup('env', 'OSA_CONFIG_DIR') | default('/etc/openstack_deploy', true) ~ '/' ~ (user_collections_file|default('')) }}"

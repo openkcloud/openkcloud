@@ -1,0 +1,121 @@
+<div ng-controller="LaunchInstanceSourceController as ctrl">
+  <div ng-show="model.allowedBootSources.length > 0">
+  <p class="step-description" translate>
+    Instance source is the template used to create an instance.
+    You can use an image, a snapshot of an instance (image snapshot),
+    a volume or a volume snapshot (if enabled).
+    You can also choose to use persistent storage by creating a new volume.
+  </p>
+
+  <div class="row">
+    <div class="col-xs-6">
+      <div class="form-group" ng-class="{ 'has-error': launchInstanceSourceForm.boot-source-type.$invalid }">
+        <label for="boot-source-type" class="control-label" translate>Select Boot Source</label>
+        <select name="boot-source-type" class="form-control" id="boot-source-type"
+                ng-options="src.label for src in model.allowedBootSources| orderBy:'label' track by src.type"
+                ng-change="ctrl.updateBootSourceSelection(model.newInstanceSpec.source_type.type)"
+                ng-model="model.newInstanceSpec.source_type">
+        </select>
+        <span class="help-block" ng-show="launchInstanceSourceForm.boot-source-type.$invalid">
+          {$ ctrl.bootSourceTypeError $}
+        </span>
+      </div>
+    </div>
+
+    <div ng-if="(model.newInstanceSpec.source_type.type === 'image' ||
+                 model.newInstanceSpec.source_type.type === 'snapshot') &&
+                model.allowCreateVolumeFromImage && !model.newInstanceSpec.hide_create_volume">
+      <div class="col-xs-6">
+        <div class="form-group">
+          <label for="vol-create" translate>Create New Volume</label><br/>
+          <div class="btn-group">
+            <label class="btn btn-default" id="vol-create"
+                   ng-repeat="option in ctrl.toggleButtonOptions"
+                   ng-model="model.newInstanceSpec.vol_create"
+                   uib-btn-radio="option.value">{$ ::option.label $}</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div ng-if="model.newInstanceSpec.source_type.type == 'volume' || model.newInstanceSpec.source_type.type == 'volume_snapshot'">
+      <div class="col-xs-6">
+        <div class="form-group">
+          <label translate>Delete Volume on Instance Delete</label><br/>
+          <div class="btn-group">
+            <label class="btn btn-default"
+                   ng-repeat="option in ctrl.toggleButtonOptions"
+                   ng-model="model.newInstanceSpec.vol_delete_on_instance_delete"
+                   uib-btn-radio="option.value">{$ ::option.label $}</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-xs-6">
+      <div ng-if="model.newInstanceSpec.vol_create == true">
+        <div class="form-group"
+             ng-class="{ 'has-error': launchInstanceSourceForm['volume-size'].$invalid }">
+          <label for="volume-size" class="control-label">
+            <translate>Volume Size (GB)</translate>
+            <span class="hz-icon-required fa fa-asterisk"></span>
+          </label>
+          <input name="volume-size"
+                 validate-number-min="{$ ctrl.minVolumeSize $}"
+                 id="volume-size"
+                 type="number"
+                 class="form-control"
+                 ng-model="model.newInstanceSpec.vol_size"
+                 ng-pattern="/^[0-9]+$/"
+                 ng-required="true">
+          <span class="help-block"
+                ng-show="launchInstanceSourceForm['volume-size'].$invalid">
+            {$ launchInstanceSourceForm['volume-size'].$error.validateNumberMin ? ctrl.minVolumeSizeError : ctrl.volumeSizeError $}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xs-6">
+      <div ng-if="model.newInstanceSpec.vol_create == true">
+        <div class="form-group">
+          <label translate class="control-label">Delete Volume on Instance Delete</label><br/>
+          <div class="btn-group">
+            <label class="btn btn-default"
+                   ng-repeat="option in ctrl.toggleButtonOptions"
+                   ng-model="model.newInstanceSpec.vol_delete_on_instance_delete"
+                   uib-btn-radio="option.value">{$ ::option.label $}</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div hz-if-settings="[&quot;OPENSTACK_HYPERVISOR_FEATURES.can_set_mount_point&quot;]"
+    ng-if="model.newInstanceSpec.vol_create === true">
+        <label translate>Device Name</label>
+        <input class="form-control"
+               ng-model="model.newInstanceSpec.vol_device_name"
+               type="text">
+  </div>
+
+  <transfer-table help-text="ctrl.helpText" tr-model="ctrl.tableData" limits="ctrl.tableLimits" clone-content>
+    <hz-dynamic-table
+        config="$isAvailableTable ? ctrl.availableTableConfig : ctrl.allocatedTableConfig"
+        items="$isAvailableTable ? (ctrl.tableData.available | filterAvailable:trCtrl.allocatedIds) : $sourceItems"
+        validate-number-min="1" ng-model="ctrl.tableData.allocated.length"
+        item-actions="trCtrl.itemActions"
+        filter-facets="$isAvailableTable && ctrl.sourceFacets"
+        table="ctrl">
+    </hz-dynamic-table>
+  </transfer-table>
+
+  </div>
+  <div ng-if="model.allowedBootSources.length === 0">
+    <div translate class="subtitle text-danger">There are no allowed boot
+      sources. If you think this is wrong please contact your administrator.
+    </div>
+  </div>
+</div>

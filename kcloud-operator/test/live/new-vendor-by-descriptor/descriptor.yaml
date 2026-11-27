@@ -1,0 +1,23 @@
+# ============================================================
+# descriptor.yaml: 새 벤더를 device-plugin 코드 없이 descriptor 하나로 정의(Tenstorrent blackhole)
+# 상세: vendor+product 로 리소스명 tenstorrent/blackhole-p150 을 광고하고, deviceNodes
+#       템플릿 /dev/tenstorrent/{{id}} 를 런타임(생성된 device-plugin)이 host 에서 채운다.
+#       sharing 없음 = 물리 장치 그대로 광고(단일 replica). backends=devicePlugin.
+#       생성물 device-plugin DaemonSet 이름: kcloud-generated-new-vendor-tt-blackhole-dp
+# 생성일: 2026-09-20
+# ============================================================
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorDescriptor
+metadata:
+  name: new-vendor-tt-blackhole
+spec:
+  vendor: tenstorrent
+  product: blackhole-p150
+  allocationUnit: device
+  identity:
+    source: pciAddress
+    stableAcrossReboot: true
+  deviceNodes:
+    - /dev/tenstorrent/{{id}}
+  backends:
+    - devicePlugin

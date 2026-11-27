@@ -2,9 +2,19 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/npu.ai_npuclusterpolicies.yaml
-- bases/npu.ai_nodedevicereports.yaml
+- bases/npu.ai_acceleratorclasses.yaml
+- bases/npu.ai_acceleratordescriptors.yaml
+- bases/npu.ai_acceleratorevidences.yaml
+- bases/npu.ai_acceleratorhealthpolicies.yaml
+- bases/npu.ai_acceleratorhealths.yaml
+- bases/npu.ai_acceleratoroperations.yaml
+- bases/npu.ai_acceleratorpartitionpolicies.yaml
+- bases/npu.ai_acceleratorverificationpolicies.yaml
+- bases/npu.ai_acceleratorworkloads.yaml
 - bases/npu.ai_driverinstallpolicies.yaml
+- bases/npu.ai_driverupgradestates.yaml
+- bases/npu.ai_nodedevicereports.yaml
+- bases/npu.ai_npuclusterpolicies.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

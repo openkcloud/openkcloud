@@ -1,0 +1,7 @@
+# Netlify edge headers
+# Ensure Service Worker is served with correct MIME and not cached aggressively.
+
+/mockServiceWorker.js
+  Content-Type: application/javascript; charset=utf-8
+  Service-Worker-Allowed: /
+  Cache-Control: no-cache, no-store, must-revalidate

@@ -1,0 +1,20 @@
+# nvidia-a30.yaml: 유효 descriptor archetype - NVIDIA A30 | 생성일: 2026-08-10 | 수정일: 2026-10-11 (장치 하나만 표현하는 이유를 치환자 제약으로 보강;
+# 혼재 노드 판정 인용을 산문으로 교체)
+vendor: nvidia
+product: a30
+allocationUnit: device
+identity:
+  source: uuid
+  stableAcrossReboot: true
+# identity.source 가 uuid 라 {{id}} 치환자를 쓰면 결과가 /dev/nvidiaGPU-xxxx 같은
+# 실재하지 않는 경로가 된다 - 실측(validate_test.go 의 validSpec())대로 고정 노드로 쓴다.
+# 고정 노드라 이 archetype 은 장치 하나까지만 표현한다. 같은 모델 여러 장은 {{id}} 로 열거할
+# 수 있지만(경로 성분 전체일 때), NVIDIA 는 /dev/nvidia0 처럼 평면 이름이라 그 형태를 쓸 수
+# 없다. 혼재 모델 노드는 auto-apply 가 거절한다(mixedModelRefusal,
+# internal/controller/acceleratordescriptor_apply.go).
+deviceNodes:
+  - /dev/nvidia0
+  - /dev/nvidiactl
+backends:
+  - devicePlugin
+  - dra

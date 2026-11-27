@@ -1,0 +1,69 @@
+---
+glance:
+  - 0.1.0 Initial Chart
+  - 0.1.1 Change helm-toolkit dependency to >= 0.1.0
+  - 0.1.2 Change issuer to clusterissuer
+  - 0.1.3 Revert - Change issuer to clusterissuer
+  - 0.1.4 Update RBAC apiVersion from /v1beta1 to /v1
+  - 0.1.5 Change Issuer to ClusterIssuer
+  - 0.1.6 Update glance default policy values
+  - 0.1.7 Update storage init script with cacert
+  - 0.1.8 Update glance default policy values
+  - 0.2.0 Remove support for releases before T
+  - 0.2.1 Fix the ceph pool creations for openstack services
+  - 0.2.2 Adding rabbitmq TLS logic
+  - 0.2.3 Use policies in yaml format
+  - 0.2.4 Mount rabbitmq TLS secret
+  - 0.2.5 Add Ussuri release support
+  - 0.2.6 Add Victoria and Wallaby releases support
+  - 0.2.7 Added helm.sh/hook for the jobs
+  - 0.2.8 Helm 3 - Fix Job Labels
+  - 0.2.9 Helm 3 - Fix More Job Labels
+  - 0.2.10 Update htk requirements repo
+  - 0.3.0 Remove glance registry
+  - 0.3.1 Enable taint toleration for Openstack services
+  - 0.3.2 Decrease terminationGracePeriodSeconds on glance-api
+  - 0.3.3 Update naming for subchart compatibility
+  - 0.3.4 Change image default version to wallaby
+  - 0.3.5 Migrated PodDisruptionBudget resource to policy/v1 API version
+  - 0.3.6 Add Xena and Yoga values overrides
+  - 0.3.7 Fix glance-etc template changing due to comment and whitespace between install and first upgrade
+  - 0.3.8 Added OCI registry authentication
+  - 0.3.9 Support TLS endpoints
+  - 0.3.10 Distinguish between port number of internal endpoint and binding port number
+  - 0.3.11 Use HTTP probe instead of TCP probe
+  - 0.3.12 Add support for using Cinder as backend
+  - 0.4.0 Remove support for Train and Ussuri
+  - 0.4.1 Remove default policy rules
+  - 0.4.2 Allow Ceph pools to use 1x replication
+  - 0.4.3 Update all Ceph images to Focal
+  - 0.4.4 Replace node-role.kubernetes.io/master with control-plane
+  - 0.4.5 Fix wrong configFile path in glance bootstrap container.
+  - 0.4.6 Define service_type in keystone_authtoken to support application credentials with access rules
+  - 0.4.7 Add Zed overrides
+  - 0.4.8 Add 2023.1 overrides
+  - 0.4.9 Use service tokens
+  - 0.4.10 Add exec probe timeouts
+  - 0.4.11 Bring liveness/readiness params out to values.yaml
+  - 0.4.12 Add flag `keep_pvc` to allows set helm resource-policy for glance-images PVC to keep.
+  - 0.4.13 Add Ubuntu Jammy overrides
+  - 0.4.14 Bump Cirros version to 0.6.2
+  - 0.4.15 Add 2023.2 Ubuntu Jammy overrides
+  - 0.4.16 Use --region option to prevent OS_SWIFT_ENDPOINT_PREFIX is broken in storage-init.sh
+  - 0.4.17 Update Ceph images to Jammy and Reef 18.2.1
+  - 0.4.18 Enable custom annotations for Openstack pods
+  - 0.4.19 Add 2024.1 overrides
+  - 0.4.20 Add readiness probe initial delay
+  - 0.4.21 Use uWSGI
+  - 0.4.22 Enable custom annotations for Openstack secrets
+  - 0.4.23 Update images used by default
+  - 0.4.24 Do not attach backend pvc to storage init pod
+  - 0.4.25 Allow customisation of pvc storage accessMode so we can run multiple api pods
+  - 0.4.26 Use quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal by default
+  - 0.5.0 Remove deprecated config options `stores` and `default_store`
+  - 0.5.1 Add 2024.2 Ubuntu Jammy overrides
+  - 0.5.2 Fix HTTP healthcheck URLs for Kubernetes probes
+  - 0.5.3 Add override for downloading Ubuntu image
+  - 0.5.4 Update Chart.yaml apiVersion to v2
+  - 2024.2.0 Update version to align with the Openstack release cycle
+...

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/acceleratorfit"
 	framework "github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/framework"
 	utils "github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/framework/utils"
 
@@ -34,31 +35,47 @@ func (n *NodeResourcesFit) Filter(ctx context.Context, pod *v1.Pod, nodeInfo *ut
 		return utils.NewStatus(utils.Error, "node not found")
 	}
 
-	podRequests := computePodResourceRequest(pod)
-
-	allocatable := nodeInfo.Node().Status.Allocatable
-
+	node := nodeInfo.Node()
+	allocatable := node.Status.Allocatable
 	allocated := nodeInfo.Requested
-
-	availableCPU := allocatable.Cpu().MilliValue() - allocated.MilliCPU
-	if podRequests.MilliCPU > availableCPU {
-		return utils.NewStatus(utils.Unschedulable,
-			fmt.Sprintf("Insufficient cpu: requested %dm, available %dm",
-				podRequests.MilliCPU, availableCPU))
+	if allocated == nil {
+		allocated = &utils.Resource{}
 	}
 
-	availableMemory := allocatable.Memory().Value() - allocated.Memory
-	if podRequests.Memory > availableMemory {
-		return utils.NewStatus(utils.Unschedulable,
-			fmt.Sprintf("Insufficient memory: requested %d, available %d",
-				podRequests.Memory, availableMemory))
+	host := acceleratorfit.EvaluateHostResources(pod, allocatable, allocated.MilliCPU, allocated.Memory)
+	if !host.OK {
+		return utils.NewStatus(utils.Unschedulable, host.Detail)
 	}
 
+	// Reuse only conclusive count results. resource_view_missing is UNEVALUATED
+	// for required-checks, but legacy NodeResourcesFit must still reject missing GPUs.
+	if counts, ok := utils.CachedAcceleratorCounts(ctx, node.Name); ok {
+		reuseOK := true
+		for _, c := range counts {
+			if c.Code == "resource_view_missing" {
+				reuseOK = false
+				break
+			}
+			if !c.OK {
+				detail := c.Detail
+				if detail == "" {
+					detail = fmt.Sprintf("Insufficient %s: requested %d, available %d", c.Resource, c.Requested, c.Available)
+				}
+				return utils.NewStatus(utils.Unschedulable, detail)
+			}
+		}
+		if reuseOK {
+			return checkNonAcceleratorScalars(pod, allocatable, allocated)
+		}
+		// fall through to live accelerator + scalar path
+	}
+
+	podRequests := computePodResourceRequest(pod)
 	for resourceName, podRequest := range podRequests.ScalarResources {
 		if podRequest <= 0 {
 			continue
 		}
-		nodeAllocatable, ok := allocatable[v1.ResourceName(resourceName)]
+		nodeAllocatable, ok := allocatable[resourceName]
 		if !ok || nodeAllocatable.Value() == 0 {
 			return utils.NewStatus(utils.Unschedulable,
 				fmt.Sprintf("node does not have resource %s", resourceName))
@@ -75,26 +92,42 @@ func (n *NodeResourcesFit) Filter(ctx context.Context, pod *v1.Pod, nodeInfo *ut
 	return utils.NewStatus(utils.Success, "")
 }
 
+func checkNonAcceleratorScalars(pod *v1.Pod, allocatable v1.ResourceList, allocated *utils.Resource) *utils.Status {
+	podRequests := computePodResourceRequest(pod)
+	for resourceName, podRequest := range podRequests.ScalarResources {
+		if podRequest <= 0 {
+			continue
+		}
+		if acceleratorfit.AcceleratorResourceType(resourceName) != "" {
+			continue
+		}
+		nodeAllocatable, ok := allocatable[resourceName]
+		if !ok || nodeAllocatable.Value() == 0 {
+			return utils.NewStatus(utils.Unschedulable,
+				fmt.Sprintf("node does not have resource %s", resourceName))
+		}
+		nodeUsed := allocated.ScalarResources[resourceName]
+		available := nodeAllocatable.Value() - nodeUsed
+		if podRequest > available {
+			return utils.NewStatus(utils.Unschedulable,
+				fmt.Sprintf("Insufficient %s: requested %d, available %d",
+					resourceName, podRequest, available))
+		}
+	}
+	return utils.NewStatus(utils.Success, "")
+}
+
 func computePodResourceRequest(pod *v1.Pod) *utils.Resource {
-	result := &utils.Resource{}
-	for _, container := range pod.Spec.Containers {
-		result.Add(container.Resources.Requests)
+	// Shared with placementchecks check 1 — includes init-container accelerator scalars.
+	fit := acceleratorfit.ComputePodResourceRequest(pod)
+	result := &utils.Resource{
+		MilliCPU:        fit.MilliCPU,
+		Memory:          fit.Memory,
+		ScalarResources: map[v1.ResourceName]int64{},
 	}
-
-	for _, container := range pod.Spec.InitContainers {
-		requests := container.Resources.Requests
-		if cpu := requests[v1.ResourceCPU]; cpu.MilliValue() > result.MilliCPU {
-			result.MilliCPU = cpu.MilliValue()
-		}
-		if memory := requests[v1.ResourceMemory]; memory.Value() > result.Memory {
-			result.Memory = memory.Value()
-		}
+	for k, v := range fit.ScalarResources {
+		result.ScalarResources[v1.ResourceName(k)] = v
 	}
-
-	if pod.Spec.Overhead != nil {
-		result.Add(pod.Spec.Overhead)
-	}
-
 	return result
 }
 
@@ -107,9 +140,6 @@ func PodRequests(pod *v1.Pod) v1.ResourceList {
 	for _, container := range pod.Spec.InitContainers {
 		for rName, rQuantity := range container.Resources.Requests {
 			if existing, ok := result[rName]; !ok || rQuantity.Cmp(existing) > 0 {
-				if result == nil {
-					result = v1.ResourceList{}
-				}
 				result[rName] = rQuantity.DeepCopy()
 			}
 		}

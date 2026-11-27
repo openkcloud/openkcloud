@@ -1,0 +1,44 @@
+# ============================================================
+# values-k8s1.34-dra.yaml: K8s 1.31~1.34 라인의 DRA 광고 프로파일
+# 상세: 1.34 라인과 같은 이미지·같은 CRD 에 DRA 광고 경로만 켠다. 이 파일 하나가 두 구성의
+#       유일한 차이이고, 별도 릴리스 번호 없이 같은 세트 안의 값 토글로 취급한다.
+# 생성일: 2026-08-07 | 수정일: 2026-10-11
+# ============================================================
+
+# 사용:
+#   helm upgrade --install kcloud-operator deploy/helm -n kcloud \
+#     -f deploy/helm/values-k8s1.34.yaml \
+#     -f deploy/helm/values-k8s1.34-dra.yaml \
+#     -f <사이트 값 파일> \
+#     --set global.registry=<레지스트리> --set global.vendorRegistry=<레지스트리>
+
+# 사설 미러가 아니면 두 --set 은 생략한다(기본값이 공개 경로다). 이 프로파일이 켜는 NVIDIA
+# DRA 드라이버 이미지는 벤더 이미지라 global.vendorRegistry 쪽을 따른다. v0.7.0 프로파일을
+# 먼저 주고 이 파일로 겹쳐 쓴다 — 이 파일은 차이분만 담는다.
+
+# ⚠ 전제 — 이 프로파일을 켜기 전에 반드시 만족해야 한다:
+#   1. 클러스터가 K8s 1.31 이상이고 `resource.k8s.io/v1` 이 서빙된다
+#        (kubectl api-resources | grep resource.k8s.io)
+#   2. 대상 벤더의 DRA 드라이버가 설치돼 있고 ResourceSlice 를 발행한다(kubectl get resourceslices)
+#   3. 그 벤더용 DeviceClass 가 있다(kubectl get deviceclasses)
+
+# 미발행 상태에서 켜면 operator 가 전환을 거절하지만, 이미 켠 뒤 발행이 끊기면 그 노드는
+# device-plugin 이 걷힌 채 아무것도 광고하지 않는다.
+
+# 되돌리기: 이 파일을 빼고 다시 올리면 operator 가 dra-owned 라벨을 걷고 device-plugin
+# DaemonSet 을 그 노드에 되돌린다.
+
+# ⚠ 담지 않은 것 — DRA 분할·공유(물리 장치 하나를 쪼개거나 나눠 쓰는 것)는 여기 없다. 벤더
+# 드라이버가 통짜 장치만 발행하기 때문이다. 이 프로파일이 켜는 것은 **광고 주체를
+# device-plugin 에서 DRA 로 옮기는 것**뿐이다.
+
+# 어느 벤더를 DRA 로 넘길지는 그 클러스터에 어떤 DRA 드라이버가 깔려 있는지에 달렸다.
+# 아래는 NVIDIA 만 넘기는 구성이다. 드라이버가 있는 벤더만 켤 것.
+nvidia:
+  advertiseBy: "dra"
+
+# 벤더 DRA 드라이버가 없는 축은 켜지 않는다 — 켜면 그 노드의 광고가 사라진다.
+# furiosa:
+#   advertiseBy: "dra"
+# tenstorrent:
+#   advertiseBy: "dra"

@@ -354,6 +354,15 @@ type ImageStateSummary struct {
 	nodes sets.Set[string]
 }
 
+// AppliedNodeGPUMetrics is the only accepted UpdateNodeGPUMetrics payload.
+// Callers must supply at least one measured device UUID. Empty structs, maps,
+// and untyped placeholders must not stamp GPUMetricsUpdatedAt.
+// Required-check freshness uses placementchecks.Store, not this timestamp.
+type AppliedNodeGPUMetrics struct {
+	DeviceUUIDs []string
+}
+
+// UpdateNodeGPUMetrics records that measured GPU metrics were applied.
 func (cache *Cache) UpdateNodeGPUMetrics(nodeName string, gpuMetrics any) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
@@ -362,7 +371,21 @@ func (cache *Cache) UpdateNodeGPUMetrics(nodeName string, gpuMetrics any) error 
 	if !ok {
 		return fmt.Errorf("노드 %s를 캐시에서 찾을 수 없음", nodeName)
 	}
+	if !isAppliedGPUMetrics(gpuMetrics) {
+		return fmt.Errorf("unsupported or empty gpu metrics payload for %s; timestamp unchanged", nodeName)
+	}
 
 	nodeInfo.GPUMetricsUpdatedAt = time.Now()
 	return nil
+}
+
+func isAppliedGPUMetrics(gpuMetrics any) bool {
+	switch m := gpuMetrics.(type) {
+	case AppliedNodeGPUMetrics:
+		return len(m.DeviceUUIDs) > 0
+	case *AppliedNodeGPUMetrics:
+		return m != nil && len(m.DeviceUUIDs) > 0
+	default:
+		return false
+	}
 }

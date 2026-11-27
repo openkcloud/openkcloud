@@ -1,0 +1,1 @@
+../component/ceph/ceph.sh

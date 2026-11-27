@@ -1,0 +1,21 @@
+# ============================================================
+# service-gpu-pod.yaml: service k8s(Magnum) 에서 NVIDIA GPU 1장을 할당받아 nvidia-smi 를 실행하는 확인용 파드
+# 상세: 이미지는 VM Harbor(harbor.internal — 적용 전에 실제 레지스트리 주소로 바꾼다) library 프로젝트.
+#       service k8s 에 GPU 노드·RuntimeClass nvidia 가 없으면 Pending 이 정상이다(이미지만 확인).
+#       실행: kubectl apply -f service-gpu-pod.yaml → kubectl get pod gpu-test (Completed) → kubectl logs gpu-test → kubectl delete pod gpu-test
+# 생성일: 2026-09-17 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-test
+spec:
+  restartPolicy: Never
+  runtimeClassName: nvidia
+  containers:
+  - name: smi
+    image: harbor.internal/library/cuda:12.9.1-base-ubuntu22.04
+    command: ["nvidia-smi"]
+    resources:
+      limits:
+        nvidia.com/gpu: 1

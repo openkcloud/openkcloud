@@ -1,0 +1,60 @@
+[
+    {
+        "local": [
+            {
+                "user": {
+                    "name": "{0}",
+                    "email": "{1}",
+                    "domain": {
+                        "name": "rackspace_cloud_domain"
+                    }
+                }
+            },
+            {
+                "projects": [
+                    {
+                        "name": "{2}",
+                        "domain": {
+                            "name": "rackspace_cloud_domain"
+                        },
+                        "description": "Project for DDI {3}",
+                        "metadata": [
+                            {
+                                "key": "ddi",
+                                "value": "{3}"
+                            }
+                        ],
+                        "tags": [
+                            {
+                                "project_tag": "{3}"
+                            }
+                        ],
+                        "roles": []
+                    }
+                ]
+            }
+        ],
+        "remote": [
+            {
+                "type": "RXT_UserName"
+            },
+            {
+                "type": "RXT_Email"
+            },
+            {
+                "type": "RXT_TenantName"
+            },
+            {
+                "type": "RXT_DomainID"
+            },
+            {
+                "type": "RXT_orgPersonType",
+                "any_one_of": [
+                    "creator",
+                    "member",
+                    "reader"
+                ]
+            }
+        ]
+    }
+]

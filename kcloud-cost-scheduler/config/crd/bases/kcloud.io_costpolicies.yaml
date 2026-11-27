@@ -1,0 +1,336 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: costpolicies.kcloud.io
+spec:
+  group: kcloud.io
+  names:
+    kind: CostPolicy
+    listKind: CostPolicyList
+    plural: costpolicies
+    singular: costpolicy
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CostPolicy is the Schema for the costpolicies API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of CostPolicy
+            properties:
+              alertThresholds:
+                description: AlertThresholds defines thresholds for cost alerts
+                items:
+                  description: CostAlertThreshold defines a threshold for cost alerts
+                  properties:
+                    action:
+                      description: Action defines the action to take when threshold
+                        is exceeded
+                      enum:
+                      - notify
+                      - scale_down
+                      - pause
+                      - terminate
+                      type: string
+                    severity:
+                      description: Severity defines the severity level of the alert
+                      enum:
+                      - info
+                      - warning
+                      - critical
+                      type: string
+                    type:
+                      description: Type defines the type of threshold
+                      enum:
+                      - budget_usage
+                      - cost_increase
+                      - anomaly
+                      type: string
+                    value:
+                      description: Value defines the threshold value (percentage for
+                        budget_usage, multiplier for cost_increase)
+                      minimum: 0
+                      type: number
+                  required:
+                  - type
+                  - value
+                  type: object
+                type: array
+              budgetLimit:
+                description: BudgetLimit defines the total budget limit in USD
+                minimum: 0
+                type: number
+              costPerHourLimit:
+                description: CostPerHourLimit defines the maximum cost per hour in
+                  USD
+                minimum: 0
+                type: number
+              monthlyBudget:
+                description: MonthlyBudget defines the monthly budget limit in USD
+                minimum: 0
+                type: number
+              namespaceSelector:
+                description: NamespaceSelector defines which namespaces this policy
+                  applies to
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
+              resourceCostPolicy:
+                description: ResourceCostPolicy defines cost policies for different
+                  resource types
+                properties:
+                  cpuCostPerCorePerHour:
+                    description: CPUCostPerCorePerHour defines the cost per CPU core
+                      per hour in USD
+                    minimum: 0
+                    type: number
+                  gpuCostPerHour:
+                    description: GPUCostPerHour defines the cost per GPU per hour
+                      in USD
+                    minimum: 0
+                    type: number
+                  memoryCostPerGiPerHour:
+                    description: MemoryCostPerGiPerHour defines the cost per GiB of
+                      memory per hour in USD
+                    minimum: 0
+                    type: number
+                  npuCostPerHour:
+                    description: NPUCostPerHour defines the cost per NPU per hour
+                      in USD
+                    minimum: 0
+                    type: number
+                type: object
+              spotInstancePolicy:
+                description: SpotInstancePolicy defines the policy for spot instances
+                properties:
+                  enabled:
+                    description: Enabled indicates whether spot instances are allowed
+                    type: boolean
+                  interruptionHandling:
+                    description: InterruptionHandling defines how to handle spot instance
+                      interruptions
+                    enum:
+                    - terminate
+                    - drain
+                    - migrate
+                    type: string
+                  maxSpotPercentage:
+                    description: MaxSpotPercentage defines the maximum percentage
+                      of spot instances (0-100)
+                    format: int32
+                    maximum: 100
+                    minimum: 0
+                    type: integer
+                type: object
+              workloadSelector:
+                description: WorkloadSelector defines which workloads this policy
+                  applies to
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
+            required:
+            - budgetLimit
+            type: object
+          status:
+            description: status defines the observed state of CostPolicy
+            properties:
+              budgetUtilization:
+                description: BudgetUtilization represents the budget utilization percentage
+                  (0-100)
+                maximum: 100
+                minimum: 0
+                type: number
+              conditions:
+                description: conditions represent the current state of the CostPolicy
+                  resource
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              currentSpend:
+                description: CurrentSpend represents the current spend in USD
+                type: number
+              lastUpdated:
+                description: LastUpdated represents the last time the status was updated
+                format: date-time
+                type: string
+              monthlySpend:
+                description: MonthlySpend represents the current monthly spend in
+                  USD
+                type: number
+              phase:
+                description: Phase represents the current phase of the cost policy
+                enum:
+                - Active
+                - Suspended
+                - Violated
+                type: string
+              violations:
+                description: Violations represents the number of policy violations
+                format: int32
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

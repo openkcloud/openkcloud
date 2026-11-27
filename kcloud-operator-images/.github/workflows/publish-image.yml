@@ -1,0 +1,136 @@
+# ============================================================
+# publish-image.yml: images.yaml 에 등록된 이미지 하나를 GHCR 로 빌드·발행한다.
+# 상세: 이미지마다 태그 규약이 달라 공통 버전 축이 없어 한 번에 하나만 발행한다. 실행 경로는
+#       workflow_dispatch 수동 실행과 `<이미지명>/<태그>` 태그 push 둘이며, 있는 태그는 실패시킨다.
+# 생성일: 2026-09-09 | 수정일: 2026-10-11
+# ============================================================
+name: Publish image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "발행할 이미지 (images.yaml 의 키)"
+        required: true
+        type: choice
+        options:
+          - kcloud-host-exec
+          - kcloud-node-manager
+          - nvidia-driver-ds
+          - furiosa-driver-ds
+          - tenstorrent-driver-ds
+          - kcloud-tt-device-plugin
+          - furiosa-exporter
+          - generic-device-plugin
+          - generic-dra-driver
+      tag:
+        description: "이미지 태그 (규약은 images.yaml 주석 참조)"
+        required: true
+        type: string
+      build_args:
+        description: "추가 build-arg. 한 줄에 KEY=VALUE 하나. images.yaml 기본값에 우선한다"
+        required: false
+        type: string
+  push:
+    tags:
+      # <이미지명>/<태그>. 슬래시가 이미지와 태그를 가른다.
+      - "*/*"
+      # 묶음 태그는 publish-bundle.yml 담당. 뒤에 와야 위 패턴을 덮는다.
+      - "!bundle/*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build and push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v5
+
+      - name: Resolve image and tag
+        # dispatch 입력은 신뢰 경계 밖이다. run 스크립트에 직접 넣지 않고 env 로 넘긴다.
+        env:
+          IN_IMAGE: ${{ inputs.image }}
+          IN_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            IMAGE="${IN_IMAGE}"
+            TAG="${IN_TAG}"
+          else
+            REF="${GITHUB_REF_NAME}"
+            IMAGE="${REF%%/*}"
+            TAG="${REF#*/}"
+          fi
+          if [ -z "${IMAGE}" ] || [ -z "${TAG}" ]; then
+            echo "!! 이미지나 태그가 비어 있다 (ref=${GITHUB_REF_NAME})." >&2
+            exit 1
+          fi
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
+          # 발행 네임스페이스는 저장소 소유자(소문자). 개인 fork 리허설도 같은 워크플로를 쓴다.
+          echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - name: Read images.yaml entry
+        run: |
+          set -euo pipefail
+          if [ "$(IMAGE="$IMAGE" yq '.images | has(env(IMAGE))' images.yaml)" != "true" ]; then
+            echo "!! images.yaml 에 ${IMAGE} 항목이 없다. 발행 대상이면 먼저 등록하라." >&2
+            exit 1
+          fi
+          DIR=$(IMAGE="$IMAGE" yq -r '.images[env(IMAGE)].dir' images.yaml)
+          DOCKERFILE=$(IMAGE="$IMAGE" yq -r '.images[env(IMAGE)].dockerfile // "Dockerfile"' images.yaml)
+          echo "DIR=${DIR}" >> "$GITHUB_ENV"
+          echo "DOCKERFILE=${DOCKERFILE}" >> "$GITHUB_ENV"
+          test -f "${DIR}/${DOCKERFILE}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 같은 태그를 다시 밀면 이미 배포된 노드가 받는 내용이 조용히 바뀐다.
+      - name: Refuse to overwrite an existing tag
+        run: |
+          set -euo pipefail
+          if docker manifest inspect "ghcr.io/${OWNER}/${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "!! ghcr.io/${OWNER}/${IMAGE}:${TAG} 가 이미 있다. 태그를 올려라." >&2
+            exit 1
+          fi
+
+      - name: Build and push
+        env:
+          IN_BUILD_ARGS: ${{ inputs.build_args }}
+        run: |
+          set -euo pipefail
+          ARGS=()
+          add_arg() {
+            local kv="$1"
+            [ -n "$kv" ] || return 0
+            ARGS+=(--build-arg "${kv//\$\{TAG\}/$TAG}")
+          }
+          while IFS= read -r kv; do
+            add_arg "$kv"
+          done < <(IMAGE="$IMAGE" yq -r \
+            '(.images[env(IMAGE)].build_args // {}) | to_entries | .[] | .key + "=" + .value' images.yaml)
+          # dispatch 입력이 뒤에 오므로 같은 키면 이쪽이 이긴다.
+          while IFS= read -r kv; do
+            add_arg "$kv"
+          done <<< "${IN_BUILD_ARGS:-}"
+
+          IMAGE_REF="ghcr.io/${OWNER}/${IMAGE}:${TAG}"
+          echo ">> building ${IMAGE_REF} from ${DIR}/${DOCKERFILE}"
+          docker build \
+            -f "${DIR}/${DOCKERFILE}" \
+            -t "${IMAGE_REF}" \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            "${ARGS[@]}" \
+            "${DIR}"
+          docker push "${IMAGE_REF}"
+          echo ">> done: ${IMAGE_REF}"

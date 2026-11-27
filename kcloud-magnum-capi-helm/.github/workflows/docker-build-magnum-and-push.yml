@@ -1,0 +1,184 @@
+name: Build magnum image and push to GHCR
+
+# The image is built here, in the repository that actually changes. The only
+# customised component in the kcloud magnum image is this driver, so the plugin
+# source and the image build live together and a push is the whole trigger --
+# no cross-repository dispatch is needed.
+
+on:
+  push:
+    branches:
+      # kcloud only. master carries no kcloud changes, so building it would
+      # publish an image identical to upstream under a kcloud tag -- and both
+      # branches write the same tag, so whichever pushed last would win.
+      # master is still built (not published) by the pull_request trigger.
+      - kcloud
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      magnum-image:
+        description: 'Base magnum image, tag or digest. Defaults to the Dockerfile value.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+# Pushes can land in quick succession while iterating on the driver; only the
+# newest build of a branch is worth finishing.
+concurrency:
+  group: magnum-image-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  # Named for what the image is, not for this repository. Everywhere else in
+  # the kcloud org the image name matches the repository, but this repository
+  # holds the driver while the artifact it produces is a magnum image -- calling
+  # it kcloud-magnum-capi-helm would read as "just the plugin" wherever it is
+  # consumed as MAGNUM_IMAGE.
+  IMAGE_NAME: ${{ github.repository_owner }}/kcloud-magnum
+  # OpenStack release of the magnum base. This is the axis operators select on
+  # (it is what MAGNUM_IMAGE has to match), so it leads the tag; the plugin
+  # version identifies what was built on top. Neither alone names the image.
+  # Note that no tag here is a true pin: the base tracks 2025.1-latest, which is
+  # rebuilt weekly, so rebuilding one commit later yields a different image
+  # under the same tag. Pin by digest for production.
+  OS_RELEASE: '2025.1'
+  BASE_IMAGE: ghcr.io/rackerlabs/genestack-images/magnum:2025.1-latest
+
+jobs:
+  build-magnum-and-push:
+    # Only the org publishes images, matching kcloud-horizon, kcloud-cyborg and
+    # kcloud-nova. Personal forks still get the Dockerfile and the workflow, but
+    # never push to ghcr.io/<fork-owner>/.
+    if: github.repository_owner == 'openkcloud'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        # Full history: the version below is derived from tags and commit count.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Normalize image repository name
+        run: echo "IMAGE_NAME=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Derive plugin version
+        # Reproduces the version pbr would compute from git: the next patch
+        # release after the last tag, plus a dev count that excludes merge
+        # commits. Verified against known builds -- d60ae3f yields 1.3.1.dev8
+        # and tag 1.2.1 yields 1.2.1, both matching what pbr itself produced.
+        #
+        # No local version segment ("+kcloud"): pbr parses this string when
+        # magnum imports the driver and raises ValueError on one, so the build
+        # would pass and magnum would fail at startup. The exact commit is
+        # carried by the revision label instead.
+        run: |
+          # Only upstream release tags (N.N.N) feed the version. A kcloud
+          # branding tag such as 1.4.0-kcloud or kcloud/2025.1 would otherwise
+          # be picked up here and produce a string pbr cannot parse, failing the
+          # build. git describe --match cannot express this: its glob is
+          # fnmatch, so [0-9]*.[0-9]*.[0-9]* still matches 1.4.0-kcloud.
+          TAG=$(git tag --merged HEAD | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          if [ -z "$TAG" ]; then
+            echo "::error::no upstream release tag reachable from HEAD."
+            echo "::error::GitHub forks copy the default branch only, so the"
+            echo "::error::upstream tags must be pushed once:"
+            echo "::error::  git fetch https://opendev.org/openstack/magnum-capi-helm.git --tags"
+            echo "::error::  git push origin --tags"
+            exit 1
+          fi
+          COUNT=$(git rev-list --count --no-merges "${TAG}..HEAD")
+          if [ "$COUNT" -eq 0 ]; then
+            VERSION="$TAG"
+          else
+            NEXT=$(echo "$TAG" | awk -F. -v OFS=. '{$NF=$NF+1; print}')
+            VERSION="${NEXT}.dev${COUNT}"
+          fi
+          echo "PLUGIN_VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "Version: ${VERSION}  (tag ${TAG} + ${COUNT})"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve base image to a digest
+        # The base tag moves weekly. Resolving it once here means every layer of
+        # this build sees the same base, and the digest below is what actually
+        # shipped -- recorded as a label and in the run summary so the image can
+        # always be traced back to a specific magnum build.
+        # RepoDigests is the manifest-list digest as the registry serves it, so
+        # no tag parsing is needed and registry ports are handled for free.
+        run: |
+          BASE="${{ inputs.magnum-image || env.BASE_IMAGE }}"
+          case "$BASE" in
+            *@sha256:*)
+              RESOLVED="$BASE"
+              ;;
+            *)
+              docker pull -q "$BASE" >/dev/null
+              RESOLVED=$(docker image inspect "$BASE" --format '{{index .RepoDigests 0}}')
+              ;;
+          esac
+          if [ -z "$RESOLVED" ]; then
+            echo "::error::could not resolve ${BASE} to a digest"
+            exit 1
+          fi
+          echo "BASE_IMAGE_RESOLVED=${RESOLVED}" >> $GITHUB_ENV
+          echo "Base: ${BASE}"
+          echo "   -> ${RESOLVED}"
+
+      - name: Log in to the Container registry
+        # Skipped on pull_request: forks have no write access and PR builds do
+        # not push.
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          # PR runs build and run the entry-point check, but publish nothing.
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.OS_RELEASE }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.OS_RELEASE }}-${{ env.PLUGIN_VERSION }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            io.kcloud.base-image=${{ env.BASE_IMAGE_RESOLVED }}
+          build-args: |
+            PLUGIN_VERSION=${{ env.PLUGIN_VERSION }}
+            PLUGIN_COMMIT=${{ github.sha }}
+            MAGNUM_IMAGE=${{ env.BASE_IMAGE_RESOLVED }}
+
+      - name: Summary
+        run: |
+          {
+            echo "### Image"
+            echo '```'
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.OS_RELEASE }}"
+            echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.OS_RELEASE }}-${{ env.PLUGIN_VERSION }}"
+            echo "plugin commit : ${{ github.sha }}"
+            echo "base image    : ${{ env.BASE_IMAGE_RESOLVED }}"
+            echo '```'
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "_Pull request build -- nothing was pushed._"
+            fi
+          } >> $GITHUB_STEP_SUMMARY

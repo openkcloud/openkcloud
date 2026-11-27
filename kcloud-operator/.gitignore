@@ -10,6 +10,10 @@ Dockerfile.cross
 # Test binary, built with `go test -c`
 *.test
 
+# Python bytecode cache (test/live/*/workload.py 를 py_compile 로 검증할 때 생성)
+__pycache__/
+*.pyc
+
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
@@ -37,3 +41,25 @@ internal/crdapply/crd/*.yaml
 .claude/
 CLAUDE.md
 AGENTS.md
+docs/superpowers/
+
+# 진행 대시보드(작업 산출물, 추적 제외)
+docs/progress/
+.superpowers/
+
+# 사이트 배포 환경 변수(사설 레지스트리 주소 포함) — 추적 금지
+deploy/helm/deploy.env
+
+# 구현 기록·설계 문서. 공개 저장소에서 관리하지 않는다(2026-09-09 결정).
+docs/
+
+# 저장소 루트에 놓인 임시 png (붙여넣기 이미지 등) 제외
+/*.png
+
+# make footprint(-check) 산출물 — baseline.json 대조용 1회성 측정 결과
+/footprint.json
+# measure.sh 기본 OUT — test/footprint/footprint-<날짜>.json 이 저장소 안에 떨어진다
+test/footprint/footprint-*.json
+
+# 개발 클러스터 오버라이드(로컬 전용, 예시는 values-dev.example.yaml)
+deploy/helm/values-dev.yaml

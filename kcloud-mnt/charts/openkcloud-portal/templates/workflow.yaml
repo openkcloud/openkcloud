@@ -1,0 +1,240 @@
+{{- /* MNT-WORKFLOW — Temporal 서버(프로비저닝 워크플로의 작업 장부). 우리 코드 없이 공식 이미지만 사용. */ -}}
+{{- if .Values.workflow.enabled }}
+{{- $g := .Values.global -}}
+{{- $w := .Values.workflow -}}
+{{- $root := . -}}
+{{- $svc := printf "mnt-workflow.%s.svc.cluster.local" $g.namespace -}}
+{{- /* DB 비밀번호 시크릿(mnt-workflow-secret)은 secrets.yaml */}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mnt-workflow-config
+  namespace: {{ $g.namespace }}
+  labels:
+    app: mnt-workflow
+    {{- include "okc.labels" $root | nindent 4 }}
+data:
+{{- range $k, $v := $w.env }}
+  {{ $k }}: {{ $v | quote }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mnt-workflow-dynamicconfig
+  namespace: {{ $g.namespace }}
+  labels:
+    app: mnt-workflow
+    {{- include "okc.labels" $root | nindent 4 }}
+data:
+  dynamicconfig.yaml: |
+{{ toYaml $w.dynamicConfig | indent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mnt-workflow
+  namespace: {{ $g.namespace }}
+  labels:
+    app: mnt-workflow
+    {{- include "okc.labels" $root | nindent 4 }}
+spec:
+  replicas: 1
+  # 옛 파드를 내린 뒤 새 파드를 띄운다 — Temporal 서버 2개가 같은 DB 를 동시에 쓰지 않게
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mnt-workflow
+  template:
+    metadata:
+      labels:
+        app: mnt-workflow
+      annotations:
+        # Istio 사이드카가 주입돼도 initContainer(스키마)의 DB 연결이 막히지 않게
+        traffic.sidecar.istio.io/excludeOutboundPorts: {{ $w.env.DB_PORT | quote }}
+        checksum/secret: {{ include (print $root.Template.BasePath "/secrets.yaml") $root | sha256sum }}  # 시크릿이 바뀌면 다시 시작
+    spec:
+      {{- with $g.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $g.nodeSelectorWorkerOnly }}
+      {{- include "okc.workerAffinity" $root | nindent 6 }}
+      {{- end }}
+      initContainers:
+        # Temporal 스키마 설치·업그레이드(멱등) — 이미 최신이면 바뀌는 것 없음. 이미지 버전을 올리면 자동 업그레이드.
+        - name: schema
+          image: {{ $w.images.adminTools }}
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              DIR=/etc/temporal/schema/postgresql/v12
+              tool() { temporal-sql-tool --plugin "$DB" --ep "$POSTGRES_SEEDS" -p "$DB_PORT" --db "$DBNAME" "$@"; }
+              tool -u "$POSTGRES_USER" --pw "$POSTGRES_PWD" setup-schema -v 0.0
+              tool -u "$POSTGRES_USER" --pw "$POSTGRES_PWD" update-schema -d "$DIR/temporal/versioned"
+              tool -u "$VISIBILITY_POSTGRES_USER" --pw "$VISIBILITY_POSTGRES_PWD" setup-schema -v 0.0
+              tool -u "$VISIBILITY_POSTGRES_USER" --pw "$VISIBILITY_POSTGRES_PWD" update-schema -d "$DIR/visibility/versioned"
+          envFrom:
+            - configMapRef:
+                name: mnt-workflow-config
+            - secretRef:
+                name: {{ $w.secretName }}
+          resources:
+            {{- toYaml $w.resources.adminTools | nindent 12 }}
+      containers:
+        # Temporal 서버 — frontend·history·matching·worker 를 한 프로세스로 실행
+        - name: temporal
+          image: {{ $w.images.server }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 7233
+          envFrom:
+            - configMapRef:
+                name: mnt-workflow-config
+            - secretRef:
+                name: {{ $w.secretName }}
+          volumeMounts:
+            - name: dynamicconfig
+              mountPath: /etc/temporal/dynamicconfig
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml $w.resources.server | nindent 12 }}
+        # 웹 화면 — 같은 파드라 127.0.0.1 로 서버에 연결
+        - name: ui
+          image: {{ $w.images.ui }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: 127.0.0.1:7233
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            {{- toYaml $w.resources.ui | nindent 12 }}
+      volumes:
+        - name: dynamicconfig
+          configMap:
+            name: mnt-workflow-dynamicconfig
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mnt-workflow
+  namespace: {{ $g.namespace }}
+  labels:
+    app: mnt-workflow
+    {{- include "okc.labels" $root | nindent 4 }}
+spec:
+  selector:
+    app: mnt-workflow
+  ports:
+    - name: grpc-frontend    # CORE·IAAS 워커와 CORE API 가 연결 (TEMPORAL_API_BASE)
+      port: 7233
+      targetPort: 7233
+    - name: http-ui          # 웹 화면
+      port: 8080
+      targetPort: 8080
+---
+# 워크플로 네임스페이스 준비(멱등) — 서버가 응답할 때까지 기다린 뒤 없을 때만 생성.
+# 이름에 릴리스 번호를 붙여 업그레이드마다 새로 실행(이전 Job 은 helm 이 정리).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mnt-workflow-namespace-{{ .Release.Revision }}
+  namespace: {{ $g.namespace }}
+  labels:
+    app: mnt-workflow-namespace
+    {{- include "okc.labels" $root | nindent 4 }}
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: mnt-workflow-namespace
+      annotations:
+        sidecar.istio.io/inject: "false"   # 사이드카가 붙으면 Job 이 끝나지 않는다
+    spec:
+      restartPolicy: OnFailure
+      {{- with $g.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $g.nodeSelectorWorkerOnly }}
+      {{- include "okc.workerAffinity" $root | nindent 6 }}
+      {{- end }}
+      containers:
+        - name: namespace
+          image: {{ $w.images.adminTools }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: {{ printf "%s:7233" $svc }}
+            - name: TEMPORAL_NAMESPACE_NAME
+              value: {{ $w.temporalNamespace | quote }}
+            - name: TEMPORAL_NAMESPACE_RETENTION
+              value: {{ $w.retention | quote }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              until temporal operator cluster health >/dev/null 2>&1; do echo "Temporal 서버 대기 중…"; sleep 3; done
+              if temporal operator namespace describe --namespace "$TEMPORAL_NAMESPACE_NAME" >/dev/null 2>&1; then
+                echo "네임스페이스 $TEMPORAL_NAMESPACE_NAME 이미 있음"
+              else
+                temporal operator namespace create --namespace "$TEMPORAL_NAMESPACE_NAME" --retention "$TEMPORAL_NAMESPACE_RETENTION"
+              fi
+          resources:
+            {{- toYaml $w.resources.adminTools | nindent 12 }}
+{{- if .Values.gateway.enabled }}
+{{- $gwRef := .Values.gateway.gatewayName -}}
+{{- if .Values.gateway.create }}{{- $gwRef = "openkcloud-portal" -}}{{- end }}
+---
+# 웹 화면 — portal-gateway(*.kcloud.etri 와일드카드 TLS)에 호스트로 연결
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: openkcloud-portal-temporal-ui
+  namespace: {{ $g.namespace }}
+  labels:
+    {{- include "okc.labels" $root | nindent 4 }}
+spec:
+  hosts:
+    - {{ $w.uiHost | quote }}
+  gateways:
+    - {{ $gwRef }}
+  http:
+    - route:
+        - destination:
+            host: {{ $svc }}
+            port:
+              number: 8080
+{{- end }}
+{{- end }}

@@ -1,0 +1,33 @@
+{
+  "node_name": "dual-gpu-node",
+  "devices": [
+    {
+      "uuid": "GPU-small",
+      "node_name": "dual-gpu-node",
+      "kind": "gpu",
+      "model": "l4",
+      "memory_total_mib": {
+        "present": true, "value": 24576, "unit": "MiB", "source": "fixture",
+        "collected_at": "2026-10-26T02:15:00Z", "received_at": "2026-10-26T02:15:01Z"
+      },
+      "memory_used_mib": {
+        "present": true, "value": 20000, "unit": "MiB", "source": "fixture",
+        "collected_at": "2026-10-26T02:15:00Z", "received_at": "2026-10-26T02:15:01Z"
+      }
+    },
+    {
+      "uuid": "GPU-large",
+      "node_name": "dual-gpu-node",
+      "kind": "gpu",
+      "model": "l40s",
+      "memory_total_mib": {
+        "present": true, "value": 46068, "unit": "MiB", "source": "fixture",
+        "collected_at": "2026-10-26T02:15:00Z", "received_at": "2026-10-26T02:15:01Z"
+      },
+      "memory_used_mib": {
+        "present": true, "value": 1000, "unit": "MiB", "source": "fixture",
+        "collected_at": "2026-10-26T02:15:00Z", "received_at": "2026-10-26T02:15:01Z"
+      }
+    }
+  ]
+}

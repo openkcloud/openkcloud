@@ -2,7 +2,7 @@
 // driver_upgrade.go: Driver Upgrade Controller Prometheus 메트릭
 // 상세: controller-runtime 메트릭 레지스트리를 사용하여 드라이버 업그레이드
 //       관련 메트릭(카운터, 히스토그램, 게이지)을 등록 및 제공
-// 생성일: 2026-04-13
+// 생성일: 2026-04-13 | 수정일: 2026-10-12
 // ============================================================
 
 package metrics
@@ -12,6 +12,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
+
+	npuv1alpha1 "kcloud-operator/api/v1alpha1"
 )
 
 var (
@@ -80,9 +82,20 @@ func RecordPhaseDuration(vendor, phase string, duration time.Duration) {
 func SetUpgradeState(node, vendor, state string) {
 	// 해당 노드/vendor의 모든 상태를 0으로 초기화 후 현재 상태만 1로 설정
 	allStates := []string{
-		"Idle", "UpgradeRequired", "PreFlight",
-		"Cordoning", "Draining", "Upgrading",
-		"Validating", "Uncordoning", "Rollback", "Failed",
+		npuv1alpha1.UpgradeStateIdle,
+		npuv1alpha1.UpgradeStateRequired,
+		npuv1alpha1.UpgradeStatePreFlight,
+		npuv1alpha1.UpgradeStateCordoning,
+		npuv1alpha1.UpgradeStateDraining,
+		npuv1alpha1.UpgradeStateUpgrading,
+		npuv1alpha1.UpgradeStateValidating,
+		npuv1alpha1.UpgradeStateUncordoning,
+		npuv1alpha1.UpgradeStateRollback,
+		npuv1alpha1.UpgradeStateFailed,
+		npuv1alpha1.UpgradeStateUnverifiedVersion,
+		npuv1alpha1.UpgradeStateHostAhead,
+		npuv1alpha1.UpgradeStateRebootRequired,
+		npuv1alpha1.UpgradeStateRebooting,
 	}
 	for _, s := range allStates {
 		UpgradeState.WithLabelValues(node, vendor, s).Set(0)

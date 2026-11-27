@@ -19,6 +19,7 @@
 
 from oslo_config import cfg
 
+from nova.conf import accelerator_weigher
 from nova.conf import api
 from nova.conf import availability_zone
 from nova.conf import base
@@ -66,6 +67,7 @@ from nova.conf import zvm
 
 CONF = cfg.CONF
 
+accelerator_weigher.register_opts(CONF)
 api.register_opts(CONF)
 availability_zone.register_opts(CONF)
 base.register_opts(CONF)

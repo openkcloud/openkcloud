@@ -1,0 +1,15 @@
+{% extends "horizon/common/_modal_form.html" %}
+{% load i18n %}
+
+{% block modal-body-right %}
+  <h3>{% trans "Description" %}</h3>
+  <p>
+    {% trans "A device profile is a named request for accelerator resources that instances reference when scheduling." %}
+  </p>
+  <p>
+    {% trans "Each group lists resource classes and traits. Enter one 'key=value' per line and leave a blank line to begin another group." %}
+  </p>
+  <p>
+    {% trans "Device profiles cannot be edited after creation; delete and recreate to change one." %}
+  </p>
+{% endblock %}

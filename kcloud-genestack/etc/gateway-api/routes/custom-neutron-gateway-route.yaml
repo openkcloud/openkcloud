@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: neutron
+    service: HTTPRoute
+  name: custom-neutron-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - neutron.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: neutron-https
+  rules:
+    - backendRefs:
+        - name: neutron-server
+          port: 9696

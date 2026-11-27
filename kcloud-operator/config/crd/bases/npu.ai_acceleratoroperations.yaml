@@ -1,0 +1,268 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: acceleratoroperations.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: AcceleratorOperation
+    listKind: AcceleratorOperationList
+    plural: acceleratoroperations
+    shortNames:
+    - aop
+    singular: acceleratoroperation
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.type
+      name: TYPE
+      type: string
+    - jsonPath: .spec.nodeName
+      name: NODE
+      type: string
+    - jsonPath: .status.phase
+      name: PHASE
+      type: string
+    - jsonPath: .status.epoch
+      name: EPOCH
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              nodeName:
+                type: string
+              owner:
+                description: |-
+                  OperationOwner 는 이 operation 을 요청한 객체다. UID 까지 담는 이유는 같은 이름으로 재생성된
+                  정책의 operation 을 옛 정책의 것으로 오인하지 않기 위해서다(ApplyRecord.OwnerUID 와 같은 규율).
+                properties:
+                  generation:
+                    format: int64
+                    type: integer
+                  kind:
+                    type: string
+                  name:
+                    type: string
+                  uid:
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+              resourceKeys:
+                description: |-
+                  ResourceKeys 는 이 작업이 읽고 쓰는 자원이다(internal/operation 의 키 생성자 산출물).
+                  비어 있으면 충돌 판정이 아무것도 못 찾으므로 읽기 전용 작업이 아닌 한 비우지 않는다.
+                items:
+                  type: string
+                type: array
+              transactionID:
+                description: |-
+                  TransactionID 는 요청 정체성이다. 같은 의도의 재요청은 같은 값을 가져 중복 operation 을
+                  막는다. 빈 값을 금지하는 이유: DeviceReset 의 Job 이름이 이 값을 해시에 담는데, 비면
+                  이름이 (노드,벤더)로 붕괴해 앞선 작업의 성공 Job 을 자기 성공으로 오인한다.
+                minLength: 1
+                type: string
+              type:
+                description: Type 은 internal/operation 의 operation 타입 11종 중 하나다.
+                enum:
+                - DriverInstall
+                - DriverUpgrade
+                - DriverRollback
+                - PartitionReconfigure
+                - SharingModeChange
+                - DevicePluginRestart
+                - NodeReboot
+                - Revalidate
+                - Quarantine
+                - RecoverDevice
+                - DeviceReset
+                type: string
+              vendor:
+                enum:
+                - nvidia
+                - furiosa
+                - rebellions
+                - tenstorrent
+                type: string
+            required:
+            - nodeName
+            - owner
+            - transactionID
+            - type
+            type: object
+          status:
+            properties:
+              blockedBy:
+                description: BlockedBy 는 이 operation 을 막고 있는 다른 operation 의 이름이다.
+                type: string
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              epoch:
+                description: Epoch 은 Lease 를 잡을 때마다 증가한다. 이 값보다 낮은 epoch 의 결과는 받아들이지
+                  않는다.
+                format: int64
+                type: integer
+              journal:
+                items:
+                  description: |-
+                    OperationJournalEntry 는 write-ahead 저널의 한 줄이다. 되돌릴 수 없는 행동을 하기 **전에**
+                    기록하며, Epoch 이 함께 박혀 있어 옛 프로세스가 남긴 줄을 구분할 수 있다.
+                  properties:
+                    at:
+                      format: date-time
+                      type: string
+                    detail:
+                      type: string
+                    epoch:
+                      format: int64
+                      type: integer
+                    step:
+                      type: string
+                  required:
+                  - at
+                  - epoch
+                  - step
+                  type: object
+                type: array
+              leaseExpiry:
+                format: date-time
+                type: string
+              leaseHolder:
+                type: string
+              message:
+                type: string
+              observeFailures:
+                description: |-
+                  ObserveFailures 는 복구 판정을 위한 장치 관측이 연속으로 실패한 횟수다. 상한을 넘으면
+                  수동 복구로 보낸다 — 관측 없이 rollback 을 실행하는 것이 가장 위험한 행동이기 때문이다.
+                format: int32
+                type: integer
+              observedGeneration:
+                format: int64
+                type: integer
+              phase:
+                enum:
+                - Pending
+                - Planning
+                - Prepared
+                - Quiescing
+                - Applying
+                - WaitingForReboot
+                - Verifying
+                - Succeeded
+                - RollingBack
+                - RolledBack
+                - Blocked
+                - ManualRecoveryRequired
+                type: string
+              rollbackAttempts:
+                format: int32
+                type: integer
+              snapshot:
+                description: OperationSnapshot 은 mutation 직전 상태다. 보상 rollback 의 목표이자
+                  크래시 복구의 대조군이다.
+                properties:
+                  allocatable:
+                    additionalProperties:
+                      format: int32
+                      type: integer
+                    type: object
+                  bootID:
+                    type: string
+                  cordonedByPolicy:
+                    type: boolean
+                  geometry:
+                    additionalProperties:
+                      type: string
+                    description: Geometry 는 PCI → 관측 geometry 요약이다.
+                    type: object
+                  migPhase:
+                    type: string
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

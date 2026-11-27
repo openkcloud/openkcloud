@@ -1,0 +1,5 @@
+# .gitignore: RBLN 차트는 라이선스상 이 저장소에 커밋하지 않는다 | 생성일: 2026-09-21
+# measure.sh 의 ensure_rbln_chart() 가 릴리스에서 받아 이 자리에 캐시하고 sha256 을
+# 대조한다. PROVENANCE.md 에 출처·버전·sha256 이 있다.
+rbln-npu-operator-chart-*.tgz
+*.tmp

@@ -1,0 +1,111 @@
+<div ng-controller="ClusterOverviewController as ctrl">
+  <div class="row">
+    <div class="col-md-6 detail">
+      <h3 translate>Cluster Template</h3>
+      <hr>
+      <dl class="dl-horizontal">
+        <dt translate>Name</dt>
+        <dd><a ng-href="ngdetails/OS::Magnum::ClusterTemplate/{$ ctrl.cluster_template.id $}">{$ ctrl.cluster_template.name|noName $}</a></dd>
+        <dt translate>ID</dt>
+        <dd>{$ ctrl.cluster_template.id $}</dd>
+        <dt translate>COE</dt>
+        <dd>{$ ctrl.cluster_template.coe $}</dd>
+        <dt translate>Image ID</dt>
+        <dd>{$ ctrl.cluster_template.image_id $}</dd>
+      </dl>
+    </div>
+    <div class="col-md-6 detail">
+      <h3 translate>Nodes</h3>
+      <hr>
+      <dl class="dl-horizontal">
+        <dt translate>Master Count</dt>
+        <dd>{$ ctrl.cluster.master_count $}</dd>
+        <dt translate>Node Count</dt>
+        <dd>{$ ctrl.cluster.node_count $}</dd>
+        <dt translate>API Address</dt>
+        <dd>{$ ctrl.cluster.api_address $}</dd>
+        <dt translate>Master Addresses</dt>
+        <dd ng-if="ctrl.objLen(ctrl.cluster.master_addresses) === 0" translate>None</dd>
+        <dd ng-repeat="addr in ctrl.cluster.master_addresses">{$ addr $}</dd>
+        <dt translate>Node Addresses</dt>
+        <dd ng-if="ctrl.objLen(ctrl.cluster.node_addresses) === 0" translate>None</dd>
+        <dd ng-repeat="addr in ctrl.cluster.node_addresses">{$ addr $}</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6 detail">
+      <h3 translate>Miscellaneous</h3>
+      <hr>
+      <dl class="dl-horizontal">
+        <dt translate>Discovery URL</dt>
+        <dd>{$ ctrl.cluster.discovery_url $}</dd>
+        <dt translate>Cluster Create Timeout</dt>
+        <dd>
+          <div ng-switch on="ctrl.cluster.create_timeout === 0 || ctrl.cluster.create_timeout === null">
+            <div ng-switch-when="true" translate>Infinite</div>
+            <div ng-switch-default translate
+              translate-n="ctrl.cluster.create_timeout"
+              translate-plural="{$ ctrl.cluster.create_timeout $} minutes">
+                {$ ctrl.cluster.create_timeout $} minute
+            </div>
+          </div>
+        </dd>
+        <dt translate>Keypair</dt>
+        <dd>{$ ctrl.cluster.keypair $}</dd>
+        <dt translate>Docker Volume Size</dt>
+        <dd>{$ ctrl.cluster.docker_volume_size | noValue $} GB</dd>
+        <dt translate>Master Flavor ID</dt>
+        <dd>{$ ctrl.cluster.master_flavor_id | noValue $}</dd>
+        <dt translate>Node Flavor ID</dt>
+        <dd>{$ ctrl.cluster.flavor_id | noValue $}</dd>
+        <dt translate>COE Version</dt>
+        <dd>{$ ctrl.cluster.coe_version | noValue $}</dd>
+        <dt translate>Container Version</dt>
+        <dd>{$ ctrl.cluster.container_version | noValue $}</dd>
+      </dl>
+    </div>
+    <div class="col-md-6 detail">
+      <h3 translate>Labels</h3>
+      <hr>
+      <dl class="dl-horizontal">
+        <dd ng-if="ctrl.objLen(ctrl.cluster.labels) === 0" translate>None</dd>
+        <dt ng-repeat-start="(key, value) in ctrl.cluster.labels">{$ key $}</dt>
+        <dd ng-repeat-end>{$ value $}</dd>
+      </dl>
+    </div>
+    <div class="col-md-6 detail">
+      <h3 translate>Stack</h3>
+      <hr>
+      <dl class="dl-horizontal">
+        <dt translate>Stack ID</dt>
+        <dd>{$ ctrl.cluster.stack_id $}</dd>
+        <dt translate>Stack Faults</dt>
+        <dd ng-if="ctrl.objLen(ctrl.cluster.faults) === 0" translate>None</dd>
+        <dd ng-if="ctrl.objLen(ctrl.cluster.faults) > 0" translate>as follows:</dd>
+        <dt ng-repeat-start="(key, value) in ctrl.cluster.faults">{$ key $}</dt>
+        <dd ng-repeat-end>{$ value $}</dd>
+      </dl>
+    </div>
+    <div class="col-md-6 detail">
+      <h3 translate>Record Properties</h3>
+      <hr>
+      <dl class="dl-horizontal">
+        <dt translate>Created</dt>
+        <dd>{$ ctrl.cluster.created_at | date:'short' $}</dd>
+        <dt translate>Updated</dt>
+        <dd>{$ ctrl.cluster.updated_at | date:'short' $}</dd>
+        <dt translate>ID</dt>
+        <dd>{$ ctrl.cluster.id $}</dd>
+        <dt translate>Status</dt>
+        <dd>{$ ctrl.cluster.status $}</dd>
+        <dt translate>Status Reason</dt>
+        <dd>{$ ctrl.cluster.status_reason | noValue $}</dd>
+        <dt translate>Health Status</dt>
+        <dd>{$ ctrl.cluster.health_status $}</dd>
+        <dt translate>Health Status Reason</dt>
+        <dd>{$ ctrl.cluster.health_status_reason | noValue $}</dd>
+      </dl>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,30 @@
+# 개발 서버(Mac Mini) Keycloak — 컨테이너 1개, DB 는 같은 Mac Mini 의 PostgreSQL(DB·스키마 keycloak).
+# 테스트베드(helm, keycloak-0~2)와 같은 이미지·DB 구조. 차이: 1개만 실행, 프록시 없이 HTTP 로 직접 접속.
+# 준비: keycloak_db.sql 적용 + cp .env.example .env 후 비밀번호 입력. 실행: docker compose up -d
+name: okc-keycloak
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4     # 테스트베드와 같은 버전
+    command: ["start"]
+    environment:
+      KC_HOSTNAME: ${KC_HOSTNAME:?.env 의 KC_HOSTNAME 을 채우세요}   # 토큰 발급자(issuer) 주소 — 바꾸면 연동 설정도 함께 바꿔야 함
+      KC_HTTP_ENABLED: "true"
+      KC_DB: postgres
+      KC_DB_URL_HOST: host.docker.internal      # 같은 Mac Mini 의 PostgreSQL
+      KC_DB_URL_PORT: "5432"
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?.env 의 KC_DB_PASSWORD 를 채우세요}
+      KC_DB_POOL_MAX_SIZE: "20"                 # 기본 100 = PostgreSQL max_connections(100) 와 같아 줄인다
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin        # 첫 관리자(임시) — 로그인 후 영구 관리자를 만들고 지운다
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?.env 의 KC_ADMIN_PASSWORD 를 채우세요}
+    volumes:
+      # 로그인 테마(테스트베드는 이 테마를 넣은 이미지). 테마 파일을 바꾸면 docker compose restart
+      - ../keycloak-theme/openkcloud:/opt/keycloak/themes/openkcloud:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"     # colima 등 이 이름이 기본으로 없는 런타임용
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

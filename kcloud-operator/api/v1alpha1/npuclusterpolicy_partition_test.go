@@ -70,8 +70,7 @@ func TestRngdPartitionPolicy_EmptyIsOmitted(t *testing.T) {
 	// kubebuilder validation 은 값이 존재할 때만 enum 검사를 수행함
 }
 
-// TestRngdPartitionPolicy_DualCoreAccepted 는 "dual-core" 가 유효한 값임을 명시적으로 검증한다
-// (PoC Phase B 요구사항 명시 테스트).
+// TestRngdPartitionPolicy_DualCoreAccepted 는 "dual-core" 가 유효한 값임을 검증한다.
 func TestRngdPartitionPolicy_DualCoreAccepted(t *testing.T) {
 	spec := RngdSpec{PartitionPolicy: "dual-core"}
 	if !isValidPartitionPolicy(spec.PartitionPolicy) {

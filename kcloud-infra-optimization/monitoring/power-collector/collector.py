@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 NODE_NAME      = os.getenv("NODE_NAME", "")
 NODE_IP        = os.getenv("NODE_IP", "")       # Downward API: status.hostIP
-PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://10.0.4.230:30090")
+PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
 DB_URL         = os.getenv("DATABASE_URL",
-    "postgresql://platform:platform1234@timescaledb.data-pipeline.svc.cluster.local:5432/workload_data")
+    "")
 INTERVAL       = int(os.getenv("COLLECT_INTERVAL_SEC", "30"))
 
 def _init_k8s():

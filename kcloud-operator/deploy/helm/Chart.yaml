@@ -1,8 +1,23 @@
 # Chart.yaml: NPU Operator Helm Chart 메타데이터
-# 생성일: 2026-03-25
+# 생성일: 2026-03-25 | 수정일: 2026-10-28
 apiVersion: v2
-name: npu-operator
-description: Kubernetes Operator for unified NPU/GPU accelerator management
+name: kcloud-operator
+description: Kubernetes Operator for unified NPU/GPU accelerator management. Chart 0.8.x targets Kubernetes 1.31+ (verified through 1.34, default line); use chart 0.6.x (branch release/k8s-1.28) for Kubernetes 1.26-1.30.
 type: application
-version: 0.5.16
-appVersion: "v0.5.24"
+version: 0.8.4
+appVersion: v0.8.4
+
+# 이 차트를 설치할 수 있는 K8s 범위. description 과 같은 말이어야 하고, 1.26~1.30 용
+# 프리셋을 이 차트에 함께 싣지 않는 것이 그 전제다 — 싣고 있으면 선언과 실재가 어긋나고,
+# 그 조합으로 설치하면 1.26~1.30 라인 operator 가 1.31+ CRD 를 덮어쓴다.
+# -0 접미는 1.31.0-alpha 같은 사전 릴리스도 범위에 넣는다. 상한은 두지 않는다 —
+# 두면 새 K8s 마이너가 나올 때마다 차트가 설치를 거절한다.
+kubeVersion: ">=1.31.0-0"
+
+# 이 릴리스와 짝을 이루는 다른 K8s 라인의 릴리스 번호.
+# 같은 기능 집합을 담되 K8s 클라이언트 라이브러리만 다른 operator 이미지를 가리킨다.
+# 그 라인의 프리셋은 이 차트에 없다(release/k8s-1.28 브랜치에만 둔다). 그래서 이 값의
+# 대조 상대는 deploy/integration/release.yaml 의 1.26~1.30 operatorTag 이고,
+# release_manifest_sync_test.go 가 그 대조를 한다.
+annotations:
+  npu.ai/paired-release: v0.6.3-k8s1.28

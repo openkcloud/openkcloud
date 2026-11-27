@@ -3,21 +3,24 @@
 #
 # How GPU matching works:
 # 1. Node labels: accelerator.type + accelerator.model (exact match)
-# 2. Resource detection: nvidia.com/gpu, nvidia.com/mig-*, furiosa.ai/warboy
+# 2. Resource detection: nvidia.com/gpu, nvidia.com/mig-*, furiosa.ai/warboy, furiosa.ai/rngd
 # 3. GPU product label: nvidia.com/gpu.product (partial match)
 # 4. Fallback: node labels for raw metrics (backward compatibility)
 
 accelerators:
-  # ── 실제 보유 하드웨어 (gpu-npu-server-02) ─────────────────────────────────
+  # ── 실제 보유 하드웨어 ─────────────────────────────────
+  # 제품군은 RTX PRO 6000 Blackwell 96GB로 확인했다.
+  # Edition(Server/Workstation/Max-Q)과 현재 Power Limit은 아래 명령 결과로 확정한다.
+  # nvidia-smi --query-gpu=name,memory.total,power.limit,driver_version --format=csv
   - name: "NVIDIA RTX PRO 6000 Blackwell"
     type: "gpu"
     vendor: "nvidia"
     model: "rtx-pro-6000-blackwell"
     memory_gb: 96
     specs:
-      cost_per_hour: 2.50         # data-catalog/table.txt hw_id=2 기반
+      cost_per_hour: 2.50         # Catalog fixture, 청구액·실측 비용 아님
       perf_score: 2519            # FP16 251.9 TFLOPS × 10
-      power_watts: 300            # TDP
+      power_watts: 300            # 임시값: nvidia-smi Power Limit 확인 후 교체
       perf_per_watt: 8.40         # 251.9 TFLOPS / 300W
       inference_affinity: 0.85
       training_affinity: 1.0
@@ -36,7 +39,7 @@ accelerators:
       inference_affinity: 0.8
       training_affinity: 0.9
 
-  # ── 실제 보유 하드웨어 — Furiosa NPU (gpu-npu-server-02) ──────────────────
+  # ── 실제 보유 하드웨어 — Furiosa NPU ──────────────────
   # 아래 "Furiosa Warboy" 항목이 이미 있으므로 중복 주석 처리
   # (이 항목이 우선순위 높게 먼저 등록됨)
 
@@ -248,9 +251,9 @@ accelerators:
     model: "rngd"
     memory_gb: 48
     specs:
-      cost_per_hour: 0.8
+      cost_per_hour: 0.8        # fixture, 실측 운영비용으로 교체 전
       perf_score: 800
-      power_watts: 150
+      power_watts: 150          # RNGD TDP 기준, 실행 평균전력은 별도 측정
       perf_per_watt: 5.33
       inference_affinity: 1.0
       training_affinity: 0.3

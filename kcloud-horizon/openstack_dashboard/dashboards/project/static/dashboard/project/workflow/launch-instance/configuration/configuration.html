@@ -1,0 +1,36 @@
+<div ng-controller="LaunchInstanceConfigurationController as ctrl">
+  <p class="step-description" translate>
+    You can customize your instance after it has launched using the options available here.
+    "Customization Script" is analogous to "User Data" in other systems.
+  </p>
+
+  <load-edit title="{$ ctrl.title $}"
+             model="model.newInstanceSpec.user_data"
+             model-default-value="model.newInstanceSpec.default_user_data"
+             max-bytes="{$ ctrl.MAX_SCRIPT_SIZE $}"
+             key="user-data"
+             rows=8>
+  </load-edit>
+
+  <div class="form-group">
+    <label for="disk-partition" translate>
+      Disk Partition
+    </label>
+    <select class="form-control"
+            id="disk-partition"
+            ng-model="model.newInstanceSpec.disk_config"
+            ng-options="option.value as option.text for option in ctrl.diskConfigOptions">
+    </select>
+  </div>
+
+  <div class="form-group">
+    <div class="themable-checkbox">
+      <input type="checkbox"
+             id="config-drive"
+             ng-model="model.newInstanceSpec.config_drive">
+      <label for="config-drive">
+        <span translate>Configuration Drive</span>
+      </label>
+    </div>
+  </div>
+</div>

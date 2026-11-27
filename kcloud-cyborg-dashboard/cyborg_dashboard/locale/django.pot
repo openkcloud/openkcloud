@@ -1,0 +1,79 @@
+# Translations template for cyborg-dashboard.
+# Copyright (C) 2026 OpenStack Foundation
+# This file is distributed under the same license as the cyborg-dashboard
+# project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: cyborg-dashboard VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-07-22 13:17+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.14.0\n"
+
+#: cyborg_dashboard/content/admin/accelerator/panel.py:21
+#: cyborg_dashboard/content/admin/accelerator/views.py:81
+#: cyborg_dashboard/enabled/_2170_admin_accelerator_panel_group.py:18
+#: cyborg_dashboard/templates/admin/accelerator/index.html:3
+msgid "Accelerator"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/tables.py:38
+msgid "UUID"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/tables.py:39
+msgid "Type"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/tables.py:40
+msgid "Model"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/tables.py:41
+msgid "Hostname"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/tables.py:44
+msgid "Attached Instance(s)"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/tables.py:45
+msgid "Usage"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/tables.py:55
+msgid "Accelerator Devices"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/views.py:29
+msgid "In Use"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/views.py:30
+msgid "Available"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/views.py:31
+msgid "Unknown"
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/views.py:89
+msgid "Unable to retrieve accelerator devices."
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/views.py:102
+msgid "Unable to retrieve deployables. Device usage is shown as Unknown."
+msgstr ""
+
+#: cyborg_dashboard/content/admin/accelerator/views.py:110
+msgid "Unable to retrieve accelerator requests. Device usage is shown as Unknown."
+msgstr ""
+

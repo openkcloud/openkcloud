@@ -1,0 +1,11 @@
+<!--
+  Table-footer:
+  Ensure colspan is greater or equal to number of column-headers.
+-->
+<tr>
+  <td colspan="100">
+    <span>{$ items.length|itemCount $}</span>
+    <st-pagination st-items-by-page="ctrl.pageSize"></st-pagination>
+    <ng-transclude></ng-transclude>
+  </td>
+</tr>

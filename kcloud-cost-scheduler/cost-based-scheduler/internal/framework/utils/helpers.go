@@ -13,8 +13,11 @@ import (
 
 const (
 	SkipPodLevelResources = true
-	ExcludeOverhead       = true
-	UseStatusResources    = true
+	// ExcludeOverhead must be false so NodeInfo.Requested matches Kubernetes
+	// AggregateContainerRequests+overhead and acceleratorfit.ComputePodResourceRequest
+	// (P3/P6 cache consistency). Assume/Remove/fit all use PodRequests().
+	ExcludeOverhead    = false
+	UseStatusResources = true
 )
 
 func PodRequests(pod *v1.Pod) v1.ResourceList {

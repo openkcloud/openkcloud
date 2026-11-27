@@ -1,0 +1,5 @@
+sortOptions:
+  order: fifo
+resources:
+  - grafana-database.yaml
+  - all.yaml

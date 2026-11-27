@@ -1,0 +1,82 @@
+---
+cinder:
+  - 0.1.0 Initial Chart
+  - 0.1.1 Change helm-toolkit dependency version to ">= 0.1.0"
+  - 0.1.2 Support service tokens to prevent long-running job failures
+  - 0.1.3 Support of external ceph backend
+  - 0.1.4 Enable iscsi to work correctly in cinder volume
+  - 0.1.5 Resolves mount issue with termination-log
+  - 0.1.6 Enable volume backup for iSCSI based volumes
+  - 0.1.7 Change Issuer to ClusterIssuer
+  - 0.1.8 Revert - Change Issuer to ClusterIssuer
+  - 0.1.9 Use HostToContainer mount propagation
+  - 0.1.10 Change Issuer to ClusterIssuer
+  - 0.1.11 Update RBAC apiVersion from /v1beta1 to /v1
+  - 0.1.12 Update volume type creation bootstrap logic
+  - 0.1.13 Add NFS cinder backup override
+  - 0.1.14 Add Multipathd support for ISCSI backed volumes
+  - 0.1.15 Fix the problem in hostNetwork mode
+  - 0.2.0 Remove support for releases before T
+  - 0.2.1 Fix the ceph pool creations for openstack services
+  - 0.2.2 Adding rabbitmq TLS logic
+  - 0.2.3 Mount rabbitmq TLS secret
+  - 0.2.4 Add Ussuri release support
+  - 0.2.5 Add volume QoS support
+  - 0.2.6 Added helm.sh/hook with value of post-install and post-upgrade
+  - 0.2.7 Add Victoria and Wallaby releases support
+  - 0.2.8 Add logic to bootstrap to handle upgrade timing issue
+  - 0.2.9 Mount rabbitmq TLS secret for audit usage cronjob
+  - 0.2.10 Helm 3 - Fix Job Labels
+  - 0.2.11 Update htk requirements repo
+  - 0.2.12 Remove cinder v1/v2 defaults
+  - 0.2.13 Upgrade default images to ussuri
+  - 0.2.14 Fix notifications
+  - 0.2.15 Remove glance registry
+  - 0.2.16 Enable taint toleration for Openstack services
+  - 0.2.17 Remove unsupported values overrides
+  - 0.2.18 Add helm hook in bootstrap job
+  - 0.2.19 Add volume types visibility (public/private)
+  - 0.2.20 Allow cinder v1/v2 endpoint creation if needed
+  - 0.2.21 Migrated CronJob resource to batch/v1 API version & PodDisruptionBudget to policy/v1
+  - 0.2.22 Add Xena and Yoga values overrides
+  - 0.2.23 Added OCI registry authentication
+  - 0.2.24 Fix conditional check for cinder.utils.has_ceph_backend template
+  - 0.2.25 Remove volumes unrelated with ceph backend from conditional volume list in cinder-volume deployment
+  - 0.2.26 Distinguish between port number of internal endpoint and binding port number
+  - 0.2.27 Support TLS endpoints
+  - 0.2.28 Use HTTP probe instead of TCP probe
+  - 0.2.29 Add SYS_ADMIN capability in cinder-volume
+  - 0.2.30 Specify a existing configmap name for external ceph configuration
+  - 0.2.31 Remove fixed node name from default values and add service cleaner cronjob
+  - 0.2.32 Revert "Remove fixed node name from default values and add service cleaner cronjob"
+  - 0.3.0 Remove support for Train and Ussuri
+  - 0.3.1 Change ceph-config-helper image tag
+  - 0.3.2 Remove default policy rules
+  - 0.3.3 Fix for creation endpoins and services when v1/v2 are disabled
+  - 0.3.4 Fix Helm hooks for storage bootstrap jobs
+  - 0.3.5 Add Nova endpoint details to support online volume resize
+  - 0.3.6 Fix ceph keyring placement for uppercased backends
+  - 0.3.7 Allow Ceph pools to use 1x replication
+  - 0.3.8 Update all Ceph images to Focal
+  - 0.3.9 Replace node-role.kubernetes.io/master with control-plane
+  - 0.3.10 Define service_type in keystone_authtoken to support application credentials with access rules
+  - 0.3.11 Add Zed overrides
+  - 0.3.12 Add 2023.1 overrides
+  - 0.3.13 Use service tokens
+  - 0.3.14 Add Ubuntu Jammy overrides
+  - 0.3.15 Add 2023.2 Ubuntu Jammy overrides
+  - 0.3.16 Update Ceph images to Jammy and Reef 18.2.1
+  - 0.3.17 Use uWSGI for API service
+  - 0.3.18 Enable custom annotations for Openstack pods
+  - 0.3.19 Add 2024.1 overrides
+  - 0.3.20 Add readiness probe initial delay
+  - 0.3.21 Enable custom annotations for Openstack secrets
+  - 0.3.22 Update images used by default
+  - 0.3.23 Use quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal by default
+  - 0.3.24 Fix volume type create to allow encrypt volume type
+  - 0.3.25 Add 2024.2 Ubuntu Jammy overrides
+  - 0.3.26 Mount /run/cryptsetup in cinder-volume container
+  - 0.3.27 Add support for using a tmpfs for cinder image conversion
+  - 0.3.28 Update Chart.yaml apiVersion to v2
+  - 2024.2.0 Update version to align with the Openstack release cycle
+...

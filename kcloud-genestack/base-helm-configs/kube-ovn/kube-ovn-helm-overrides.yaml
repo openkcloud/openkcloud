@@ -1,0 +1,54 @@
+# Default values for kubeovn.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+---
+global:
+  registry:
+    address: ghcr.io/rackerlabs/genestack-images
+  images:
+    kubeovn:
+      repository: kube-ovn
+      vpcRepository: vpc-nat-gateway
+      tag: v1.15.4
+      support_arm: true
+      thirdparty: true
+
+image:
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+networking:
+  # NET_STACK defaults to ipv4
+  ENABLE_SSL: true
+  IFACE: "br-overlay"
+  vlan:
+    VLAN_INTERFACE_NAME: "br-overlay"
+    # VLAN_NAME: "ovn-vlan"
+    # VLAN_ID: "100"
+  ENABLE_EIP_SNAT: false
+  ENABLE_ECMP: true
+  # comma-separated string of nodelocal DNS ip addresses
+  PROBE_INTERVAL: 60000
+  OVN_NORTHD_PROBE_INTERVAL: 15000
+  OVN_LEADER_PROBE_INTERVAL: 15
+  OVN_REMOTE_PROBE_INTERVAL: 30000
+  OVN_NORTHD_N_THREADS: 4  # Number of threads for ovn-northd, default is 4 production environments could set it to a higher value.
+  ENABLE_COMPACT: true
+
+func:
+  ENABLE_EXTERNAL_VPC: true
+  OVSDB_CON_TIMEOUT: 5
+  OVSDB_INACTIVITY_TIMEOUT: 30
+
+ipv4:
+  POD_CIDR: "10.236.0.0/14"
+  POD_GATEWAY: "10.236.0.1"
+  SVC_CIDR: "10.233.0.0/18"
+  PINGER_EXTERNAL_ADDRESS: "208.67.222.222"
+  PINGER_EXTERNAL_DOMAIN: "opendns.com."
+
+performance:
+  GC_INTERVAL: 360
+  INSPECT_INTERVAL: 300
+  OVS_VSCTL_CONCURRENCY: 150

@@ -1,8 +1,8 @@
 """
-Rate limiting middleware (Phase 11.2) - stdlib only, no extra dependency.
+Rate limiting middleware - stdlib only, no extra dependency.
 
 Fixed-window per-client limiting. No-op unless ``RATE_LIMIT_ENABLED`` is set.
-Adds ``X-RateLimit-*`` headers and returns 429 (design_contracts §6 error shape)
+Adds ``X-RateLimit-*`` headers and returns 429 (common error response shape)
 when the per-minute limit is exceeded.
 
 ponytail: in-memory per-process counter and client key from ``request.client``

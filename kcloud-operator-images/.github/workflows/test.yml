@@ -1,0 +1,96 @@
+# ============================================================
+# test.yml: push·PR 시 Go 모듈마다 go test 를 돌고 발행 목록·서드파티 고지문 정합을 검사한다.
+# 상세: 모듈마다 go.mod 의 go 지시문이 달라 matrix 로 전개해 setup-go 가 읽는다. 새 모듈을
+#       추가하면 이 목록과 notices 작업의 모듈 목록도 같이 더해야 한다 — 안 그러면 그 모듈을 아무도 안 부른다.
+# 생성일: 2026-10-05 | 수정일: 2026-10-13
+# ============================================================
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: go test (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      # 한 모듈이 떨어져도 나머지 결과를 본다. 모듈끼리 의존이 없다.
+      fail-fast: false
+      matrix:
+        module:
+          - furiosa-exporter
+          - generic-device-plugin
+          - generic-dra-driver
+          - node-device-detector
+          - tenstorrent-device-plugin
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+
+      # -count=1 로 캐시를 끈다. 호스트 장치를 stat 하는 시험이 있어 캐시된 결과는
+      # 그 환경을 다시 보지 않는다. furiosa-exporter 는 쓰로틀 표본과 수집이 같은 공급원을
+      # 동시에 쓰므로 -race 로 돈다.
+      - name: Running Tests
+        working-directory: ${{ matrix.module }}
+        run: go test ./... -count=1 ${{ matrix.module == 'furiosa-exporter' && '-race' || '' }}
+
+  notices:
+    name: third-party notices
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v5
+
+      # 모듈 가운데 가장 높은 go 지시문의 go.mod 를 읽는다. 낮은 모듈은 그 툴체인으로 돈다.
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: generic-device-plugin/go.mod
+
+      # 고지문 스크립트는 네트워크 없이 모듈 캐시만 읽으므로 먼저 내려받는다.
+      - name: Download modules
+        run: |
+          for m in furiosa-exporter generic-device-plugin generic-dra-driver node-device-detector tenstorrent-device-plugin; do
+            (cd "$m" && go mod download)
+          done
+
+      - name: Check third-party notices
+        run: bash hack/third-party-notices-images.sh --check
+
+  bundle:
+    name: bundle-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v5
+
+      # bundle-check.sh 는 YAML 파싱을 python3 의 PyYAML 로 한다(snap yq 가 /tmp 를 읽지
+      # 못해 그렇게 돼 있다). 러너 이미지에 있는지에 기대지 않는다 — 없으면 ImportError 로
+      # 검사가 하드 실패한다.
+      - name: Install PyYAML
+        run: sudo apt-get update -y && sudo apt-get install -y python3-yaml
+
+      # 인자 없이 돌려 체크아웃된 작업 트리를 본다(ref 를 주면 그 ref 의 트리를 본다).
+      - name: Checking the publish list
+        run: bash hack/bundle-check.sh
+
+  nvidia-installer-shell:
+    name: nvidia installer shell tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v5
+
+      - name: bash -n
+        run: |
+          for f in driver-installer/nvidia/*.sh; do bash -n "$f"; done
+
+      - name: make test
+        run: |
+          make -C driver-installer/nvidia test

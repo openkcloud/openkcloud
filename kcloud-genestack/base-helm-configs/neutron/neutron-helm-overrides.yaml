@@ -1,0 +1,323 @@
+---
+images:
+  tags:
+    bootstrap: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_init: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_drop: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_user: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_service: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_endpoints: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    neutron_db_sync: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_dhcp: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_l3: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_l2gw: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_linuxbridge_agent: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_metadata: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_ovn_metadata: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_ovn_vpn: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_openvswitch_agent: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_server: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_rpc_server: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_bagpipe_bgp: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_netns_cleanup_cron: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    test: "quay.io/rackspace/rackerlabs-xrally-openstack:2.0.0"
+    purge_test: "quay.io/rackspace/rackerlabs-ospurge:latest"
+    rabbit_init: "quay.io/rackspace/rackerlabs-rabbitmq:3.13-management"
+    netoffload: "quay.io/rackspace/rackerlabs-netoffload:v1.0.1"
+    neutron_sriov_agent: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_sriov_agent_init: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_bgp_dragent: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    neutron_ironic_agent: "quay.io/rackspace/rackerlabs-neutron:2024.1-ubuntu_jammy"
+    dep_check: "quay.io/rackspace/rackerlabs-kubernetes-entrypoint:latest-ubuntu_jammy"
+    image_repo_sync: "quay.io/rackspace/rackerlabs-docker:17.07.0"
+
+labels:
+  ovs:
+    node_selector_key: openstack-network-node
+
+network:
+  backend:
+    - ovn
+
+dependencies:
+  static:
+    db_sync:
+      jobs: null
+    dhcp:
+      jobs: null
+    l3:
+      jobs: null
+    lb_agent:
+      jobs: null
+    metadata:
+      jobs: null
+    ovn_metadata:
+      pod: []
+    ovs_agent:
+      jobs: null
+    rpc_server:
+      jobs:
+        - neutron-db-sync
+    server:
+      jobs:
+        - neutron-db-sync
+        - neutron-ks-user
+        - neutron-ks-endpoints
+
+# NOTE: (brew) requests cpu/mem values based on a three node
+# hyperconverged lab (/scripts/hyperconverged-lab.sh).
+# limit values based on defaults from the openstack-helm charts unless defined
+pod:
+  resources:
+    enabled: true
+    server:
+      requests:
+        memory: "1024Mi"
+        cpu: "1000m"
+      limits:
+        memory: "2048Mi"
+        cpu: "3000m"
+    rpc_server:
+      requests:
+        memory: "512Mi"
+        cpu: "1000m"
+      limits:
+        memory: "2048Mi"
+        cpu: "3000m"
+  use_fqdn:
+    neutron_agent: false
+  lifecycle:
+    upgrades:
+      deployments:
+        revision_history: 3
+        pod_replacement_strategy: RollingUpdate
+        rolling_update:
+          max_unavailable: 20%
+          max_surge: 3
+      daemonsets:
+        pod_replacement_strategy: RollingUpdate
+        dhcp_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        l3_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        lb_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        metadata_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        ovn_metadata_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        ovn_vpn_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        ovs_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        sriov_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        netns_cleanup_cron:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+    disruption_budget:
+      server:
+        min_available: 0
+    termination_grace_period:
+      server:
+        timeout: 60
+      rpc_server:
+        timeout: 60
+      ironic_agent:
+        timeout: 60
+
+conf:
+  dhcp_agent:
+    agent:
+      availability_zone: az1
+  logging:
+    logger_root:
+      handlers:
+        - stdout
+      level: INFO
+  neutron:
+    DEFAULT:
+      api_workers: 2
+      debug: false
+      default_availability_zones: az1
+      dhcp_agents_per_network: 1
+      dhcp_load_type: networks
+      l3_ha: false
+      l3_ha_network_type: geneve
+      max_l3_agents_per_router: 1
+      network_scheduler_driver: neutron.scheduler.dhcp_agent_scheduler.AZAwareWeightScheduler
+      router_distributed: true
+      router_scheduler_driver: neutron.scheduler.l3_agent_scheduler.AZLeastRoutersScheduler
+      rpc_state_report_workers: 2
+      rpc_workers: 2
+      service_plugins: "ovn-router,qos,metering,trunk,segments"
+    agent:
+      availability_zone: az1
+    database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    oslo_messaging_rabbit:
+      amqp_durable_queues: false
+      rabbit_ha_queues: false
+      rabbit_quorum_queue: true
+      rabbit_transient_quorum_queue: false
+      use_queue_manager: false
+      rabbit_interval_max: 10
+      # Send more frequent heartbeats and fail unhealthy nodes faster
+      # heartbeat_timeout / heartbeat_rate / 2.0 = 30 / 3 / 2.0 = 5
+      # https://opendev.org/openstack/oslo.messaging/commit/36fb5bceabe08a982ebd52e4a8f005cd26fdf6b8
+      heartbeat_rate: 3
+      heartbeat_timeout_threshold: 60
+      # NOTE (deprecation warning) heartbeat_in_pthread will be deprecated in 2024.2
+      heartbeat_in_pthread: true
+      # Setting lower kombu_reconnect_delay should resolve issue with HA failing when one node is down
+      # https://lists.openstack.org/pipermail/openstack-discuss/2023-April/033314.html
+      # https://review.opendev.org/c/openstack/oslo.messaging/+/866617
+      kombu_reconnect_delay: 0.5
+    ovn:
+      dns_servers: "8.8.8.8,1.1.1.1"
+      enable_distributed_floating_ip: true
+      neutron_sync_mode: "off"
+      ovn_l3_mode: "true"
+      ovn_l3_scheduler: leastloaded
+      ovn_nb_connection: "tcp:127.0.0.1:6641"
+      ovn_sb_connection: "tcp:127.0.0.1:6642"
+  neutron_api_uwsgi:
+    uwsgi:
+      processes: 2
+      threads: 1
+  openvswitch_db_server:
+    ptcp_port: 6640
+  ovn_metadata_agent:
+    DEFAULT:
+      metadata_workers: 2
+    ovs:
+      ovsdb_connection: "tcp:127.0.0.1:6640"
+  plugins:
+    ml2_conf:
+      agent:
+        availability_zone: az1
+        extensions: "fip_qos,gateway_ip_qos"
+      ml2:
+        extension_drivers: "port_security,qos"
+        mechanism_drivers: ovn
+        tenant_network_types: geneve
+        type_drivers: "flat,vlan,geneve"
+      ml2_type_vlan:
+        network_vlan_ranges: physnet1
+      ovn:
+        dns_servers: "8.8.8.8,1.1.1.1"
+        neutron_sync_mode: "off"
+        ovn_l3_mode: "true"
+        ovn_l3_scheduler: leastloaded
+        ovn_metadata_enabled: true
+        ovn_nb_connection: "tcp:127.0.0.1:6641"
+        ovn_sb_connection: "tcp:127.0.0.1:6642"
+    openvswitch_agent:
+      agent:
+        availability_zone: az1
+  rabbitmq:
+    policies: []
+
+endpoints:
+  baremetal:
+    port:
+      api:
+        default: 6385
+        internal: 6385
+        public: 80
+        service: 6385
+  compute:
+    port:
+      api:
+        default: 8774
+        public: 8774
+      novncproxy:
+        default: 6080
+  compute_metadata:
+    port:
+      metadata:
+        default: 8775
+        public: 8775
+  dns:
+    port:
+      api:
+        default: 9001
+        internal: 9001
+        public: 80
+        service: 9001
+  fluentd:
+    namespace: fluentbit
+  identity:
+    port:
+      api:
+        default: 5000
+        internal: 5000
+        public: 80
+  load_balancer:
+    port:
+      api:
+        default: 9876
+        internal: 9876
+        public: 80
+        service: 9876
+  network:
+    port:
+      api:
+        default: 9696
+        internal: 9696
+        public: 80
+        service: 9696
+  oslo_db:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_cache:
+    host_fqdn_override:
+      default: memcached.openstack.svc.cluster.local
+    hosts:
+      default: memcached
+  oslo_messaging:
+    host_fqdn_override:
+      default: rabbitmq.openstack.svc.cluster.local
+    hosts:
+      default: rabbitmq-nodes
+
+manifests:
+  daemonset_dhcp_agent: false
+  daemonset_l3_agent: false
+  daemonset_metadata_agent: false
+  daemonset_ovn_metadata_agent: true
+  daemonset_ovs_agent: false
+  ingress_server: false
+  job_db_init: false
+  job_rabbit_init: false
+  pod_rally_test: false
+  secret_db: false
+  secret_ingress_tls: false
+  secret_rabbitmq: false
+  service_ingress_server: false

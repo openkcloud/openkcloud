@@ -1,0 +1,41 @@
+# ============================================================
+# dip-tenstorrent-blackhole.yaml: 라이브 DIP tenstorrent-blackhole-ds 스펙 스냅샷
+# 상세: `kubectl get dip tenstorrent-blackhole-ds -o yaml` 의 spec 그대로(server-managed 필드
+#       제거) — run.sh 는 이 파일을 적용하지 않고 실제 클러스터의 라이브 DIP 를 직접 조회한다.
+# 주의: verifiedVersions 의 "2.9.0" 은 스냅샷 당시 값이다 — 차트 기본값에서 제거돼 현재 목록은
+#       ["2.8.0", "2.11.0"] 이다(deploy/helm/values.yaml).
+# 생성일: 2026-09-20 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: npu.ai/v1alpha1
+kind: DriverInstallPolicy
+metadata:
+  name: tenstorrent-blackhole-ds
+spec:
+  vendor: tenstorrent
+  model: blackhole-p150
+  driver:
+    mode: job
+    trackOnly: false
+    version: "2.8.0"
+    versionSource: Policy
+    image: <레지스트리>:5100/kcloud/tenstorrent-driver-ds:2.8.0-v1
+    installer: script
+    allowDowngrade: false
+    skipOnPassthrough: true
+  kernelAllowlist: ["5.15.*", "6.8.*"]
+  rebootStrategy: IfNeeded
+  rebootExecutor: Job
+  verifiedVersions:
+    - "2.8.0"
+    - "2.9.0"
+  nodeSelector:
+    kcloud.ai/tenstorrent.present: "true"
+  upgradePolicy:
+    autoUpgrade: false
+    drainEnabled: true
+    idleCooldownSeconds: 10
+    maxReboots: 1
+    maxRollbackAttempts: 3
+    maxUnavailable: 1
+    rollbackOnFailure: true
+    validationTimeout: "10m"

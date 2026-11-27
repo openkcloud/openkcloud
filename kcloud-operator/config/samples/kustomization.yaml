@@ -1,4 +1,5 @@
 ## Append samples of your project ##
 resources:
 - npu_v1alpha1_npuclusterpolicy.yaml
+- npu_v1alpha1_acceleratorpartitionpolicy.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

@@ -1,0 +1,13 @@
+---
+annotations:
+  secret:
+    default:
+      custom.tld/key: "value"
+      custom.tld/key2: "value2"
+    identity:
+      admin:
+        another.tld/foo: "bar"
+    oci_image_registry:
+      tempest:
+        custom.tld/key: "value"
+...

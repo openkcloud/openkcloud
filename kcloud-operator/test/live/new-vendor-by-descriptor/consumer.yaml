@@ -1,0 +1,20 @@
+# ============================================================
+# consumer.yaml: descriptor 가 광고한 tenstorrent/blackhole-p150 1개를 받아 /dev 주입을 확인하는 소비자 파드
+# 상세: 생성된 device-plugin 이 광고하는 tenstorrent/blackhole-p150 을 1개 요청하고,
+#       주입된 /dev/tenstorrent/ 를 나열한 뒤 잠시 대기한다. <tenstorrent-node> 에 배치된다.
+# 생성일: 2026-09-20
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: new-vendor-tt-consumer
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: c
+      image: busybox:1.36
+      command: ["sh", "-c", "echo '=== injected /dev/tenstorrent ==='; ls -l /dev/tenstorrent/ 2>&1; sleep 60"]
+      resources:
+        limits:
+          tenstorrent/blackhole-p150: 1

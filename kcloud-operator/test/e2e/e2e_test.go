@@ -31,16 +31,16 @@ import (
 )
 
 // namespace where the project is deployed in
-const namespace = "npu-operator-system"
+const namespace = "kcloud-operator-system"
 
 // serviceAccountName created for the project
-const serviceAccountName = "npu-operator-controller-manager"
+const serviceAccountName = "kcloud-operator-controller-manager"
 
 // metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "npu-operator-controller-manager-metrics-service"
+const metricsServiceName = "kcloud-operator-controller-manager-metrics-service"
 
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
-const metricsRoleBindingName = "npu-operator-metrics-binding"
+const metricsRoleBindingName = "kcloud-operator-metrics-binding"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
@@ -173,7 +173,7 @@ var _ = Describe("Manager", Ordered, func() {
 		It("should ensure the metrics endpoint is serving metrics", func() {
 			By("creating a ClusterRoleBinding for the service account to allow access to metrics")
 			cmd := exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
-				"--clusterrole=npu-operator-metrics-reader",
+				"--clusterrole=kcloud-operator-metrics-reader",
 				fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
 			)
 			_, err := utils.Run(cmd)
@@ -260,12 +260,8 @@ var _ = Describe("Manager", Ordered, func() {
 
 		// TODO: Customize the e2e test suite with scenarios specific to your project.
 		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput := getMetricsOutput()
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
+		// the reconciliation by using the metrics, e.g. assert that
+		// controller_runtime_reconcile_total{controller="<Kind>",result="success"} increments.
 	})
 })
 

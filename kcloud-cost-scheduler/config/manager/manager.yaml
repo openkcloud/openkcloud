@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+  labels:
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/managed-by: kustomize
+    control-plane: controller-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: k8s-workload-operator
+      control-plane: controller-manager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: k8s-workload-operator
+        control-plane: controller-manager
+    spec:
+      serviceAccountName: controller-manager
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - name: manager
+        image: controller:latest
+        imagePullPolicy: IfNotPresent
+        args:
+        - --leader-elect
+        command:
+        - /manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        - containerPort: 8081
+          name: health-probe
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health-probe
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health-probe
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      terminationGracePeriodSeconds: 10

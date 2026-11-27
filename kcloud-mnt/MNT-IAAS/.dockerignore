@@ -1,0 +1,9 @@
+.venv
+__pycache__
+*.pyc
+config.env
+config.env.example
+README.md
+deploy
+Dockerfile
+.dockerignore

@@ -1,0 +1,75 @@
+# Scheduler Deployment for Shadow E2E — IMAGE TAG/DIGEST filled after build.
+# Placeholders __IMAGE__ and __DIGEST_NOTE__ replaced by deploy script.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: keti-cost-scheduler
+    experiment.kcloud.io/id: "2026-09-17-shadow-e2e"
+  name: keti-cost-scheduler
+  namespace: kcp-control-plane
+  annotations:
+    experiment.kcloud.io/image-digest: "__DIGEST__"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keti-cost-scheduler
+  template:
+    metadata:
+      labels:
+        app: keti-cost-scheduler
+        experiment.kcloud.io/id: "2026-09-17-shadow-e2e"
+      name: keti-cost-scheduler
+    spec:
+      serviceAccountName: keti-cost-scheduler
+      nodeSelector:
+        kubernetes.io/hostname: gpu-node-01
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+        - name: keti-cost-scheduler
+          image: __IMAGE__
+          imagePullPolicy: Always
+          env:
+          - name: ACCELERATOR_CONFIG_PATH
+            value: /etc/scheduler/accelerator-config.yaml
+          - name: ANALYSIS_ENGINE_URL
+            value: "http://127.0.0.1:9"
+          - name: SCHED_MAX_COST_USD
+            value: "0.05"
+          - name: SCHED_GPU_TDP_WATTS
+            value: "300"
+          - name: SCHED_NPU_TDP_WATTS
+            value: "200"
+          - name: SCHED_CATALOG_MODE
+            value: "shadow"
+          - name: SCHED_CATALOG_URL
+            value: "http://catalog-api.kcp-control-plane.svc.cluster.local:8099"
+          - name: SCHED_CATALOG_TIMEOUT_MS
+            value: "2000"
+          - name: SCHED_CATALOG_CACHE_TTL_SEC
+            value: "5"
+          - name: SCHED_SHADOW_SCORE_WEIGHT
+            value: "0"
+          - name: SCHED_PREDICTION_MIN_CONFIDENCE
+            value: "MEASURED"
+          - name: SCHED_EXPERIMENT_ID
+            value: "2026-09-17-shadow-e2e"
+          volumeMounts:
+          - name: accelerator-config
+            mountPath: /etc/scheduler
+            readOnly: true
+          resources:
+            limits:
+              memory: "500Mi"
+              cpu: "500m"
+            requests:
+              memory: "200Mi"
+              cpu: "100m"
+      volumes:
+      - name: accelerator-config
+        configMap:
+          name: accelerator-config

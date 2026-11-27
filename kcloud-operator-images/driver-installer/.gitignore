@@ -1,0 +1,5 @@
+# Claude Code session state
+nvidia/.omc/
+# Furiosa APT credentials — keep local only, never commit
+furiosa/secret/
+furiosa-warboy/secret/

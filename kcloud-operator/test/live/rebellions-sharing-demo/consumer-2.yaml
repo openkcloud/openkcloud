@@ -1,0 +1,31 @@
+# ============================================================
+# consumer-2.yaml: descriptor 가 광고한 rebellions/atom 1개를 받아 /dev/rbln0 을 여는 소비자 2
+# 상세: consumer-1 과 같은 절차로 같은 /dev/rbln0 을 연다 — 두 파드가 동시에 Running 이고
+#       둘 다 OPEN_OK 를 찍으면 SW 시분할(격리 없는 replicas 공유)이 라이브로 확인된다.
+# 생성일: 2026-09-22 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rebellions-share-consumer-2
+  namespace: default
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: node5
+  containers:
+    - name: c
+      image: <레지스트리>:5100/kcloud/probe-tenstorrent:v1
+      command:
+        - python3
+        - -c
+        - |
+          import os, time, datetime
+          fd = os.open('/dev/rbln0', os.O_RDWR)
+          print('OPEN_OK ' + datetime.datetime.utcnow().isoformat() + 'Z', flush=True)
+          time.sleep(40)
+          os.close(fd)
+          print('CLOSED', flush=True)
+      resources:
+        limits:
+          rebellions/atom: 1

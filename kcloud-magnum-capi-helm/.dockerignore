@@ -1,0 +1,17 @@
+.git
+.gitignore
+.gitreview
+.tox
+.stestr
+.stestr.conf
+.coveragerc
+doc/
+releasenotes/
+playbooks/
+zuul.d/
+devstack/
+Dockerfile
+.dockerignore
+.github/
+**/__pycache__/
+**/*.pyc

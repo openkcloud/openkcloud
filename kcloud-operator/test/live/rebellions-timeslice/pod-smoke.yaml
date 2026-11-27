@@ -1,0 +1,93 @@
+# ============================================================
+# pod-smoke.yaml: rbln-workload 이미지가 호스트 SDK 로 장치를 열 수 있는지 1회 확인
+# 상세: <rebellions-node> 의 벤더 CDI 요건(장치 노드 + 라이브러리·도구)을 hostPath 로 재현해 host SDK 로
+#       compile_from_torch→create_runtime 까지 확인한다. CR 은 바꾸지 않는다(벤더 광고 자원 그대로).
+# 생성일: 2026-09-29 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rbln-ts-smoke
+  namespace: default
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: node5
+  containers:
+    - name: c
+      image: <레지스트리>:5100/kcloud/rebellions/rbln-workload:ubuntu22.04-v1
+      command: ["python3", "-c"]
+      args:
+        - |
+          import os, subprocess, time, rebel, torch, torch.nn as nn
+          t = time.time()
+          print("DEV", sorted(os.listdir("/dev")), flush=True)
+          r = subprocess.run(["rbln-stat"], capture_output=True, text=True)
+          print("RBLN_STAT rc=%d" % r.returncode, flush=True)
+          for line in (r.stdout or r.stderr).splitlines()[:5]:
+              print("RBLN_STAT|", line, flush=True)
+          auto = rebel.get_npu_name()
+          npu = auto or os.environ.get("RBLN_NPU_NAME")
+          detect = "auto" if auto else "env"
+          m = nn.Linear(64, 64, bias=False).eval()
+          c = rebel.compile_from_torch(m, input_info=[("x", [64, 64], "float32")], npu=npu)
+          print("COMPILE_OK", flush=True)
+          rt = c.create_runtime(tensor_type="np", device=0)
+          print("SMOKE_OK rebel=%s npu=%s detect=%s open=%.2f" % (rebel.__version__, npu, detect, time.time() - t), flush=True)
+      env:
+        - name: RBLN_NPU_NAME
+          value: "RBLN-CA22"
+      resources:
+        limits:
+          rebellions.ai/ATOM: "1"
+      volumeMounts:
+        - name: host-local
+          mountPath: /host-local
+          readOnly: true
+        - name: host-lib
+          mountPath: /host-lib
+          readOnly: true
+        - name: rbln-thunk-so
+          mountPath: /usr/lib/librbln-thunk.so.3.0.0
+          readOnly: true
+        - name: rbln-ccl-so
+          mountPath: /usr/lib/librbln-ccl.so.3.0.0
+          readOnly: true
+        - name: rbln-ml-so
+          mountPath: /usr/lib/librbln-ml.so
+          readOnly: true
+        - name: rbln-stat-bin
+          mountPath: /usr/bin/rbln-stat
+          readOnly: true
+        - name: rbln-smi-bin
+          mountPath: /usr/bin/rbln-smi
+          readOnly: true
+  volumes:
+    - name: host-local
+      hostPath:
+        path: /usr/local/lib/python3.10/dist-packages
+        type: Directory
+    - name: host-lib
+      hostPath:
+        path: /usr/lib/python3/dist-packages
+        type: Directory
+    - name: rbln-thunk-so
+      hostPath:
+        path: /usr/lib/librbln-thunk.so.3.0.0
+        type: File
+    - name: rbln-ccl-so
+      hostPath:
+        path: /usr/lib/librbln-ccl.so.3.0.0
+        type: File
+    - name: rbln-ml-so
+      hostPath:
+        path: /usr/lib/librbln-ml.so
+        type: File
+    - name: rbln-stat-bin
+      hostPath:
+        path: /usr/bin/rbln-stat
+        type: File
+    - name: rbln-smi-bin
+      hostPath:
+        path: /usr/bin/rbln-smi
+        type: File

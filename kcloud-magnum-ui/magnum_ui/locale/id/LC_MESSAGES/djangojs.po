@@ -1,0 +1,761 @@
+# suhartono <cloudsuhartono@gmail.com>, 2016. #zanata
+# Ian Y. Choi <ianyrchoi@gmail.com>, 2017. #zanata
+# suhartono <cloudsuhartono@gmail.com>, 2017. #zanata
+# suhartono <cloudsuhartono@gmail.com>, 2018. #zanata
+# suhartono <cloudsuhartono@gmail.com>, 2019. #zanata
+msgid ""
+msgstr ""
+"Project-Id-Version: magnum-ui VERSION\n"
+"Report-Msgid-Bugs-To: https://bugs.launchpad.net/openstack-i18n/\n"
+"POT-Creation-Date: 2020-04-02 03:39+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: 2019-01-21 04:54+0000\n"
+"Last-Translator: suhartono <cloudsuhartono@gmail.com>\n"
+"Language-Team: Indonesian\n"
+"Language: id\n"
+"X-Generator: Zanata 4.3.3\n"
+"Plural-Forms: nplurals=1; plural=0\n"
+
+msgid "ADOPT COMPLETE"
+msgstr "ADOPT COMPLETE (adopsi lengkap)"
+
+msgid "API Address"
+msgstr "API Address (alamat API)"
+
+msgid "API Server Port"
+msgstr "API Server Port"
+
+msgid "An arbitrary human-readable name"
+msgstr "nama human-readable sebarang"
+
+msgid ""
+"Arbitrary labels in the form of key=value pairs to associate with a cluster "
+"templates. May be used multiple times."
+msgstr ""
+"Label sebarang dalam bentuk key-value pairs untuk mengasosiasikan dengan "
+"template klaster. Dapat digunakan beberapa kali."
+
+msgid "CHECK COMPLETE"
+msgstr "CHECK COMPLETE (cek lengkap)"
+
+msgid "COE"
+msgstr "COE"
+
+msgid "COE Version"
+msgstr "COE Version"
+
+msgid "CREATE COMPLETE"
+msgstr "CREATE COMPLETE (pembuatan lengkap)"
+
+msgid "CREATE FAILED"
+msgstr "CREATE FAILED (pembuatan gagal)"
+
+msgid "CREATE IN PROGRESS"
+msgstr "CREATE IN PROGRESS (pembuatan sedang berjalan)"
+
+msgid "CSR"
+msgstr "CSR"
+
+msgid "Calico"
+msgstr "Calico"
+
+msgid "Cancel"
+msgstr "Cancel (membatalkan)"
+
+#, python-format
+msgid "Certificate %s was successfully rotated."
+msgstr "Sertifikat %s berhasil diputar."
+
+#, python-format
+msgid "Certificate %s was successfully signed."
+msgstr "Sertifikat %s berhasil ditandatangani."
+
+msgid "Choose a Cluster Template"
+msgstr "Pilih template cluster"
+
+msgid "Choose a Container Orchestration Engine"
+msgstr "Pilih Container Orchestration Engine"
+
+msgid "Choose a External Network"
+msgstr "Pilih  External Network"
+
+msgid "Choose a Flavor for the Master Node"
+msgstr "Pilih Flavor untuk Master Node"
+
+msgid "Choose a Flavor for the Node"
+msgstr "Pilih Flavor untuk Node"
+
+msgid "Choose a Keypair"
+msgstr "Pilih Keypair"
+
+msgid "Choose a Network Driver"
+msgstr "Pilih driver jaringan"
+
+msgid "Choose a Private Network"
+msgstr "Pilih  Private Network"
+
+msgid "Choose a Private Network at first"
+msgstr "Pilih Private Network pada awalnya"
+
+msgid "Choose a Private Subnet"
+msgstr "Pilih Private Subnet"
+
+msgid "Choose a Project"
+msgstr "Choose a Project"
+
+msgid "Choose a Volume Driver"
+msgstr "Pilih driver volume"
+
+msgid "Choose an Image"
+msgstr "Pilih Image"
+
+msgid "Cinder"
+msgstr "Cinder"
+
+msgid "Cluster"
+msgstr "Cluster (klaster)"
+
+#, python-format
+msgid "Cluster %s was successfully created."
+msgstr "Klaster %s berhasil dibuat."
+
+msgid "Cluster Create Timeout"
+msgstr "Cluster Create Timeout (batas waktu pembuatan klaster)"
+
+msgid "Cluster Distro"
+msgstr "Cluster Distro (distro cluster)"
+
+msgid "Cluster Name"
+msgstr "Cluster Name (nama klaster)"
+
+msgid "Cluster Template"
+msgstr "Cluster Template"
+
+msgid "Cluster Template Detail"
+msgstr "Cluster Template Detail (rinci template klaster)"
+
+msgid "Cluster Template Name"
+msgstr "Cluster Template Name  (nama template klaster)"
+
+msgid "Cluster Templates"
+msgstr "Cluster Templates (template klaster)"
+
+msgid "Cluster Type"
+msgstr "Cluster Type (tipe klaster)"
+
+#, python-format
+msgid "Cluster template %s was successfully created."
+msgstr "Template klaster %s berhasil dibuat."
+
+#, python-format
+msgid "Cluster template %s was successfully updated."
+msgstr "Template klaster %s telah berhasil diperbarui."
+
+msgid "Clusters"
+msgstr "Clusters (klaster)"
+
+msgid "Confirm Delete Cluster"
+msgid_plural "Confirm Delete Clusters"
+msgstr[0] "Confirm Delete Cluster"
+
+msgid "Confirm Delete Cluster Template"
+msgid_plural "Confirm Delete Cluster Templates"
+msgstr[0] "Confirm Delete Cluster Template"
+
+msgid "Confirm Delete Quota"
+msgid_plural "Confirm Delete Quotas"
+msgstr[0] "Confirm Delete Quota"
+
+msgid "Container Orchestration Engine"
+msgstr "Container Orchestration Engine (mesin Orchestration kontainer)"
+
+msgid "Container Version"
+msgstr "Container Version"
+
+msgid "Create"
+msgstr "Create (buat)"
+
+msgid "Create Cluster"
+msgstr "Buat klaster"
+
+msgid "Create Cluster Template"
+msgstr "Create Cluster Template"
+
+msgid "Create Quota"
+msgstr "Create Quota"
+
+msgid "Created"
+msgstr "Created (dibuat)"
+
+msgid "Created At"
+msgstr "Created At"
+
+msgid "DC/OS"
+msgstr "DC/OS"
+
+msgid "DELETE COMPLETE"
+msgstr "DELETE COMPLETE (penghapusan lengkap)"
+
+msgid "DELETE FAILED"
+msgstr "DELETE FAILED (penghapusan gagal)"
+
+msgid "DELETE IN PROGRESS"
+msgstr "DELETE IN PROGRESS (penghapusan sedang berjalan)"
+
+msgid "DNS"
+msgstr "DNS"
+
+msgid "Delete Cluster"
+msgid_plural "Delete Clusters"
+msgstr[0] "Delete Cluster"
+
+msgid "Delete Cluster Template"
+msgid_plural "Delete Cluster Templates"
+msgstr[0] "Delete Cluster Template"
+
+msgid "Delete Cluster Templates"
+msgstr "Delete Cluster Templates (hapus template klaster)"
+
+msgid "Delete Clusters"
+msgstr "Delete Clusters (hapus klaster)"
+
+msgid "Delete Quota"
+msgid_plural "Delete Quotas"
+msgstr[0] "Delete Quota"
+
+msgid "Delete Quotas"
+msgstr "Delete Quotas"
+
+#, python-format
+msgid "Deleted cluster template: %s."
+msgid_plural "Deleted cluster templates: %s."
+msgstr[0] "Deleted cluster template: %s."
+
+#, python-format
+msgid "Deleted cluster: %s."
+msgid_plural "Deleted clusters: %s."
+msgstr[0] "Deleted cluster: %s."
+
+#, python-format
+msgid "Deleted quota: %s."
+msgid_plural "Deleted quotas: %s."
+msgstr[0] "Deleted quota: %s."
+
+msgid "Device Mapper"
+msgstr "Device Mapper"
+
+msgid "Disable TLS"
+msgstr "Nonaktifkan TLS"
+
+msgid "Disable TLS in the cluster template. Default: False"
+msgstr "Menonaktifkan TLS dalam template klaster. Default: False"
+
+msgid "Discovery URL"
+msgstr "Discovery URL"
+
+msgid "Docker"
+msgstr "Docker"
+
+msgid "Docker Storage Driver"
+msgstr "Docker Storage Driver (driver penyimpanan docker)"
+
+msgid "Docker Swarm"
+msgstr "Docker Swarm"
+
+msgid "Docker Swarm Mode"
+msgstr "Docker Swarm Mode"
+
+msgid "Docker Volume Size"
+msgstr "Docker Volume Size (ukuran volume docker)"
+
+msgid "Docker Volume Size (GB)"
+msgstr "Docker Volume Size (GB)"
+
+msgid "Enable Registry"
+msgstr "Enable Registry (aktifkan registry)"
+
+msgid "Enable docker registry in the cluster temlate. Default: False"
+msgstr "Aktifkan registri docker di klaster template. Default: False"
+
+msgid "Exists"
+msgstr "Exists"
+
+msgid "External Network ID"
+msgstr "External Network ID (id jaringan eksternal)"
+
+msgid "Fixed Network"
+msgstr "Fixed Network (jaringan tetap)"
+
+msgid "Fixed Subnet"
+msgstr "Fixed Subnet (subnet tetap)"
+
+msgid "Flannel"
+msgstr "Flannel"
+
+msgid "Flavor"
+msgstr "Flavor"
+
+msgid "Flavor ID"
+msgstr "Flavor ID (ID flavor)"
+
+msgid "Floating IP"
+msgstr "Floating IP (IP mengambang)"
+
+msgid "Floating IP Enabled"
+msgstr "Floating IP Enabled (IP mengambang diaktifkan)"
+
+msgid "HTTP Proxy"
+msgstr "HTTP Proxy"
+
+msgid "HTTPS Proxy"
+msgstr "HTTPS Proxy"
+
+msgid "Hard Limit"
+msgstr "Hard Limit"
+
+msgid "ID"
+msgstr "ID (id)"
+
+msgid "Image"
+msgstr "Image"
+
+msgid "Image ID"
+msgstr "Image ID (ID image)"
+
+msgid ""
+"Indicates whether created clusters should have a floating ip or not. "
+"Default: True"
+msgstr ""
+"Menunjukkan apakah cluster yang dibuat harus memiliki ip mengambang atau "
+"tidak. Default: True"
+
+msgid ""
+"Indicates whether created clusters should have a load balancer for master "
+"nodes or not. Default: False"
+msgstr ""
+"Menunjukkan apakah cluster yang dibuat harus memiliki penyeimbang beban "
+"(load balancer) untuk node induk (master node) atau tidak. Default: False"
+
+msgid "Infinite"
+msgstr "Infinite (tak terbatas)"
+
+msgid "Info"
+msgstr "Info"
+
+msgid "Insecure Registry"
+msgstr "Registry tidak aman"
+
+msgid "KEY1=VALUE1, KEY2=VALUE2..."
+msgstr "KEY1=VALUE1, KEY2=VALUE2..."
+
+msgid "Keypair"
+msgstr "Keypair (sepasang kunci)"
+
+msgid "Kubernetes"
+msgstr "Kubernetes"
+
+msgid "Labels"
+msgstr "Labels"
+
+msgid "Limit for this resource."
+msgstr "Batasi untuk sumber daya ini."
+
+msgid "Make cluster template public. Default: False"
+msgstr "Membuat publik template klaster. Default: False"
+
+msgid "Margin"
+msgstr "Margin"
+
+msgid "Master Addresses"
+msgstr "Master Addresses (alamat induk)"
+
+msgid "Master Count"
+msgstr "Master Count (hitung induk)"
+
+msgid "Master Flavor"
+msgstr "Master Flavor"
+
+msgid "Master Flavor ID"
+msgstr "Master Flavor ID (ID flavor induk)"
+
+msgid "Master LB"
+msgstr "Master LB"
+
+msgid "Master LB Enabled"
+msgstr "Master LB Enabled (master LB diaktifkan)"
+
+msgid "Mesos"
+msgstr "Mesos"
+
+msgid "Miscellaneous"
+msgstr "Miscellaneous (lain-lain)"
+
+msgid "Name"
+msgstr "Name (nama)"
+
+msgid "Name of the cluster template."
+msgstr "Nama dari template cluster."
+
+msgid "Network"
+msgstr "Network"
+
+msgid "Network Driver"
+msgstr "Network Driver (driver jaringan)"
+
+msgid "No Proxy"
+msgstr "No Proxy"
+
+msgid "Node Addresses"
+msgstr "Node Addresses (alamat simpul)"
+
+msgid "Node Count"
+msgstr "Node Count (hitung simpul)"
+
+msgid "Node Flavor ID"
+msgstr "Node Flavor ID"
+
+msgid "Node Spec"
+msgstr "Node Spec"
+
+msgid "Nodes"
+msgstr "Nodes (simpul)"
+
+msgid "None"
+msgstr "None"
+
+msgid "Overlay"
+msgstr "Overlay"
+
+msgid "Overview"
+msgstr "Overview (ikhtisar)"
+
+msgid "Project"
+msgstr "Project"
+
+msgid "Project ID"
+msgstr "Project ID"
+
+msgid "Public"
+msgstr "Public (publik)"
+
+msgid "Quota"
+msgstr "Quota"
+
+#, python-format
+msgid "Quota %s was successfully created."
+msgstr "Kuota %s berhasil dibuat."
+
+#, python-format
+msgid "Quota %s/%s was successfully updated."
+msgstr "Kuota %s/%s berhasil diperbarui."
+
+msgid "Quotas"
+msgstr "Quotas"
+
+msgid "RESTORE COMPLETE"
+msgstr "RESTORE COMPLETE (mengembalikan lengkap)"
+
+msgid "RESUME COMPLETE"
+msgstr "RESUME COMPLETE (melanjutkan lengkap)"
+
+msgid "ROLLBACK COMPLETE"
+msgstr "ROLLBACK COMPLETE (rollback lengkap)"
+
+msgid "Record Properties"
+msgstr "Record Properties (properti record)"
+
+msgid "Registry Enabled"
+msgstr "Registry Enabled (Registri diaktifkan)"
+
+msgid "Resource"
+msgstr "Resource"
+
+msgid "Rexray"
+msgstr "Rexray"
+
+msgid "Rotate Certificate"
+msgstr "Putar Sertifikat"
+
+msgid "SNAPSHOT COMPLETE"
+msgstr "SNAPSHOT COMPLETE (snapshot lengkap)"
+
+msgid "Server Type"
+msgstr "Server Type (tipe server)"
+
+msgid "Show Certificate"
+msgstr "Show Certificate (tampilkan sertifikat)"
+
+msgid "Sign Certificate"
+msgstr "Sign Certificate"
+
+msgid "Sign Certificate To Cluster: {$ ctrl.model.cluster_name $}"
+msgstr "Sign Certificate To Cluster: {$ ctrl.model.cluster_name $}"
+
+msgid "Size"
+msgstr "Size (ukuran)"
+
+msgid "Specify the Container Orchestration Engine to use."
+msgstr "Tentukan Container Orchestration Engine untuk digunakan."
+
+msgid ""
+"Specify the nameserver to use for the cluster template. Default: 8.8.8.8"
+msgstr ""
+"Menentukan nameserver yang akan digunakan untuk template klaster. Default: "
+"8.8.8.8"
+
+msgid "Specify the size in GB for the docker volume"
+msgstr "Tentukan ukuran dalam GB untuk volume docker"
+
+msgid "Stack"
+msgstr "Stack"
+
+msgid "Stack Faults"
+msgstr "Stack Faults"
+
+msgid "Stack ID"
+msgstr "Stack ID (ID stack)"
+
+msgid "Stats"
+msgstr "Stats"
+
+msgid "Status"
+msgstr "Status (status)"
+
+msgid "Status Reason"
+msgstr "Status Reason"
+
+msgid "TLS Disabled"
+msgstr "TLS Disabled (TLS tidak aktif)"
+
+msgid "The DNS nameserver to use for this cluster template"
+msgstr "Nameserver DNS digunakan untuk template klaster ini."
+
+msgid "The URL of docker registry."
+msgstr "URL dari registry docker"
+
+msgid "The cluster node count."
+msgstr "Jumlah node klaster."
+
+msgid "The http_proxy address to use for nodes in cluster"
+msgstr "Alamat http_proxy digunakan untuk node dalam klaster"
+
+msgid "The https_proxy address to use for nodes in cluster"
+msgstr "Alamat http_proxy digunakan untuk node dalam klaster"
+
+msgid "The name or UUID of the SSH keypair to load into the cluster nodes."
+msgstr ""
+"Nama atau UUID dari pasangan kunci (keypair) SSH untuk memuat ke node "
+"klaster."
+
+msgid "The name or UUID of the base image to customize for the cluster."
+msgstr "Nama atau UUID dari image dasar untuk menyesuaikan dengan klaster."
+
+msgid "The no_proxy address to use for nodes in cluster"
+msgstr "Alamat no_proxy digunakan untuk node dalam klaster"
+
+msgid "The nova flavor id to use when launching the cluster. Default: m1.small"
+msgstr ""
+"Id flavor nova untuk dgunakan ketika peluncuran klaster. Default: m1.small"
+
+msgid ""
+"The nova flavor id to use when launching the master node of the cluster. "
+"Default: m1.small"
+msgstr ""
+"id flavor nova untuk digunakan ketika peluncuran node master cluster. "
+"Default: m1.small"
+
+msgid "The size in GB for Docker Volume. Default: 25"
+msgstr "Ukuran dalam GB untuk Docker Volume. Default: 25"
+
+msgid "This should really be named fixed-network-cidr. Default: 10.0.0.0/24"
+msgstr ""
+"Ini harus benar-benar diberi nama fixed-network-cidr. Default: 10.0.0.0/24"
+
+msgid "UPDATE COMPLETE"
+msgstr "UPDATE COMPLETE (pembaharuan lengkap)"
+
+msgid "UPDATE FAILED"
+msgstr "UPDATE FAILED (pembaharuan gagal)"
+
+msgid "UPDATE IN PROGRESS"
+msgstr "UPDATE IN PROGRESS (pembaharuan sedang berjalan)"
+
+msgid "Unable to create cluster template."
+msgstr "Tidak dapat membuat template klaster."
+
+msgid "Unable to create cluster."
+msgstr "Tidak dapat membuat klaster."
+
+msgid "Unable to create quota."
+msgstr "Tidak dapat membuat kuota."
+
+#, python-format
+msgid "Unable to delete cluster template: %s."
+msgid_plural "Unable to delete cluster templates: %s."
+msgstr[0] "Unable to delete cluster template: %s."
+
+#, python-format
+msgid "Unable to delete cluster: %s."
+msgid_plural "Unable to delete clusters: %s."
+msgstr[0] "Unable to delete cluster: %s."
+
+#, python-format
+msgid "Unable to delete quota: %s."
+msgid_plural "Unable to delete quotas: %s."
+msgstr[0] "Unable to delete quota: %s."
+
+#, python-format
+msgid "Unable to delete the cluster template with id: %(id)s"
+msgstr "Tidak dapat menghapus template klaster dengan id: %(id)s"
+
+msgid "Unable to delete the cluster templates."
+msgstr "Tidak dapat menghapus template klaster."
+
+#, python-format
+msgid "Unable to delete the cluster with id: %(id)s"
+msgstr "Tidak dapat menghapus klaster dengan id: %(id)s"
+
+msgid "Unable to delete the clusters."
+msgstr "Tidak dapat menghapus klaster."
+
+#, python-format
+msgid ""
+"Unable to delete the quota with project id: %(projectId)s and resource: "
+"%(resource)s."
+msgstr ""
+"Tidak dapat menghapus kuota dengan project id: %(projectId)s dan resource: "
+"%(resource)s."
+
+msgid "Unable to retrieve the certificate."
+msgstr "Tidak dapat mengambil sertifikat."
+
+msgid "Unable to retrieve the cluster template."
+msgstr "Tidak dapat mengambil template klaster"
+
+msgid "Unable to retrieve the cluster templates."
+msgstr "Tidak dapat mengambil template klaster"
+
+msgid "Unable to retrieve the cluster."
+msgstr "Tidak dapat mengambil klaster."
+
+msgid "Unable to retrieve the clusters."
+msgstr "Tidak dapat mengambil klaster."
+
+msgid "Unable to retrieve the networks."
+msgstr "Tidak dapat mengambil jaringan."
+
+msgid "Unable to retrieve the quota."
+msgstr "Tidak dapat mengambil kuota."
+
+msgid "Unable to retrieve the quotas."
+msgstr "Tidak dapat mengambil kuota."
+
+msgid "Unable to retrieve the stats."
+msgstr "Tidak dapat mengambil statistik"
+
+msgid "Unable to rotate the certificate."
+msgstr "Tidak dapat memutar sertifikat"
+
+msgid "Unable to sign certificate."
+msgstr "Tidak dapat menandatangani sertifikat."
+
+msgid "Unable to update cluster template."
+msgstr "Tidak dapat memperbarui template klaster"
+
+msgid "Unable to update cluster."
+msgstr "Tidak dapat memperbarui klaster."
+
+msgid "Unable to update quota."
+msgstr "Tidak dapat memperbarui kuota."
+
+msgid "Update Cluster Template"
+msgstr "Perbaharui template klaster"
+
+msgid "Update Quota"
+msgstr "Update Quota"
+
+msgid "Updated"
+msgstr "Updated (diperbaharui)"
+
+msgid "Updated At"
+msgstr "Updated At"
+
+msgid "Used {$ ctrl.stats.clusters $} of {$ ctrl.quota.clusters $}"
+msgstr "Used {$ ctrl.stats.clusters $} dari {$ ctrl.quota.clusters $}"
+
+msgid "Volume Driver"
+msgstr "Volume Driver (driver volume)"
+
+#, python-format
+msgid "You are not allowed to delete cluster templates: %s"
+msgstr "Anda tidak diizinkan untuk menghapus klaster template: %s"
+
+#, python-format
+msgid "You are not allowed to delete clusters: %s"
+msgstr "Anda tidak diizinkan untuk menghapus cluster: %s"
+
+#, python-format
+msgid "You are not allowed to delete quotas: %s"
+msgstr "Anda tidak diizinkan untuk menghapus kuota: %s"
+
+#, python-format
+msgid ""
+"You have selected \"%s\". Please confirm your selection. Deleted cluster is "
+"not recoverable."
+msgid_plural ""
+"You have selected \"%s\". Please confirm your selection. Deleted clusters "
+"are not recoverable."
+msgstr[0] ""
+"You have selected \"%s\". Please confirm your selection. Deleted cluster is "
+"not recoverable."
+
+#, python-format
+msgid ""
+"You have selected \"%s\". Please confirm your selection. Deleted cluster "
+"template is not recoverable."
+msgid_plural ""
+"You have selected \"%s\". Please confirm your selection. Deleted cluster "
+"templates are not recoverable."
+msgstr[0] ""
+"You have selected \"%s\". Please confirm your selection. Deleted cluster "
+"template is not recoverable."
+
+#, python-format
+msgid ""
+"You have selected \"%s\". Please confirm your selection. Deleted quota is "
+"not recoverable."
+msgid_plural ""
+"You have selected \"%s\". Please confirm your selection. Deleted quotas are "
+"not recoverable."
+msgstr[0] ""
+"You have selected \"%s\". Please confirm your selection. Deleted quota is "
+"not recoverable."
+
+msgid "as follows:"
+msgstr "sebagai berikut:"
+
+msgid "error"
+msgid_plural "errors"
+msgstr[0] "kesalahan"
+
+msgid "message"
+msgid_plural "messages"
+msgstr[0] "pesan"
+
+msgid "submit"
+msgid_plural "submits"
+msgstr[0] "serahkan"
+
+msgid "success"
+msgid_plural "successes"
+msgstr[0] "berhasil"
+
+msgid "title"
+msgid_plural "titles"
+msgstr[0] "judul"
+
+msgid "{$ ctrl.cluster.create_timeout $} minute"
+msgid_plural "{$ ctrl.cluster.create_timeout $} minutes"
+msgstr[0] "{$ ctrl.cluster.create_timeout $} minute"

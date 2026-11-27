@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""OpenStack Virtual Cluster CRUD Controller
+"""
+OpenStack Virtual Cluster CRUD Controller
+완전한 클러스터 생명주기 관리를 위한 CRUD 작업 모듈
 """
 
 import os
@@ -22,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class ClusterStatus(Enum):
-    """
+    """클러스터 상태 열거형"""
     CREATING = "CREATE_IN_PROGRESS"
     ACTIVE = "CREATE_COMPLETE"
     UPDATING = "UPDATE_IN_PROGRESS"
@@ -34,7 +36,7 @@ class ClusterStatus(Enum):
 
 @dataclass
 class ClusterConfig:
-    """
+    """클러스터 설정 데이터 클래스"""
     name: str
     cluster_template_id: str
     keypair: str = "ketilinux"
@@ -61,7 +63,7 @@ class ClusterConfig:
 
 @dataclass
 class ClusterInfo:
-    """
+    """클러스터 정보 데이터 클래스"""
     id: str
     name: str
     status: str
@@ -83,20 +85,24 @@ class ClusterInfo:
     
 
 class OpenStackClusterCRUD:
-    """
+    """OpenStack Magnum 클러스터 CRUD 작업 컨트롤러"""
     
     def __init__(self, cloud_name: str = "openstack"):
-        """Args:
-"""
+        """
+        초기화
+        
+        Args:
+            cloud_name: clouds.yaml에 정의된 클라우드 이름
+        """
         try:
             self.conn = openstack.connect(cloud=cloud_name)
-
+            # project_id 가져오기 (다양한 방법 시도)
             if hasattr(self.conn, 'current_project_id'):
                 self.project_id = self.conn.current_project_id
             elif hasattr(self.conn, 'auth') and 'project_id' in self.conn.auth:
                 self.project_id = self.conn.auth['project_id']
             else:
-
+                # 프로젝트 정보에서 가져오기
                 project = self.conn.identity.find_project("cloud-platform")
                 self.project_id = project.id if project else "unknown"
             
@@ -107,16 +113,24 @@ class OpenStackClusterCRUD:
             raise
             
     def _wait_for_cluster_status(
-        self,
-        cluster_id: str,
-        target_status: List[str],
+        self, 
+        cluster_id: str, 
+        target_status: List[str], 
         timeout: int = 3600,
         check_interval: int = 30
     ) -> Dict:
-        """Args:
+        """
+        클러스터 상태 변경 대기
+        
+        Args:
+            cluster_id: 클러스터 ID
+            target_status: 목표 상태 리스트
+            timeout: 타임아웃 (초)
+            check_interval: 확인 간격 (초)
             
         Returns:
-"""
+            최종 클러스터 정보
+        """
         start_time = time.time()
         
         while time.time() - start_time < timeout:
@@ -141,16 +155,21 @@ class OpenStackClusterCRUD:
             
         raise TimeoutError(f"Cluster operation timed out after {timeout} seconds")
     
-
+    # ============= CREATE =============
     def create_cluster(self, config: ClusterConfig) -> ClusterInfo:
-        """Args:
+        """
+        새 클러스터 생성
+        
+        Args:
+            config: 클러스터 설정
             
         Returns:
-"""
+            생성된 클러스터 정보
+        """
         logger.info(f"Creating cluster: {config.name}")
         
         try:
-
+            # 클러스터 생성 파라미터
             cluster_data = {
                 "name": config.name,
                 "cluster_template_id": config.cluster_template_id,
@@ -162,7 +181,7 @@ class OpenStackClusterCRUD:
                 "floating_ip_enabled": config.floating_ip_enabled
             }
             
-
+            # 옵셔널 파라미터
             if config.master_flavor:
                 cluster_data["master_flavor_id"] = config.master_flavor
             if config.flavor:
@@ -172,13 +191,13 @@ class OpenStackClusterCRUD:
             if config.fixed_subnet:
                 cluster_data["fixed_subnet"] = config.fixed_subnet
                 
-
+            # 클러스터 생성
             cluster = self.conn.container_infra.create_cluster(**cluster_data)
             logger.info(f"Cluster creation initiated: {cluster.id}")
             
-
+            # 생성 완료 대기
             cluster = self._wait_for_cluster_status(
-                cluster.id,
+                cluster.id, 
                 ["CREATE_COMPLETE"],
                 timeout=3600
             )
@@ -189,12 +208,18 @@ class OpenStackClusterCRUD:
             logger.error(f"Failed to create cluster: {e}")
             raise
     
-
+    # ============= READ =============
     def get_cluster(self, cluster_id: str = None, cluster_name: str = None) -> ClusterInfo:
-        """Args:
+        """
+        클러스터 정보 조회
+        
+        Args:
+            cluster_id: 클러스터 ID
+            cluster_name: 클러스터 이름
             
         Returns:
-"""
+            클러스터 정보
+        """
         try:
             if cluster_id:
                 cluster = self.conn.container_infra.get_cluster(cluster_id)
@@ -212,10 +237,15 @@ class OpenStackClusterCRUD:
             raise
     
     def list_clusters(self, filters: Optional[Dict] = None) -> List[ClusterInfo]:
-        """Args:
+        """
+        클러스터 목록 조회
+        
+        Args:
+            filters: 필터 조건
             
         Returns:
-"""
+            클러스터 정보 리스트
+        """
         try:
             clusters = self.conn.container_infra.clusters()
             cluster_list = []
@@ -223,7 +253,7 @@ class OpenStackClusterCRUD:
             for cluster in clusters:
                 cluster_info = self._cluster_to_info(cluster)
                 
-
+                # 필터 적용
                 if filters:
                     match = True
                     for key, value in filters.items():
@@ -242,25 +272,33 @@ class OpenStackClusterCRUD:
             logger.error(f"Failed to list clusters: {e}")
             raise
     
-
+    # ============= UPDATE =============
     def update_cluster(
-        self,
+        self, 
         cluster_id: str,
         node_count: Optional[int] = None,
         max_node_count: Optional[int] = None,
         min_node_count: Optional[int] = None
     ) -> ClusterInfo:
-        """Args:
+        """
+        클러스터 업데이트 (노드 수 스케일링)
+        
+        Args:
+            cluster_id: 클러스터 ID
+            node_count: 새 노드 수
+            max_node_count: 최대 노드 수
+            min_node_count: 최소 노드 수
             
         Returns:
-"""
+            업데이트된 클러스터 정보
+        """
         logger.info(f"Updating cluster: {cluster_id}")
         
         try:
-
+            # 현재 클러스터 정보 조회
             cluster = self.conn.container_infra.get_cluster(cluster_id)
             
-
+            # 업데이트 작업 리스트
             patch = []
             
             if node_count is not None:
@@ -288,11 +326,11 @@ class OpenStackClusterCRUD:
                 logger.warning("No updates to apply")
                 return self._cluster_to_info(cluster)
             
-
+            # 업데이트 실행
             self.conn.container_infra.update_cluster(cluster_id, patch)
             logger.info(f"Cluster update initiated: {patch}")
             
-
+            # 업데이트 완료 대기
             cluster = self._wait_for_cluster_status(
                 cluster_id,
                 ["UPDATE_COMPLETE", "CREATE_COMPLETE"],
@@ -306,30 +344,42 @@ class OpenStackClusterCRUD:
             raise
     
     def resize_cluster(self, cluster_id: str, node_count: int) -> ClusterInfo:
-        """Args:
+        """
+        클러스터 노드 수 조정 (간편 메소드)
+        
+        Args:
+            cluster_id: 클러스터 ID
+            node_count: 새 노드 수
             
         Returns:
-"""
+            업데이트된 클러스터 정보
+        """
         return self.update_cluster(cluster_id, node_count=node_count)
     
-
+    # ============= DELETE =============
     def delete_cluster(self, cluster_id: str, force: bool = False) -> bool:
-        """Args:
+        """
+        클러스터 삭제
+        
+        Args:
+            cluster_id: 클러스터 ID
+            force: 강제 삭제 여부
             
         Returns:
-"""
+            삭제 성공 여부
+        """
         logger.info(f"Deleting cluster: {cluster_id}")
         
         try:
-
+            # 클러스터 존재 확인
             cluster = self.conn.container_infra.get_cluster(cluster_id)
             cluster_name = cluster.name
             
-
+            # 삭제 실행
             self.conn.container_infra.delete_cluster(cluster_id)
             logger.info(f"Cluster deletion initiated: {cluster_name}")
             
-
+            # 삭제 완료 대기
             self._wait_for_cluster_status(
                 cluster_id,
                 ["DELETED"],
@@ -350,12 +400,17 @@ class OpenStackClusterCRUD:
                 return True
             raise
     
-
+    # ============= UTILITY =============
     def _cluster_to_info(self, cluster: Any) -> ClusterInfo:
-        """Args:
+        """
+        OpenStack 클러스터 객체를 ClusterInfo로 변환
+        
+        Args:
+            cluster: OpenStack 클러스터 객체
             
         Returns:
-"""
+            ClusterInfo 객체
+        """
         return ClusterInfo(
             id=cluster.id,
             name=cluster.name,
@@ -378,10 +433,15 @@ class OpenStackClusterCRUD:
         )
     
     def get_cluster_credentials(self, cluster_id: str) -> Dict:
-        """Args:
+        """
+        클러스터 kubeconfig 가져오기
+        
+        Args:
+            cluster_id: 클러스터 ID
             
         Returns:
-"""
+            kubeconfig 딕셔너리
+        """
         try:
             config = self.conn.container_infra.get_cluster_config(cluster_id)
             return config
@@ -390,8 +450,12 @@ class OpenStackClusterCRUD:
             raise
     
     def get_cluster_templates(self) -> List[Dict]:
-        """Returns:
-"""
+        """
+        사용 가능한 클러스터 템플릿 목록 조회
+        
+        Returns:
+            템플릿 정보 리스트
+        """
         try:
             templates = self.conn.container_infra.cluster_templates()
             template_list = []
@@ -416,45 +480,71 @@ class OpenStackClusterCRUD:
             raise
     
     def cleanup_stuck_clusters(self, hours: int = 24) -> List[str]:
-        """Args:
+        """
+        오래된 stuck 상태 클러스터 정리
+        
+        Args:
+            hours: 경과 시간 (시간 단위)
             
         Returns:
-"""
+            삭제된 클러스터 ID 리스트
+        """
         from datetime import datetime, timedelta
+        
         deleted = []
         stuck_statuses = ["CREATE_IN_PROGRESS", "DELETE_IN_PROGRESS", "UPDATE_IN_PROGRESS"]
         cutoff_time = datetime.now() - timedelta(hours=hours)
+        
         try:
             clusters = self.list_clusters()
+            
             for cluster in clusters:
+                # Stuck 상태 확인
                 if cluster.status not in stuck_statuses:
                     continue
+                    
+                # 생성 시간 확인
                 if cluster.created_at and cluster.created_at != 'None':
                     created_at = datetime.fromisoformat(cluster.created_at.replace('Z', '+00:00'))
                     if created_at > cutoff_time:
                         continue
                 else:
+                    # 생성 시간이 없으면 오래된 것으로 간주
                     logger.warning(f"No creation time for cluster {cluster.name}, treating as old")
+                    
+                # 삭제
                 logger.warning(f"Cleaning up stuck cluster: {cluster.name} ({cluster.status})")
                 if self.delete_cluster(cluster.id, force=True):
                     deleted.append(cluster.id)
+                    
             logger.info(f"Cleaned up {len(deleted)} stuck clusters")
             return deleted
+            
         except Exception as e:
             logger.error(f"Failed to cleanup stuck clusters: {e}")
             raise
+
+
+# 사용 예제
 if __name__ == "__main__":
+    # 컨트롤러 초기화
     crud = OpenStackClusterCRUD(cloud_name="openstack")
+    
+    # 템플릿 목록 조회
     print("\n=== Available Templates ===")
     templates = crud.get_cluster_templates()
     for tmpl in templates:
         print(f"- {tmpl['name']} ({tmpl['id']}): {tmpl['coe']}")
+    
+    # 클러스터 목록 조회
     print("\n=== Current Clusters ===")
     clusters = crud.list_clusters()
     for cluster in clusters:
         print(f"- {cluster.name}: {cluster.status} (Nodes: {cluster.node_count})")
-"""
-    """config = ClusterConfig(
+    
+    # 새 클러스터 생성 예제 (주석 처리됨)
+    """
+    config = ClusterConfig(
         name="test-cluster-crud",
         cluster_template_id="k8s-1.21-cpu-template",
         node_count=2,
@@ -465,9 +555,11 @@ if __name__ == "__main__":
     new_cluster = crud.create_cluster(config)
     print(f"Created cluster: {new_cluster.name} ({new_cluster.id})")
     
+    # 클러스터 업데이트
     updated = crud.resize_cluster(new_cluster.id, node_count=3)
     print(f"Resized cluster to {updated.node_count} nodes")
     
+    # 클러스터 삭제
     if crud.delete_cluster(new_cluster.id):
         print("Cluster deleted successfully")
-"""
+    """

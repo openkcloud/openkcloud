@@ -1,3 +1,6 @@
+# lint.yml: push·PR 시 golangci-lint 와 주석·문서·설정 검증 게이트들을 돈다.
+# 상세: CRD embed 번들을 먼저 만들어야 golangci-lint 타입체크가 fresh clone 에서도 통과한다.
+# 생성일: 2025-07-04 | 수정일: 2026-10-15
 name: Lint
 
 on:
@@ -23,7 +26,64 @@ jobs:
       - name: Generate CRD embed bundle
         run: make embed-crds
 
+      - name: Verify CRD kustomization list
+        run: make crd-check
+
+      # 주석·values·워크플로가 가리키는 docs/*.md 가 이 트리에 없으면 실패한다. 없는 문서를
+      # 가리키는 주석은 읽는 사람을 빈 경로로 보낸다. 스크립트 자가시험이 먼저 돈다.
+      - name: Doc citation existence gate
+        run: make doc-cite-check
+
+      # docs/ 는 공개 저장소에 없는 형제 경로다 — 코드·차트·스크립트가 그 경로를 가리키면
+      # 공개 빌드에서 깨진다.
+      - name: Sibling docs path gate
+        run: make docs-path-check
+
+      # 추적 파일에 내부 주소·계정이 들어가면 공개 릴리스로 새어나간다.
+      - name: Private address gate
+        run: make private-ip-check
+
+      # 계획 디렉터리는 .gitignore 로 막혀 커밋되지 않는다 — 추적 파일이 그
+      # 경로나 task-N 보고서 파일명을 인용하면 받는 사람은 열 수 없는 경로를 안내받는다.
+      - name: Workspace citation gate
+        run: make workspace-cite-check
+
+      - name: Comment narrative gate
+        run: make comment-check
+
+      - name: Linter config verify
+        run: make lint-config
+
       - name: Run linter
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.1.0
+
+      # cmd/kubectl-npu 는 별도 go.mod 라 위 단계가 내려가지 않는다 — 이 단계가 없으면
+      # make lint 가 로컬에서 도는 두 모듈 중 하나가 CI 린트를 받지 않는다. version 은 위 단계와 같게.
+      - name: Run linter (kubectl-npu plugin module)
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.1.0
+          working-directory: cmd/kubectl-npu
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install jq and PyYAML
+        run: sudo apt-get update -y && sudo apt-get install -y jq python3-yaml
+
+      # 컨트롤러 본문의 벤더 이름 줄 수가 상한을 넘으면 실패한다. 벤더별 switch 가 다시
+      # 흩어지는 것을 잡는다(새 벤더 속성은 vendorTable 에 더한다).
+      - name: Vendor branch count
+        run: make vendor-branch-check && bash hack/vendor-branch-count_test.sh
+
+      # hack 스크립트 자가시험. 일부가 helm·PyYAML 을 쓰므로 위 두 설치 단계 뒤에 둔다.
+      - name: hack self-tests
+        run: for t in hack/*_test.sh; do echo "== $t"; bash "$t" || exit 1; done
+
+      # kcloud 차트 정적 렌더의 상주 operand(Deployment+DaemonSet+StatefulSet) 수가
+      # baseline 을 넘으면 실패한다(test/footprint/baseline.json).
+      - name: Footprint regression gate
+        run: make footprint-check
+

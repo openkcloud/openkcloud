@@ -105,128 +105,59 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request and collect metrics."""
         # Skip metrics collection for /system/metrics endpoint itself
-        if request.url.path == "/api/v1/system/metrics":
+        if request.url.path == "/api/v2/system/metrics":
             return await call_next(request)
 
-        # Start timer
         start_time = time.time()
-
-        # Extract endpoint path (normalized for metrics)
-        endpoint = self._normalize_endpoint(request.url.path)
         method = request.method
 
-        # Process request
         try:
             response = await call_next(request)
-            status_code = response.status_code
-
-            # Record successful request metrics
-            api_requests_total.labels(
-                method=method,
-                endpoint=endpoint,
-                status_code=status_code
-            ).inc()
-
-            # Record request duration
-            duration = time.time() - start_time
-            api_request_duration_seconds.labels(
-                method=method,
-                endpoint=endpoint
-            ).observe(duration)
-
-            # Track errors (4xx, 5xx)
-            if status_code >= 400:
-                error_type = "client_error" if status_code < 500 else "server_error"
-                api_errors_total.labels(
-                    method=method,
-                    endpoint=endpoint,
-                    error_type=error_type
-                ).inc()
-
-            return response
-
         except Exception as exc:
-            # Record exception metrics
             duration = time.time() - start_time
+            endpoint = self._endpoint_label(request)
             api_errors_total.labels(
                 method=method,
                 endpoint=endpoint,
                 error_type=exc.__class__.__name__
             ).inc()
-
             api_request_duration_seconds.labels(
                 method=method,
                 endpoint=endpoint
             ).observe(duration)
+            raise
 
-            # Re-raise exception
-            raise exc
+        endpoint = self._endpoint_label(request)
+        status_code = response.status_code
 
-    def _normalize_endpoint(self, path: str) -> str:
-        """
-        Normalize endpoint path for metrics aggregation.
+        api_requests_total.labels(
+            method=method,
+            endpoint=endpoint,
+            status_code=status_code
+        ).inc()
 
-        Replaces dynamic path parameters with placeholders:
-        - /api/v1/accelerators/gpus/nvidia0 -> /api/v1/accelerators/gpus/{gpu_id}
-        - /api/v1/infrastructure/pods/default/pod-123 -> /api/v1/infrastructure/pods/{namespace}/{pod_name}
-        """
-        # Split path into segments
-        segments = path.split('/')
+        duration = time.time() - start_time
+        api_request_duration_seconds.labels(
+            method=method,
+            endpoint=endpoint
+        ).observe(duration)
 
-        # Known patterns for path normalization
-        normalized_segments = []
-        skip_next = False
+        if status_code >= 400:
+            error_type = "client_error" if status_code < 500 else "server_error"
+            api_errors_total.labels(
+                method=method,
+                endpoint=endpoint,
+                error_type=error_type
+            ).inc()
 
-        for i, segment in enumerate(segments):
-            if skip_next:
-                skip_next = False
-                continue
+        return response
 
-            # Empty segment (leading slash)
-            if not segment:
-                normalized_segments.append(segment)
-                continue
-
-            # Static segments
-            if segment in ['api', 'v1', 'accelerators', 'infrastructure', 'hardware',
-                          'clusters', 'monitoring', 'export', 'system',
-                          'gpus', 'npus', 'nodes', 'pods', 'containers', 'vms',
-                          'ipmi', 'sensors', 'power', 'temperature', 'fans', 'voltage',
-                          'timeseries', 'stream', 'events', 'summary', 'metrics',
-                          'info', 'health', 'version', 'capabilities', 'status']:
-                normalized_segments.append(segment)
-                continue
-
-            # Dynamic segments - replace with placeholder
-            # Check context to determine placeholder name
-            prev_segment = segments[i-1] if i > 0 else None
-
-            if prev_segment == 'gpus':
-                normalized_segments.append('{gpu_id}')
-            elif prev_segment == 'npus':
-                normalized_segments.append('{npu_id}')
-            elif prev_segment == 'nodes':
-                normalized_segments.append('{node_name}')
-            elif prev_segment == 'pods':
-                # Pods have namespace/pod_name pattern
-                next_segment = segments[i+1] if i+1 < len(segments) else None
-                if next_segment and next_segment not in ['power', 'metrics', 'summary']:
-                    normalized_segments.append('{namespace}')
-                    normalized_segments.append('{pod_name}')
-                    skip_next = True
-                else:
-                    normalized_segments.append('{namespace}')
-            elif prev_segment == 'clusters':
-                normalized_segments.append('{cluster_name}')
-            elif prev_segment == 'containers':
-                normalized_segments.append('{container_id}')
-            elif prev_segment == 'vms':
-                normalized_segments.append('{vm_id}')
-            else:
-                # Generic dynamic segment
-                normalized_segments.append('{id}')
-
-        return '/'.join(normalized_segments)
+    def _endpoint_label(self, request: Request) -> str:
+        """Endpoint label for metrics = matched route template (set in scope
+        during routing), keeping label cardinality bounded. Unmatched requests
+        (404 on arbitrary paths) collapse into a single label."""
+        route = request.scope.get("route")
+        return getattr(route, "path_format", None) or "unmatched"
 
 
 # ============================================================================

@@ -23,14 +23,28 @@ import (
 
 // ── Annotation 키 상수 ─────────────────────────────────────────────────────────
 const (
-	annotationIntent          = "sched.ai/intent"           // 워크로드 목적: training | serving | inference | batch
-	annotationPreference      = "sched.ai/preference"       // 스케줄링 방향: throughput | latency | cost | power
-	annotationAccType         = "sched.ai/acc-type"         // 가속기 종류: gpu | npu | cpu
-	annotationAccProfile      = "sched.ai/acc-profile"      // 가속기 프로파일: mig-preferred | small | medium | large
-	annotationAccScale        = "sched.ai/acc-scale"        // 전체 가속기 수 (PodSet count × acc/pod)
-	annotationRescheduling    = "sched.ai/rescheduling"     // 재배치 허용 여부: free | forbidden
-	annotationDataSensitivity = "sched.ai/data-sensitivity" // 데이터 이동 민감도: low | very-high
-	annotationOptimized       = "kcloud.io/optimized"       // 최적화 완료 플래그
+	annotationSchemaVersion         = "sched.ai/schema-version"           // Annotation 계약 버전
+	annotationIntent                = "sched.ai/intent"                   // 워크로드 목적: training | serving | inference | batch
+	annotationPreference            = "sched.ai/preference"               // 스케줄링 방향: throughput | latency | cost | power
+	annotationAccType               = "sched.ai/acc-type"                 // 가속기 종류: gpu | npu | cpu | mixed(GPU+NPU)
+	annotationAccProfile            = "sched.ai/acc-profile"              // 가속기 프로파일: mig-preferred | small | medium | large
+	annotationAccScale              = "sched.ai/acc-scale"                // 전체 가속기 수 (PodSet count × acc/pod)
+	annotationAccVendor             = "sched.ai/acc-vendor"               // nvidia | furiosa | 쉼표 구분 복수 제조사
+	annotationAccModel              = "sched.ai/acc-model"                // 장치 모델 또는 쉼표 구분 복수 모델
+	annotationAccResource           = "sched.ai/acc-resource"             // Kubernetes extended resource name
+	annotationAccResourceCounts     = "sched.ai/acc-resource-counts"      // resourceName=count 목록
+	annotationGPUCount              = "sched.ai/gpu-count"                // GPU 수량(Workload 전체 또는 Pod 요청량)
+	annotationNPUCount              = "sched.ai/npu-count"                // NPU 수량(Workload 전체 또는 Pod 요청량)
+	annotationGPUVendor             = "sched.ai/gpu-vendor"               // GPU 제조사
+	annotationGPUModel              = "sched.ai/gpu-model"                // GPU 모델 또는 쉼표 구분 허용 모델
+	annotationNPUVendor             = "sched.ai/npu-vendor"               // NPU 제조사
+	annotationNPUModel              = "sched.ai/npu-model"                // NPU 모델 또는 쉼표 구분 허용 모델
+	annotationPredictedCostByModel  = "sched.ai/predicted-cost-by-model"  // model=value fixture 목록
+	annotationPredictedPowerByModel = "sched.ai/predicted-power-by-model" // model=value fixture 목록
+	annotationComposition           = "sched.ai/resource-composition"     // cpu+npu | cpu+gpu | cpu+gpu+npu 등
+	annotationRescheduling          = "sched.ai/rescheduling"             // 재배치 허용 여부: free | forbidden
+	annotationDataSensitivity       = "sched.ai/data-sensitivity"         // 데이터 이동 민감도: low | very-high
+	annotationOptimized             = "kcloud.io/optimized"               // 최적화 완료 플래그
 )
 
 // WorkloadMutator는 Kueue Workload 객체를 분석하여 정밀한 스케줄링 힌트를 주입합니다.
@@ -88,23 +102,34 @@ func (m *WorkloadMutator) mutateWorkload(wl *unstructured.Unstructured) bool {
 		annotations = make(map[string]string)
 	}
 
-	// 1. 가속기 정보 추출 (GPU/NPU 수 및 전체 스케일 계산)
-	accType, accPerPod, totalScale := m.analyzeAccelerators(wl)
+	// 1. 가속기 정보 추출 (GPU/NPU 수, CPU 포함 조합 및 전체 스케일 계산)
+	summary, accPerPod := m.analyzeAccelerators(wl)
+	accType := summary.acceleratorType()
 
 	// 2. 워크로드 인텐트 및 선호도 결정
-	intent, preference := m.determineIntent(wl, accType > "cpu")
+	intent, preference := m.determineIntent(wl, accType != "cpu")
 
 	// 3. 데이터 및 재배치 민감도 분석 (PVC 유무 기반)
 	rescheduling, sensitivity := m.determineDataPolicy(wl)
 
-	// 7종 Annotation 주입
+	// 기존 7종과 장치 식별/조합 Annotation 주입
+	annotations[annotationSchemaVersion] = "v1alpha1"
 	annotations[annotationIntent] = intent
 	annotations[annotationPreference] = preference
+	annotations[annotationComposition] = summary.composition()
 
 	if accType != "cpu" {
 		annotations[annotationAccType] = accType
 		annotations[annotationAccProfile] = m.getAccProfile(accPerPod, accType)
-		annotations[annotationAccScale] = fmt.Sprintf("%d", totalScale)
+		annotations[annotationAccScale] = fmt.Sprintf("%d", summary.acceleratorCount())
+		resourceNames, vendor, model := summary.identity()
+		annotations[annotationAccResource] = resourceNames
+		annotations[annotationAccResourceCounts] = summary.resourceCountString()
+		annotations[annotationAccVendor] = vendor
+		annotations[annotationAccModel] = model
+		annotations[annotationGPUCount] = fmt.Sprintf("%d", summary.GPUCount)
+		annotations[annotationNPUCount] = fmt.Sprintf("%d", summary.NPUCount)
+		setTypedAcceleratorAnnotations(annotations, summary)
 	}
 
 	annotations[annotationRescheduling] = rescheduling
@@ -115,11 +140,12 @@ func (m *WorkloadMutator) mutateWorkload(wl *unstructured.Unstructured) bool {
 	return true
 }
 
-// analyzeAccelerators는 Workload 내의 모든 PodSet을 검사하여 가속기 통계를 반환합니다.
-func (m *WorkloadMutator) analyzeAccelerators(wl *unstructured.Unstructured) (string, int64, int64) {
-	var accType = "cpu"
+// analyzeAccelerators는 Workload 내 모든 PodSet의 CPU/GPU/NPU 조합과
+// 전체 가속기 수를 집계합니다. CPU+NPU는 acc-type=npu, composition=cpu+npu로
+// 기록하고 GPU+NPU만 acc-type=mixed로 기록하여 향후 혼합 점수 튜닝 지점을 남깁니다.
+func (m *WorkloadMutator) analyzeAccelerators(wl *unstructured.Unstructured) (resourceSummary, int64) {
+	total := newResourceSummary()
 	var maxAccPerPod int64 = 0
-	var totalScale int64 = 0
 
 	for _, ps := range getWorkloadPodSets(wl) {
 		count := getInt64(ps, "count")
@@ -127,17 +153,15 @@ func (m *WorkloadMutator) analyzeAccelerators(wl *unstructured.Unstructured) (st
 			count = 1
 		}
 		containers := getPodSetContainers(ps)
-		perPod := m.getAccCountPerPod(containers)
+		perPodSummary := summarizeContainerResources(containers)
+		perPod := perPodSummary.acceleratorCount()
 
-		if perPod > 0 {
-			accType = m.inferAccType(containers)
-			if perPod > maxAccPerPod {
-				maxAccPerPod = perPod
-			}
-			totalScale += count * perPod
+		if perPod > maxAccPerPod {
+			maxAccPerPod = perPod
 		}
+		total.merge(perPodSummary, count)
 	}
-	return accType, maxAccPerPod, totalScale
+	return total, maxAccPerPod
 }
 
 // determineIntent는 워크로드 명칭과 가속기 사용 여부로 목적을 추론합니다.
@@ -178,6 +202,11 @@ func (m *WorkloadMutator) getAccProfile(count int64, accType string) string {
 		}
 		return "npu-multi"
 	}
+	if accType == "mixed" {
+		// TODO(mixed-scheduling): 실제 GPU+NPU 동시 실행 데이터가 확보되면
+		// 장치별 수량/통신비용을 반영한 mixed profile로 세분화한다.
+		return "mixed-untuned"
+	}
 	return "none"
 }
 
@@ -192,35 +221,6 @@ func (m *WorkloadMutator) determineDataPolicy(wl *unstructured.Unstructured) (st
 		}
 	}
 	return "free", "low"
-}
-
-// inferAccType은 컨테이너 리소스 제한에서 가속기 제조사를 식별합니다.
-func (m *WorkloadMutator) inferAccType(containers []corev1.Container) string {
-	for _, c := range containers {
-		for resName := range c.Resources.Limits {
-			name := string(resName)
-			if strings.Contains(name, "nvidia.com") {
-				return "gpu"
-			}
-			if strings.Contains(name, "npu.com") || strings.Contains(name, "furiosa.ai") {
-				return "npu"
-			}
-		}
-	}
-	return "cpu"
-}
-
-// getAccCountPerPod은 단일 파드에 할당된 가속기 수량을 합산합니다.
-func (m *WorkloadMutator) getAccCountPerPod(containers []corev1.Container) int64 {
-	var total int64 = 0
-	for _, c := range containers {
-		for resName, qty := range c.Resources.Limits {
-			if strings.Contains(string(resName), "gpu") || strings.Contains(string(resName), "npu") {
-				total += qty.Value()
-			}
-		}
-	}
-	return total
 }
 
 func getWorkloadPodSets(wl *unstructured.Unstructured) []map[string]interface{} {

@@ -1,37 +1,45 @@
-# Cost-Based Scheduler Architecture
+# keti-cost-scheduler Architecture
 
 ## Overview
 
-Cost-Based Scheduler는 Kubernetes 클러스터에서 GPU/NPU 워크로드를 비용 및 전력 효율성 기반으로 스케줄링하는 커스텀 스케줄러입니다. 플러그인 기반 아키텍처를 사용하여 확장성과 유지보수성을 보장합니다.
+keti-cost-scheduler(이전 이름 cost-based-scheduler)는 Kubernetes 클러스터에서 GPU/NPU 워크로드를 비용·전력 효율 기준으로 배치하는 커스텀 스케줄러입니다. `schedulerName: keti-cost-scheduler`인 Pod를 처리하며, 기존 매니페스트 마이그레이션 기간에는 `cost-based-scheduler`도 함께 받습니다.
+
+플러그인은 `internal/config/config.go`에서 다음 순서로 등록됩니다.
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                            Cost-Based Scheduler                               │
-├──────────────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐ │
-│  │  PreFilter   │─▶│    Filter    │─▶│    Score     │─▶│  Permit + Bind   │ │
-│  │   Plugins    │  │   Plugins    │  │   Plugins    │  │    Plugins       │ │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘ │
-│         │                  │                  │                  │            │
-│         ▼                  ▼                  ▼                  ▼            │
-│  DurationAware      TaintToleration    CostEfficiency     GangScheduling     │
-│  (long/short        NodeSelector       (0- 50 pts)        (gang-size)        │
-│   노드 사전 확인)    NodeResourcesFit   PowerEfficiency                        │
-│                     [+HAMi extender    (0- 30 pts)        DefaultBinder      │
-│                      GPU slice 필터]   PodAffinity        (CPU workloads)    │
-│                                        (0- 20 pts)                            │
-│                                        BinPacking         HAMi Extender      │
-│                                        (0-100 pts)        Bind               │
-│                                        DurationAware      (GPU workloads)    │
-│                                        (0- 20 pts)                            │
-│                                        WorkloadAwareCost                      │
-│                                        (0- 25 pts)                            │
-│                                        WorkloadAwarePower                     │
-│                                        (0- 15 pts)                            │
-│                                                                               │
-│                     AcceleratorMetricsProvider (accelerator-config.yaml)     │
-└──────────────────────────────────────────────────────────────────────────────┘
+PreFilter ─▶ Filter ─▶ (HAMi Filter) ─▶ PreScore ─▶ Score ─▶ Select ─▶ Permit ─▶ Bind
+    │          │                          │           │          │          │        │
+    ▼          ▼                          ▼           ▼          ▼          ▼        ▼
+Duration   TaintToleration           CatalogAware  CostEfficiency  최고점   Gang     DefaultBinder
+Aware      NodeSelector              Score         PowerEfficiency 노드     Scheduling (CPU)
+           NodeResourcesFit          (Catalog 조회) PodAffinity    선택 +            HAMi Bind
+           AcceleratorModelFit                     BinPacking     배치 결정          (GPU 분할)
+           + 필수 배치 검사 7종                     DurationAware  기록
+                                                   WorkloadAwareCost
+                                                   WorkloadAwarePower
+                                                   CatalogAwareScore
 ```
+
+| 단계 | 플러그인 | 역할 |
+|---|---|---|
+| PreFilter | DurationAwareScheduling | long/short 클래스 노드 확인 |
+| Filter | TaintToleration | NoSchedule/NoExecute taint 노드 제외 |
+| Filter | NodeSelector | nodeSelector / nodeName 조건 |
+| Filter | NodeResourcesFit | CPU·Memory·GPU·NPU 요청량 |
+| Filter | AcceleratorModelFit | `sched.ai` GPU/NPU 모델과 Node 모델 일치 |
+| PreScore | CatalogAwareScore | 후보 노드별 Catalog 조회를 시도 단위로 한 번 준비 |
+| Score | CostEfficiency (0–50) | 추론당 비용 |
+| Score | PowerEfficiency (0–30) | 와트당 성능 |
+| Score | PodAffinity (0–20) | job/queue 동일 배치 또는 분산 |
+| Score | BinPacking (0–100) | 노드 집적률 |
+| Score | DurationAwareScheduling (0–20) | 장기/단기 클래스 일치 |
+| Score | WorkloadAwareCost (0–25) | 예측 비용 보완 |
+| Score | WorkloadAwarePower (0–15) | 예측 전력 보완 |
+| Score | CatalogAwareScore | 실측 Profile 기반 점수. 기본은 Shadow(가중치 0) |
+| Permit | GangScheduling | `sched.ai/gang-size` 기준 묶음 배치 |
+| Bind | DefaultBinder / HAMi | CPU 작업은 DefaultBinder, GPU 분할 작업은 HAMi Extender |
+
+DurationAwareScheduling은 Node에 long/short 클래스 Label이 있을 때만 점수 차이를 만듭니다.
 
 ---
 
@@ -39,37 +47,25 @@ Cost-Based Scheduler는 Kubernetes 클러스터에서 GPU/NPU 워크로드를 �
 
 ```
 cost-based-scheduler/
-├── cmd/
-│   └── main.go                      # 엔트리포인트
-├── config/
-│   └── accelerator-config.yaml      # GPU/NPU 스펙 설정
+├── cmd/main.go                       # 엔트리포인트
+├── config/accelerator-config.yaml    # GPU/NPU 스펙 설정
+├── deployments/                      # Kubernetes 매니페스트
 ├── internal/
-│   ├── backend/
-│   │   ├── heap/                    # 힙 자료구조
-│   │   ├── log/                     # 로깅
-│   │   └── queue/                   # 스케줄링 큐
-│   ├── config/
-│   │   └── config.go                # 스케줄러 설정
+│   ├── acceleratorfit/               # GPU/NPU 모델 일치 판단
+│   ├── backend/{heap,log,queue}/     # 스케줄링 큐·로깅
+│   ├── catalogclient/                # Catalog API 클라이언트(조회·캐시·시간초과)
+│   ├── config/config.go              # 플러그인 등록과 스케줄러 설정
+│   ├── decisionrecorder/             # 배치 결정 JSONL 비동기 기록
+│   ├── fixture/                      # 오프라인 시험 데이터 로더
 │   ├── framework/
-│   │   ├── interface.go             # 플러그인 인터페이스
-│   │   ├── framework.go             # 프레임워크 구현
-│   │   ├── plugin/
-│   │   │   ├── costefficiency.go    # 비용 효율성 플러그인
-│   │   │   ├── powerefficiency.go   # 전력 효율성 플러그인
-│   │   │   ├── podaffinity.go       # Pod 친화도 플러그인
-│   │   │   ├── noderesourcesfit.go  # 리소스 필터 플러그인
-│   │   │   └── defaultbinder.go     # 바인딩 플러그인
-│   │   └── utils/
-│   │       ├── accelerator.go       # Accelerator 메트릭 Provider
-│   │       ├── cache.go             # 노드/Pod 캐시
-│   │       ├── nodeinfo.go          # 노드 정보
-│   │       └── result.go            # 스코어링 결과
-│   └── scheduler/
-│       ├── scheduler.go             # 스케줄러 라이프사이클
-│       ├── schedule_one.go          # 스케줄링 사이클
-│       ├── eventhandler.go          # 이벤트 핸들러
-│       └── events.go                # 이벤트 정의
-└── deployments/                     # Kubernetes 매니페스트
+│   │   ├── interface.go              # PreFilter·Filter·PreScore·Score·Permit·Bind 인터페이스
+│   │   ├── framework.go              # 단계별 플러그인 실행
+│   │   ├── plugin/                   # 플러그인 구현
+│   │   └── utils/                    # 캐시·노드 정보·시도 상태
+│   ├── placementchecks/              # 필수 배치 검사 7종
+│   ├── scheduler/                    # 스케줄링 사이클·이벤트·단계별 시간 기록
+│   └── workloadcontext/              # Catalog 조회 키(environment_key) 생성
+└── scripts/                          # 빌드·배포·로그 확인 스크립트
 ```
 
 ---
@@ -78,97 +74,79 @@ cost-based-scheduler/
 
 ### 1. Scheduler
 
-스케줄러의 메인 컴포넌트로, Pod 스케줄링 라이프사이클을 관리합니다.
+`internal/scheduler`는 Pod 이벤트를 받아 큐에 넣고, `ScheduleOne`으로 한 Pod씩 배치합니다.
 
-```go
-type Scheduler struct {
-    schedulerConfig *config.SchedulerConfig
-    Cache           *utils.Cache              // 노드/Pod 캐시
-    SchedulingQueue *internalqueue.SchedulingQueue
-    fwk             framework.Framework       // 플러그인 프레임워크
-}
-```
+- Informer 기반 Pod/Node 이벤트 처리
+- 스케줄링 큐와 재시도
+- 배치 결정 기록(`SCHED_DECISION_JSONL`)과 단계별 시간 기록
 
-**주요 기능:**
-- Pod 이벤트 감시 및 큐 관리
-- 스케줄링 사이클 실행
-- GPU 메트릭 주기적 갱신
+GPU 실측 수집기(`fetchNodeGPUMetrics`)는 아직 연결되지 않았습니다. 실측값이 없으면 관련 검사는 UNEVALUATED로 남습니다.
 
 ### 2. Framework
 
-플러그인들을 실행하는 프레임워크입니다.
-
 ```go
 type Framework interface {
+    RunPreFilterPlugins(ctx, pod) *Status
     RunFilterPlugins(ctx, pod, nodeInfo) PluginResultMap
+    RunPreScorePlugins(ctx, pod, nodes) *Status
     RunScorePlugins(ctx, pod, nodes) (PluginResultMap, *Status)
+    CommitPlacementDecisions(pod, selectedHost, selectErr)
+    RunPermitPlugins(ctx, pod, nodeName) *Status
     RunBindPlugin(ctx, pod, nodeName) *Status
 }
 ```
 
+PreScore는 `PreScorePlugin`을 함께 구현한 Score 플러그인만 실행합니다. PreScore에서 준비한 Catalog 결과는 같은 시도의 Score가 그대로 사용하며, Score에서 HTTP를 다시 호출하지 않습니다. 조회 실패·누락·시간초과도 같은 시도 안에서는 재조회하지 않고 미평가로 처리합니다.
+
 ### 3. Cache
 
-클러스터 상태를 메모리에 캐싱합니다.
-
-```go
-type Cache struct {
-    nodes       map[string]*NodeInfo    // 노드 정보
-    podStates   map[string]*podState    // Pod 상태
-    assumedPods sets.Set[string]        // 가정된(스케줄 예정) Pod
-}
-```
+노드·Pod 상태와 배치 예정(assumed) Pod를 메모리에 유지합니다.
 
 ### 4. AcceleratorMetricsProvider
 
-GPU/NPU 메트릭을 제공하는 인터페이스입니다.
-
-```go
-type AcceleratorMetricsProvider interface {
-    GetMetrics(node *corev1.Node) AcceleratorMetrics
-    GetMetricsByGPUInfo(gpuType, gpuModel string) AcceleratorMetrics
-    GetConfig() *AcceleratorConfig
-}
-```
+`accelerator-config.yaml`의 GPU/NPU 스펙(비용·성능·전력)을 Score 플러그인에 제공합니다.
 
 ---
 
 ## Scheduling Cycle
 
-### Phase 1: Filter (필터링)
+1. **PreFilter**: Pod 단위 사전 조건 확인
+2. **Filter**: 노드별 조건 확인과 필수 배치 검사 7종 평가. GPU 분할 요청은 HAMi Extender Filter를 추가로 거침
+3. **PreScore**: Catalog 조회 준비(조회 키 기준 중복 제거)
+4. **Score**: 플러그인 점수 합산. 정규화는 `ScoreExtensions`에서 수행
+5. **Select**: 최고점 노드 선택, 배치 결정 기록
+6. **Permit**: Gang 조건 확인(대기·거부 가능)
+7. **Bind**: DefaultBinder 또는 HAMi Bind. 실패하면 backoff 큐로 재시도
 
-리소스 요구사항을 충족하지 못하는 노드를 제외합니다.
+### 필수 배치 검사
 
-```
-Pod Request: nvidia.com/gpu: 1, cpu: 4, memory: 8Gi
+`internal/placementchecks`는 다음 순서로 7종을 평가합니다. 결과는 PASS / REJECT / UNEVALUATED입니다.
 
-Node A: nvidia.com/gpu: 2 (available: 1) ✓ Pass
-Node B: nvidia.com/gpu: 0 (available: 0) ✗ Filtered
-Node C: nvidia.com/gpu: 4 (available: 2) ✓ Pass
-```
+| 순서 | ID | 내용 |
+|---|---|---|
+| 1 | accelerator | 장치 종류·모델 |
+| 2 | memory-headroom | 장치 메모리 여유(`memory_safety_margin_mib`) |
+| 3 | runtime | 런타임 조건 |
+| 4 | topology | 장치 배치 조건 |
+| 5 | thermal-power | 온도·전력 상한(`max_gpu_temp_c`, `max_gpu_power_w`, `max_server_power_w`) |
+| 6 | data-freshness | 측정값 수집 시각(`max_age_seconds`, `max_future_skew_seconds`) |
+| 7 | policy | 운영 정책 |
 
-### Phase 2: Score (스코어링)
+검사별 모드는 `off`·`record`·`enforce`이며 기본값은 `record`입니다. `record`는 결과만 기록하고 배치를 막지 않습니다. 설정 파일은 `SCHED_REQUIRED_CHECKS_CONFIG`로 지정하며, 파일 오류가 있으면 스케줄러가 시작하지 않습니다. 메모리 여유값을 정하지 않으면 memory-headroom은 UNEVALUATED입니다.
 
-통과한 노드들에 대해 점수를 계산합니다.
+### 큐 재시도
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                    Total Score (0-100)                          │
-├────────────────────────────────────────────────────────────────┤
-│  CostEfficiency   │  PowerEfficiency  │    PodAffinity         │
-│     (0-50)        │      (0-30)       │      (0-20)            │
-├───────────────────┼───────────────────┼────────────────────────┤
-│ cost/inference    │   perf/watt       │  job/queue co-location │
-│ 기반 점수          │   기반 점수        │  또는 spreading        │
-└───────────────────┴───────────────────┴────────────────────────┘
-```
+배치하지 못한 Pod는 unschedulable 큐에서 기다립니다. 다음 이벤트가 오면 active/backoff 큐로 다시 옮깁니다.
 
-### Phase 3: Select (선택)
+- Node 추가·변경
+- 배정된 Pod의 종료(Succeeded/Failed) 또는 삭제
+- unschedulable 큐에서 5분 넘게 기다린 Pod(30초마다 확인)
 
-가장 높은 점수를 받은 노드를 선택합니다.
+`SCHED_POD_MAX_SCHEDULING_ATTEMPTS`로 Pod별 최대 시도 횟수를 제한할 수 있습니다.
 
-### Phase 4: Bind (바인딩)
+### 단계별 시간 기록
 
-선택된 노드에 Pod를 바인딩합니다.
+`SCHED_DECISION_JSONL`을 지정하면 시도마다 `prefilter_ms`, `filter_ms`, `hami_filter_ms`, `prescore_ms`, `score_ms`, `select_ms`, `bind_ms`, `attempt_to_terminal_ms`를 기록합니다. 기록은 별도 고루틴의 큐(`SCHED_DECISION_QUEUE_SIZE`, 기본 256)로 쓰므로 스케줄링 경로를 막지 않습니다. 이 값은 검증용이며, 기본 스케줄러와 같은 측정 경계를 맞추기 전에는 공식 성능 지표로 쓰지 않습니다.
 
 ---
 
@@ -405,8 +383,19 @@ accelerators:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ACCELERATOR_CONFIG_PATH` | Config file path | `/etc/scheduler/accelerator-config.yaml` |
-| `KUBECONFIG` | Kubeconfig path (out-of-cluster) | `~/.kube/config` |
+| `ACCELERATOR_CONFIG_PATH` | GPU/NPU 스펙 설정 파일 | `/etc/scheduler/accelerator-config.yaml` |
+| `KUBECONFIG` | 클러스터 밖에서 실행할 때 kubeconfig | `~/.kube/config` |
+| `SCHED_REQUIRED_CHECKS_CONFIG` | 필수 배치 검사 설정 파일 | 없음(모든 검사 `record`) |
+| `SCHED_POD_MAX_SCHEDULING_ATTEMPTS` | Pod별 최대 시도 횟수 | 제한 없음 |
+| `SCHED_DECISION_JSONL` | 배치 결정·단계별 시간 기록 파일 | 없음(기록 안 함) |
+| `SCHED_DECISION_QUEUE_SIZE` | 기록 큐 크기 | `256` |
+| `SCHED_CATALOG_MODE` | Catalog 연동: `off`, `shadow`, `enforce` | `off` |
+| `SCHED_CATALOG_URL` | Catalog API 주소 | 없음 |
+| `SCHED_CATALOG_TIMEOUT_MS` | Catalog 조회 시간초과 | `100` |
+| `SCHED_CATALOG_CACHE_TTL_SEC` | Catalog 조회 캐시 유지 시간 | `30` |
+| `SCHED_SHADOW_SCORE_WEIGHT` | CatalogAwareScore 반영 가중치 | `0` |
+| `SCHED_PREDICTION_MIN_CONFIDENCE` | 점수에 쓸 최소 신뢰 등급 | `MEASURED` |
+| `SCHED_EXPERIMENT_ID` | 배치 결정 기록에 붙는 실험 ID | 없음 |
 
 ### Pod Annotations
 
@@ -509,19 +498,19 @@ accelerators:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cost-based-scheduler
-  namespace: kube-system
+  name: keti-cost-scheduler
+  namespace: kcp-control-plane
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cost-based-scheduler
+      app: keti-cost-scheduler
   template:
     spec:
-      serviceAccountName: cost-based-scheduler
+      serviceAccountName: keti-cost-scheduler
       containers:
       - name: scheduler
-        image: cost-based-scheduler:latest
+        image: ketidevit2/keti-cost-scheduler:0.4.2
         env:
         - name: ACCELERATOR_CONFIG_PATH
           value: /etc/scheduler/accelerator-config.yaml
@@ -549,7 +538,7 @@ metadata:
   annotations:
     scheduler.affinity-mode: preferred
 spec:
-  schedulerName: cost-based-scheduler  # 커스텀 스케줄러 사용
+  schedulerName: keti-cost-scheduler  # 커스텀 스케줄러 사용
   containers:
   - name: inference
     image: my-inference-image

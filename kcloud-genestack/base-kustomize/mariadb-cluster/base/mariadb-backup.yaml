@@ -1,0 +1,44 @@
+---
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Backup
+metadata:
+  name: mariadb-backup
+  namespace: openstack
+spec:
+  mariaDbRef:
+    name: mariadb-cluster
+    namespace: openstack
+  schedule:
+    cron: "0 0 * * *"
+  serviceAccountName: backup
+  compression: gzip
+  storage:
+    persistentVolumeClaim:
+      resources:
+        requests:
+          storage: 1Gi
+      accessModes:
+        - ReadWriteOnce
+  args:
+    - --single-transaction
+    - --all-databases
+    - --verbose
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                    - mariadb-cluster
+            topologyKey: kubernetes.io/hostname

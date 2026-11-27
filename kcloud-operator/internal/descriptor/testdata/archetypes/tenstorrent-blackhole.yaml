@@ -1,0 +1,13 @@
+# tenstorrent-blackhole.yaml: 유효 descriptor archetype - Tenstorrent Blackhole | 생성일: 2026-08-10
+vendor: tenstorrent
+product: blackhole
+allocationUnit: device
+# 실측(NodeDeviceReport, k8s-worker3): {"vendor":"tenstorrent","model":"blackhole-p150",
+# "pcieAddress":"0000:af:00.0", ...} - serial 필드 없음, pcieAddress 만 있다.
+identity:
+  source: pciAddress
+  stableAcrossReboot: true
+deviceNodes:
+  - /dev/tenstorrent/{{id}}
+backends:
+  - devicePlugin

@@ -1,0 +1,237 @@
+# openKcloud 포털 엄브렐러 차트 값
+# 배포: helm upgrade --install openkcloud-portal charts/openkcloud-portal -n openkcloud-mnt
+# 앱 시크릿도 이 차트가 만든다 — 값은 아래 secrets·workflow.dbPassword(비공개 저장소 전제로 이 파일에 적는다).
+
+global:
+  namespace: openkcloud-mnt
+  image:
+    registry: harbor.io:7443/mnt   # Harbor 프로젝트 mnt
+    tag: c12e187                   # 현재 배포 태그(재빌드 시 교체 또는 --set global.image.tag=<git-sha>)
+    pullPolicy: IfNotPresent
+  # Harbor pull 자격증명 시크릿(docker-registry 타입) — 별도 생성 필요
+  imagePullSecrets:
+    - name: harbor-pull
+  # 컨트롤플레인(마스터) 제외, 워커에만 스케줄
+  nodeSelectorWorkerOnly: true
+  # 모듈별로 안 덮으면 쓰는 기본 리소스
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 1Gi }
+
+# ── 백엔드(FastAPI, 동일 패턴) ───────────────────────────────────────
+# env = ConfigMap 으로 주입(비밀값 제외). secretName 지정 시 그 Secret 을 envFrom 으로 추가.
+backends:
+  core:
+    image: mnt-core
+    port: 8000
+    replicas: 1
+    secretName: mnt-core-secret        # DATABASE_URL, KEYCLOAK_CLIENT_SECRET 제공
+    env:
+      SERVICE_NAME: mnt-core
+      API_PREFIX: /api/core
+      CORS_ORIGINS: ""                 # 게이트웨이 single-origin → 빈값
+      IAAS_API_BASE: http://mnt-iaas.openkcloud-mnt.svc.cluster.local
+      PAAS_API_BASE: http://mnt-paas.openkcloud-mnt.svc.cluster.local
+      OBS_API_BASE: http://mnt-obs.openkcloud-mnt.svc.cluster.local
+      AINB_API_BASE: http://mnt-ainb.openkcloud-mnt.svc.cluster.local
+      TEMPORAL_API_BASE: mnt-workflow.openkcloud-mnt.svc.cluster.local:7233   # Temporal 서버(gRPC)
+      # Keycloak(로그인 토큰 검증) — 발급자는 브라우저가 보는 주소, JWKS·관리 API 는 클러스터 내부(25443 은 외부 NAT 전용)
+      # 비밀키 KEYCLOAK_CLIENT_SECRET 은 mnt-core-secret 에
+      KEYCLOAK_ISSUER: https://portal.kcloud.etri:25443/auth/realms/openkcloud_realm
+      KEYCLOAK_JWKS_URL: http://keycloak-http.openkcloud-mnt.svc.cluster.local/realms/openkcloud_realm/protocol/openid-connect/certs
+      KEYCLOAK_INTERNAL_URL: http://keycloak-http.openkcloud-mnt.svc.cluster.local/realms/openkcloud_realm
+      # 동시 로그인 제한 — "true": 같은 계정이 다른 곳(다른 브라우저)에서 로그인하면 앞의 세션을 끝낸다("다른곳에서 로그인되었습니다.")
+      #                   "false": 여러 곳 동시 로그인 허용(계정을 여럿이 같이 쓸 때). 관리자 포함 전체 적용
+      SESSION_SINGLE_LOGIN: "false"
+
+  iaas:
+    image: mnt-iaas
+    port: 8000
+    replicas: 1
+    secretName: mnt-iaas-secret        # OS_USERNAME / OS_PASSWORD 제공
+    env:
+      SERVICE_NAME: mnt-iaas
+      API_PREFIX: /api/iaas
+      CORS_ORIGINS: ""
+      CORE_API_BASE: http://mnt-core.openkcloud-mnt.svc.cluster.local
+      TEMPORAL_API_BASE: mnt-workflow.openkcloud-mnt.svc.cluster.local:7233   # Temporal 서버(gRPC)
+      # OpenStack: 클러스터 내부는 ingressgateway 443 (25443은 외부 NAT 전용!).
+      # CoreDNS가 *-api.openstack.internal → 192.168.90.252(ingressgateway)로 해석.
+      OS_AUTH_URL: https://keystone-api.openstack.internal/v3
+      OS_PROJECT_NAME: admin
+      OS_USER_DOMAIN_NAME: Default
+      OS_PROJECT_DOMAIN_NAME: Default
+      OS_REGION_NAME: ""
+      OS_INSECURE: "true"              # 초기: verify off. 사내 root CA 신뢰 후 false 로.
+      OS_ENDPOINT_MODE: override       # ingress 직접(검증된 패턴)
+      OS_ENDPOINT_TEMPLATE: "https://{service}-api.openstack.internal"
+      OS_INTERFACE: internal
+      # 웹 콘솔(noVNC) 외부 접속용 — Nova 가 포트 없는 내부 URL(443)로 줘서 브라우저용 25443 으로 치환
+      OS_CONSOLE_PUBLIC_BASE: "https://novnc.openstack.internal:25443"
+
+  paas:
+    image: mnt-paas
+    port: 8000
+    replicas: 1
+    secretName: mnt-paas-secret       # OS_USERNAME / OS_PASSWORD 제공 (mnt-iaas-secret 과 동일 값)
+    env:
+      SERVICE_NAME: mnt-paas
+      API_PREFIX: /api/paas
+      CORS_ORIGINS: ""
+      CORE_API_BASE: http://mnt-core.openkcloud-mnt.svc.cluster.local   # PaaS API 인증(사용자·접근 클러스터 확인)
+      TEMPORAL_API_BASE: mnt-workflow.openkcloud-mnt.svc.cluster.local:7233   # 클러스터 프로비저닝 작업 워커(큐 okc-paas)
+      # OpenStack(Magnum) — MNT-IAAS 와 동일 규칙: 클러스터 내부는 ingressgateway 443
+      OS_AUTH_URL: https://keystone-api.openstack.internal/v3
+      OS_PROJECT_NAME: admin
+      OS_USER_DOMAIN_NAME: Default
+      OS_PROJECT_DOMAIN_NAME: Default
+      OS_INSECURE: "true"
+      OS_ENDPOINT_MODE: override
+      OS_ENDPOINT_TEMPLATE: "https://{service}-api.openstack.internal"
+
+  obs:
+    image: mnt-obs
+    port: 8000
+    replicas: 1
+    secretName: mnt-obs-secret         # MONITOR_USERNAME / MONITOR_PASSWORD 제공
+    env:
+      SERVICE_NAME: mnt-obs
+      API_PREFIX: /api/obs
+      CORS_ORIGINS: ""
+      # KCloud Monitor v2 (이노그리드) — master3 의 Docker 컨테이너(k8s 파드 아님).
+      # 파드에서 닿는 주소 = master3 노드IP:8000. ⚠️ 파드 도달 확인 필요(netcheck);
+      # 안 되면 Service/Endpoints(→172.29.236.153:8000) 구성 후 그 DNS 로 교체.
+      MONITOR_BASE_URL: http://172.29.236.153:8000/api/v2
+
+  ainb:
+    image: mnt-ainb
+    port: 8000
+    replicas: 1                        # 1대 고정 — IDE 연결(port-forward)·성능 분석 상태를 프로세스가 들고 있다
+    secretName: mnt-ainb-secret        # CMP_SESSION_SECRET / MODEL_STORE_KEY / MODEL_STORE_SECRET 제공(차트가 만든다 — 아래 secrets.ainb)
+    # 서비스 클러스터 접속 정보 — MNT-PAAS 가 클러스터마다 발급하는 kubeconfig 를 받아 이 Secret 에 보관한다
+    # (env CLUSTER_SOURCE=paas). 이 모듈 전용 ServiceAccount·Role 을 함께 만든다.
+    # 예전 방식(서비스 클러스터 하나 고정)으로 돌리려면 이 줄과 env 의 CLUSTER_SOURCE 를 지우고
+    # kubeconfigSecret: mnt-ainb-kubeconfig(키 config) 와 env KUBECONFIG: /etc/mnt-ainb/kubeconfig/config 를 준다.
+    clusterStoreSecret: mnt-ainb-clusters
+    # 게이트웨이 경로 추가 — 노트북 IDE 프록시(노트북 서버가 /notebook/{ns}/{name}/ 경로로 링크를 만든다)
+    extraPrefixes:
+      - /notebook/
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+      limits: { cpu: "2", memory: 2Gi }
+    env:
+      SERVICE_NAME: mnt-ainb
+      API_PREFIX: /api/ainb
+      CORS_ORIGINS: ""
+      CORE_API_BASE: http://mnt-core.openkcloud-mnt.svc.cluster.local
+      TEMPORAL_API_BASE: mnt-workflow.openkcloud-mnt.svc.cluster.local:7233   # Temporal 서버(gRPC)
+      PUBLIC_BASE_URL: https://portal.kcloud.etri:25443   # 브라우저가 여는 포털 주소 — IDE 주소 발급용
+      # 서비스 클러스터 = MNT-PAAS 클러스터 — AI 워크스페이스 신청 때 고르고, 접속 정보는 사용자 로그인·신청 때 그 토큰으로 받는다
+      CLUSTER_SOURCE: paas
+      PAAS_API_BASE: http://mnt-paas.openkcloud-mnt.svc.cluster.local
+      CLUSTER_STORE_SECRET: mnt-ainb-clusters        # 위 clusterStoreSecret 과 같은 이름
+      DEFAULT_NAMESPACE: okc
+      ACCEL_RESOURCE: furiosa.ai/rngd  # 서비스 클러스터 NPU(device plugin 설치 후 노출되는 이름)
+      GPU_RUNTIME_CLASS: ""
+
+# ── 앱 시크릿 — 차트가 만든다(templates/secrets.yaml) ─────────────────
+# 적은 값을 쓰고, 비워 두면 클러스터에 이미 있는 값을 그대로 쓴다. 값을 바꾸면 파드가 다시 시작된다.
+# 릴리스와 함께 만들고 지운다 — helm uninstall 하면 시크릿도 지워지므로 다시 설치하려면 값이 모두 여기 있어야 한다
+# (빈 값이 있으면 배포가 멈추고 빠진 항목을 알려 준다).
+secrets:
+  # 실값 커밋 금지 — 기존 배포는 비워 두면 클러스터의 Secret 값을 유지하고,
+  # 새 설치는 --set secrets.keycloakClientSecret=<값> 처럼 설치 시점에 주입한다
+  keycloakClientSecret: ""     # mnt-core-secret — Keycloak openkcloud_realm → Clients → mnt-core-client → Credentials
+  openstack:                   # mnt-iaas-secret·mnt-paas-secret 공통(extadmin)
+    username: "extadmin"
+    password: ""               # 실값 커밋 금지 — 위와 같은 방식으로 주입
+  monitor:                     # mnt-obs-secret — KCloud Monitor v2 관리 계정
+    username: "admin"
+    password: "changeme"
+  ainb:                        # mnt-ainb-secret — 비워 두면 기존 값 유지, 처음 설치면 세션 키는 무작위로 만든다
+    sessionSecret: ""          # IDE 세션 서명 키(CMP_SESSION_SECRET) — 고정돼 있어야 재배포 뒤에도 IDE 로그인이 유지된다
+    modelStoreKey: ""          # 서비스 클러스터 Kubeflow Pipelines MinIO 계정(학습 결과·모델 저장) — 비우면 모듈 기본값
+    modelStoreSecret: ""
+  # mnt-core-secret 의 DATABASE_URL — CNPG 시크릿(appSecret)의 비밀번호로 차트가 만든다(적을 것 없음)
+  db:
+    appSecret: openkcloud-db-app-cred
+    user: portal_user
+    host: openkcloud-db-rw.openkcloud-mnt:5432
+    name: openkcloud_portal
+
+# ── Temporal 서버(MNT-WORKFLOW) — 프로비저닝 워크플로의 작업 장부 ─────────
+# 한 파드(replicas 1, Recreate): initContainer schema(스키마 자동 설치·업그레이드) + temporal(:7233) + ui(:8080)
+# + Job(워크플로 네임스페이스 준비) + VirtualService(웹 화면). 공식 이미지를 Harbor(mnt/mnt-workflow/temporalio/*)로 옮겨 사용.
+# 버전: server·adminTools 는 같은 버전으로, 마이너 버전은 한 단계씩 올린다(1.31 → 1.32 → …).
+# 배포 전 1회: MNT-WORKFLOW/db/temporal_schema.sql 적용. mnt-workflow-secret 은 차트가 만든다(아래 dbPassword, templates/secrets.yaml).
+workflow:
+  enabled: true
+  images:
+    server: harbor.io:7443/mnt/mnt-workflow/temporalio/server:1.31.3
+    adminTools: harbor.io:7443/mnt/mnt-workflow/temporalio/admin-tools:1.31.3
+    ui: harbor.io:7443/mnt/mnt-workflow/temporalio/ui:2.55.0
+  secretName: mnt-workflow-secret      # POSTGRES_PWD / VISIBILITY_POSTGRES_PWD 제공
+  # 위 시크릿의 DB 비밀번호(계정 temporal·temporal_view 공통, MNT-WORKFLOW/db/temporal_schema.sql 과 같은 값).
+  # 비워 두면 클러스터에 있는 기존 값 유지(위 secrets 와 같은 규칙).
+  dbPassword: "portal1234!"
+  uiHost: temporal.kcloud.etri         # 웹 화면 호스트(portal-gateway 와일드카드 TLS) — 로그인 없음, 사내망 전용
+  temporalNamespace: default           # 워크플로 네임스페이스(Job 이 없을 때만 생성)
+  retention: 720h                      # 끝난 워크플로 기록 보관 기간(30일)
+  env:
+    DB: postgres12
+    POSTGRES_SEEDS: openkcloud-db-rw.openkcloud-mnt
+    DB_PORT: "5432"
+    DBNAME: openkcloud_portal           # 포털 DB — 스키마는 계정 search_path 로 고정(temporal / temporal_visibility)
+    VISIBILITY_DBNAME: openkcloud_portal
+    POSTGRES_USER: temporal
+    VISIBILITY_POSTGRES_USER: temporal_view
+    NUM_HISTORY_SHARDS: "4"            # ⚠️ 처음 만든 뒤에는 바꿀 수 없음
+    BIND_ON_IP: 0.0.0.0                # 같은 파드의 ui 가 127.0.0.1:7233 으로 연결
+    DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/dynamicconfig/dynamicconfig.yaml
+  # Temporal 동적 설정(키: 값 목록) — 비우면 기본값
+  dynamicConfig: {}
+  resources:
+    server:
+      requests: { cpu: 200m, memory: 512Mi }
+      limits: { cpu: "1", memory: 1Gi }
+    ui:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 200m, memory: 256Mi }
+    adminTools:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+
+# ── 프론트(Next 정적 + nginx) ───────────────────────────────────────
+frontend:
+  image: mnt-app
+  port: 8080
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+
+# ── Istio 게이트웨이(single-origin 라우팅) ──────────────────────────
+gateway:
+  enabled: true
+  # 포털 접속 호스트 — portal-gateway 가 *.kcloud.etri 와일드카드 + TLS 제공
+  host: portal.kcloud.etri
+  # 기존 게이트웨이 재사용(새로 안 만듦). VirtualService 만 여기에 바인딩.
+  gatewayName: istio-system/portal-gateway
+  create: false
+  # 아래는 create: true 일 때만 사용(참고용)
+  istioSelector:
+    istio: ingressgateway
+  port: 443
+  tls:
+    mode: SIMPLE
+    credentialName: portal-wildcard-tls
+  # 포털 호스트의 Keycloak 로그인 경로 — /auth/realms/<realm>/·/auth/resources/ 만 Keycloak 으로(접두사 떼고 전달).
+  # /auth/login 은 포털 화면(mnt-app). 관리 화면·master realm 은 keycloak.kcloud.etri 로만 접근.
+  # 켜기 전: realm 의 Frontend URL = https://portal.kcloud.etri:25443/auth
+  keycloak:
+    enabled: true # 2026-10-14 테스트배드 로그인 연동 적용
+    pathPrefix: /auth
+    realm: openkcloud_realm
+    service: keycloak-http.openkcloud-mnt.svc.cluster.local
+    port: 80
+    externalPort: "25443"   # 외부 NAT 포트(keycloak-vs 와 같은 값)

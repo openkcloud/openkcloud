@@ -1,0 +1,13 @@
+# acpp-a30-mig-restoremode.yaml: <nvidia-node> A30 MIG 1g.6gb×4 적용 2단계 샘플(deletionPolicy RestoreMode 로 MIG mode 복원) — probe 파드가 nvidia-smi -L 로 검증 | 생성일: 2026-09-20 | 수정일: 2026-10-11
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorPartitionPolicy
+metadata:
+  name: r3-a30-mig-probe
+spec:
+  vendor: nvidia
+  nodeSelector:
+    kubernetes.io/hostname: k8s-worker1
+  layout:
+    - profile: 1g.6gb
+      countPerDevice: 4
+  deletionPolicy: RestoreMode

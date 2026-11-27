@@ -1,0 +1,8 @@
+#!/bin/bash
+# ============================================================
+# rbln-stat: 호스트 네임스페이스로 진입해 실 rbln-stat 바이너리를 실행하는 nsenter 래퍼
+# 상세: 컨테이너 자체 네임스페이스에서는 host rbln_daemon 과 어긋나 N/A 로만 나온다. hostPID 로
+#       보이는 호스트 PID 1 의 네임스페이스로 들어가 host 의 /usr/local/bin/rbln-stat 을 그대로 실행한다.
+# 생성일: 2026-09-20 | 수정일: 2026-10-11
+# ============================================================
+exec nsenter --mount=/proc/1/ns/mnt --net=/proc/1/ns/net --pid=/proc/1/ns/pid --ipc=/proc/1/ns/ipc -- /usr/local/bin/rbln-stat "$@"

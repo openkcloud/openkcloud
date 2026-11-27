@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 NAMESPACE="kcp-control-plane"
-LABEL="app=cost-based-scheduler"
+LABEL="app=keti-cost-scheduler"
 
 echo "================================"
 echo "Tracing Cost Based Scheduler logs"

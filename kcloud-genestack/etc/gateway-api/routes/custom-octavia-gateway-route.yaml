@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: octavia
+    service: HTTPRoute
+  name: custom-octavia-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - octavia.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: octavia-https
+  rules:
+    - backendRefs:
+        - name: octavia-api
+          port: 9876

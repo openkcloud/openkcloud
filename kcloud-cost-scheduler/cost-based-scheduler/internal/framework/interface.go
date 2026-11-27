@@ -29,8 +29,17 @@ type ScorePlugin interface {
 	ScoreExtensions() ScoreExtensions
 }
 
+// PreScorePlugin prepares Profile predictions for Filter-passed nodes before
+// Score. Lookups belong here; Score must compute from shared state only.
+type PreScorePlugin interface {
+	Plugin
+	PreScore(ctx context.Context, pod *v1.Pod, nodes []*v1.Node) *utils.Status
+}
+
+// ScoreExtensions runs once per plugin after every candidate node has been
+// scored, so it receives the whole candidate map rather than a single node.
 type ScoreExtensions interface {
-	NormalizeScore(ctx context.Context, pod *v1.Pod, scores utils.PluginResult) *utils.Status
+	NormalizeScore(ctx context.Context, pod *v1.Pod, scores utils.PluginResultMap) *utils.Status
 }
 
 type BindPlugin interface {
@@ -56,10 +65,18 @@ const (
 	PermitDeny
 )
 
+// PlacementDecisionCommitter posts catalog placement_decision after the final
+// node selection is known (not during NormalizeScore).
+type PlacementDecisionCommitter interface {
+	CommitPlacementDecision(pod *v1.Pod, selectedHost string, selectErr error)
+}
+
 type Framework interface {
 	RunPreFilterPlugins(ctx context.Context, pod *v1.Pod) *utils.Status
 	RunFilterPlugins(ctx context.Context, pod *v1.Pod, nodeInfo *utils.NodeInfo) utils.PluginResultMap
+	RunPreScorePlugins(ctx context.Context, pod *v1.Pod, nodes []*v1.Node) *utils.Status
 	RunScorePlugins(ctx context.Context, pod *v1.Pod, nodes []*v1.Node) (utils.PluginResultMap, *utils.Status)
+	CommitPlacementDecisions(pod *v1.Pod, selectedHost string, selectErr error)
 	RunPermitPlugins(ctx context.Context, pod *v1.Pod, nodeName string) *utils.Status
 	RunBindPlugin(ctx context.Context, pod *v1.Pod, nodeName string) *utils.Status
 }

@@ -7,7 +7,7 @@ metadata:
   namespace: kcp-control-plane
 type: Opaque
 stringData:
-  database_url: "postgresql://platform:platform1234@timescaledb.data-pipeline.svc.cluster.local:5432/workload_data"
+  database_url: "postgresql://<user>:<password>@timescaledb.data-pipeline.svc.cluster.local:5432/workload_data"
 
 ---
 apiVersion: apps/v1
@@ -34,7 +34,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: catalog-service
-        image: 10.0.4.230:5000/catalog-service:0.1.0
+        image: catalog-service:0.1.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 50051

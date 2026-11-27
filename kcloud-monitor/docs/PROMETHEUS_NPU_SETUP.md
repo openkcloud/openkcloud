@@ -44,5 +44,3 @@ memory(DRAM/SRAM), throttle_reason, clock, governor, pcie_link, AER 오류는 ex
 ## 4. 파티션(slice)
 
 RNGD PE 분할(`npu-slice`)은 미검증이다. 파티션 전력은 per-PE 전력 부재로 `partition_power = chip_power × (partition_pe_util / total_pe_util)` 비례 추정 + `power_estimation: "proportional"` 표기로 처리한다.
-
-> 상세 근거: `docs/temp/02-decisions/furiosa_npu_findings.md`.

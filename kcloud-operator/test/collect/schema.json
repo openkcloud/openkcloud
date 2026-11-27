@@ -1,0 +1,29 @@
+{
+  "_comment": "schema.json: evidence 레코드의 필수 키 목록과 verdict enum. evidence.sh --validate 가 jq 로 검사한다. JSON Schema 표준이 아니라 kcloud 내부 최소 검증용. 생성일 2026-09-20.",
+  "requiredKeys": [
+    "date",
+    "kcloudVersion",
+    "commit",
+    "k8sVersion",
+    "os",
+    "kernel",
+    "containerRuntime",
+    "device",
+    "driver",
+    "firmware",
+    "sdk",
+    "resourceName",
+    "backend",
+    "mode",
+    "command",
+    "expected",
+    "actual",
+    "duration",
+    "verdict",
+    "reason",
+    "node",
+    "vendor",
+    "limits"
+  ],
+  "verdictEnum": ["pass", "fail", "blocked"]
+}

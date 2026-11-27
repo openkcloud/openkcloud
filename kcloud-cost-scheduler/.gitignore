@@ -21,8 +21,9 @@ vendor/
 # Go workspace file
 go.work
 
-# Build artifacts
-manager
+# Build artifacts (anchor binaries at the repository root so that
+# config/manager deployment manifests remain trackable)
+/manager
 controller-gen
 
 # IDE and editor files
@@ -60,8 +61,7 @@ temp/
 Thumbs.db
 desktop.ini
 
-# Generated files
-config/crd/bases/
+# Generated CRDs are deployment inputs and must be versioned.
 hack/tools/bin/
 
 # Helm charts (if generated)
@@ -70,3 +70,7 @@ charts/*.tgz
 # Container runtime files
 *.pid
 *.sock
+
+# Python
+__pycache__/
+*.pyc

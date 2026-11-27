@@ -1,0 +1,12 @@
+sortOptions:
+  order: fifo
+resources:
+  - gnocchi-temp-keyring.yaml
+  - all.yaml
+  - hpa-gnocchi-api.yaml
+
+patches:
+  - path: configmap-bin.yaml
+    target:
+      kind: ConfigMap
+      name: gnocchi-bin

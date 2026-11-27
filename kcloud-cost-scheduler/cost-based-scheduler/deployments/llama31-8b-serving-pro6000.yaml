@@ -1,0 +1,140 @@
+# Llama 3.1 8B Serving smoke test for the RTX PRO 6000 node.
+#
+# Prerequisites:
+# 1. Confirm the exact GPU edition and power limit with nvidia-smi.
+# 2. Label the target Node:
+#      kubectl label node <node-name> sched.ai/gpu-model=rtx-pro-6000-blackwell --overwrite
+# 3. Create the gated-model token Secret without writing the token in this file:
+#      kubectl -n kcp-workload create secret generic hf-token \
+#        --from-literal=HF_TOKEN='<token>'
+# 4. Confirm that the NVIDIA Device Plugin advertises nvidia.com/gpu.
+#
+# predicted-power-gpu and predicted-cost-gpu are intentionally absent.
+# Add measured or explicitly marked fixture values only after the first server run.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: llama31-8b-hf-cache
+  namespace: kcp-workload
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 80Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama31-8b-serving
+  namespace: kcp-workload
+  labels:
+    app.kubernetes.io/name: llama31-8b-serving
+    app.kubernetes.io/component: inference-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llama31-8b-serving
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: llama31-8b-serving
+        workload.sched.ai/optimization-enabled: "true"
+      annotations:
+        sched.ai/intent: serving
+        sched.ai/preference: latency
+        sched.ai/acc-type: gpu
+        sched.ai/acc-vendor: nvidia
+        sched.ai/gpu-model: rtx-pro-6000-blackwell
+        sched.ai/acc-scale: "1"
+        profile.ai/model: llama3.1-8b
+        profile.ai/precision: bf16
+        profile.ai/batch: "1"
+        profile.ai/context: "4096"
+    spec:
+      schedulerName: keti-cost-scheduler
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: vllm-openai
+          # Build from containers/llama31-8b-serving after checking the
+          # RTX PRO 6000 driver/CUDA pair. Use an internal Registry on multi-node clusters.
+          image: kcloud/llama31-8b-serving:0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - meta-llama/Llama-3.1-8B-Instruct
+            - --dtype
+            - auto
+            - --max-model-len
+            - "4096"
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: HF_TOKEN
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "4"
+              memory: 24Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: 48Gi
+              nvidia.com/gpu: "1"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 180
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /var/lib/kcloud/huggingface
+            - name: vllm-cache
+              mountPath: /var/lib/kcloud/vllm
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: hf-cache
+          persistentVolumeClaim:
+            claimName: llama31-8b-hf-cache
+        - name: vllm-cache
+          emptyDir: {}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama31-8b-serving
+  namespace: kcp-workload
+spec:
+  selector:
+    app.kubernetes.io/name: llama31-8b-serving
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP

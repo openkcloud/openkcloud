@@ -1,0 +1,19 @@
+- nodeset:
+    name: magnum-ubuntu-noble-32GB
+    nodes:
+      - name: controller
+        label: ubuntu-noble-32GB
+    groups:
+      - name: tempest
+        nodes:
+          - controller
+
+- nodeset:
+    name: magnum-ubuntu-noble-16GB
+    nodes:
+      - name: controller
+        label: ubuntu-noble-16GB
+    groups:
+      - name: tempest
+        nodes:
+          - controller

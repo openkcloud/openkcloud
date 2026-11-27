@@ -1,0 +1,47 @@
+# ============================================================
+# kernel-image-targets.yaml: 사전 컴파일 드라이버 이미지를 구울 커널·벤더 목록
+# 상세: kernelImageBuildRevision 를 켜면 operator 가 "<version>[-<variant>]-k<커널>-<빌드
+#       개정>" 태그를 조립해 당긴다. hack/kernel-image-targets.sh 가 이 목록에서 전체 이미지
+#       참조와 images 저장소 kernel-images 묶음을 유도한다(버전·variant·경로는
+#       deploy/helm/values.yaml 소관). 목록은 자동으로 늘지 않는다 — 수동 상한이다.
+# 생성일: 2026-10-05 | 수정일: 2026-11-16
+# ============================================================
+
+# 대상 커널. 라이브 클러스터가 쓰는 세 커널이 출발점이다. 이 목록은 사전 컴파일 경로를
+# 켜고 끄는 스위치가 아니다 — 그 스위치는 차트의 driver.kernelImageBuildRevision 이다(네
+# 벤더 기본 빈 값이라 끄기는 이미 기본 상태). 여기 적는 것은 "어느 커널의 이미지를 구워
+# 둘지" 뿐이다. 비우면 유도 결과가 0건이 되어 기본 게이트를 빨강으로 만든다 —
+# internal/upgrade/kernel_image_targets_test.go 의 t.Fatalf 가드가 없으면 목록을 비운
+# 채 검사가 늘 초록이 된다(대상을 정말 비우려면 그 시험도 함께 고쳐야 한다).
+kernels:
+  - 5.15.0-171-generic
+  - 5.15.0-191-generic
+  - 6.8.0-138-generic
+
+# 발행 대상. 키는 deploy/helm/values.yaml 의 driverInstallPolicies 벤더 키다.
+# buildRevision 은 발행 태그의 마지막 …-vN 토막이다.
+#
+# 여기 적는 것은 "굽는다" 는 선언이고, 노드가 그 이미지를 당기게 하는 것은 차트의
+# driver.kernelImageBuildRevision(네 벤더 모두 기본 빈 값)이다. 둘을 나눈 이유는 순서다 —
+# 발행 전에 차트 값을 켜면 install Job 이 없는 태그를 당겨 설치가 멈춘다.
+targets:
+  nvidia:
+    buildRevision: v1
+    # 공개 묶음에서 제외. 사전 컴파일 이미지는 NVIDIA .deb 를 동봉해 재배포가 되므로 내부
+    # 트리에서만 굽고 release-bundle.yaml 에는 담지 않는다. 기본(DKMS) 설치기 이미지는
+    # NVIDIA 바이트가 없어 공개 발행 대상이다(images 저장소 images.yaml 의 nvidia-driver-ds 주석).
+    publicBundle: false
+  tenstorrent:
+    buildRevision: v1
+  rngd:
+    buildRevision: v1
+    # 공개 묶음에서 제외. 사전 컴파일 이미지는 벤더 DKMS 소스로 빌드한 .ko 를 동봉하는데,
+    # furiosa-driver-rngd 패키지의 소스 머리글이 서면 허락 없는 복제·배포를 금하고 패키지에
+    # 라이선스 파일이 없다(furiosa-driver-rngd 2026.4.0 기준). 허락을 받기 전까지 내부 트리에서만 굽는다.
+    # 기본(DKMS) 설치기 이미지는 Furiosa 바이트가 없어 공개 발행 대상이다.
+    publicBundle: false
+
+# warboy 는 대상에 넣지 않는다. images 저장소의 driver-installer/furiosa/Makefile 이
+# VARIANT=warboy 를 거절한다 — 벤더 패키지가 공개 저장소에 없고 apt 자격 증명이 필요하다.
+# 자격 증명을 이미지에 넣는 우회는 하지 않으므로, 차트의 furiosa 블록
+# kernelImageBuildRevision 은 빈 값으로 남는다. RNGD 는 공개 저장소라 영향이 없다.

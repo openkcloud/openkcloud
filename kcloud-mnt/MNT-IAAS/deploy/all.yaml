@@ -1,0 +1,81 @@
+# mnt-iaas 배포 — ConfigMap + Deployment + Service (스캐폴드)
+# 이미지: harbor.io:7443/mnt/mnt-iaas:<TAG>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mnt-iaas-config
+  namespace: openkcloud-mnt
+data:
+  SERVICE_NAME: "mnt-iaas"
+  API_PREFIX: "/api/iaas"
+  CORS_ORIGINS: ""
+  CORE_API_BASE: "http://mnt-core.openkcloud-mnt.svc.cluster.local"
+  TEMPORAL_API_BASE: "mnt-workflow.openkcloud-mnt.svc.cluster.local:7233"   # Temporal 서버(gRPC)
+  OS_AUTH_URL: "https://keystone-api.kcloud.cluster.local/v3"
+  OS_PROJECT_NAME: "admin"
+  OS_USER_DOMAIN_NAME: "Default"
+  OS_PROJECT_DOMAIN_NAME: "Default"
+---
+# ⚠️ 예시 — 실제 값 커밋 금지. OS_USERNAME/OS_PASSWORD 는 Secret 주입 + Deployment envFrom 에 secretRef 추가
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mnt-iaas-secret
+  namespace: openkcloud-mnt
+type: Opaque
+stringData:
+  OS_USERNAME: "CHANGE_ME"
+  OS_PASSWORD: "CHANGE_ME"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mnt-iaas
+  namespace: openkcloud-mnt
+  labels: { app: mnt-iaas }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mnt-iaas }
+  template:
+    metadata:
+      labels: { app: mnt-iaas }
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+      containers:
+        - name: mnt-iaas
+          image: harbor.io:7443/mnt/mnt-iaas:TAG
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: mnt-iaas-config }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mnt-iaas
+  namespace: openkcloud-mnt
+  labels: { app: mnt-iaas }
+spec:
+  selector: { app: mnt-iaas }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+# 게이트웨이(Istio VirtualService): prefix /api/iaas → mnt-iaas:80

@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: cinder
+    service: HTTPRoute
+  name: custom-cinder-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - cinder.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: cinder-https
+  rules:
+    - backendRefs:
+        - name: cinder-api
+          port: 8776

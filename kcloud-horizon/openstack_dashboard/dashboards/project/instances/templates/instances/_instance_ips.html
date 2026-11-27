@@ -1,0 +1,13 @@
+{% load i18n %}
+<ul class="list-unstyled">
+{% for ip_group, ips in ip_groups.items %}
+    {% if ip_groups.keys|length > 1 %}
+    <li><b>{{ ip_group }}</b>
+    {% endif %}
+    {% if ips|length > 0 %}
+      {{ ips|join:", " }}</li>
+    {% else %}
+      {% trans "(No IP address)" %}
+    {% endif %}
+{% endfor %}
+</ul>

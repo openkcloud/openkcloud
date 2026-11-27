@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: glance
+    service: HTTPRoute
+  name: custom-glance-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - glance.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: glance-https
+  rules:
+    - backendRefs:
+        - name: glance-api
+          port: 9292

@@ -1,0 +1,89 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: acceleratorverificationpolicies.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: AcceleratorVerificationPolicy
+    listKind: AcceleratorVerificationPolicyList
+    plural: acceleratorverificationpolicies
+    shortNames:
+    - avp
+    singular: acceleratorverificationpolicy
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.ttl
+      name: TTL
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              checks:
+                description: Checks 는 돌릴 체크 목록이다. 비면 내장 기본값을 쓴다.
+                items:
+                  enum:
+                  - DeviceObservation
+                  - NodeDeviceReport
+                  - Advertisement
+                  - AllocationProbe
+                  type: string
+                type: array
+              driftGracePeriod:
+                description: |-
+                  DriftGracePeriod 는 광고 불일치가 이 시간 이상 지속돼야 Degraded 로 확정한다는 뜻이다.
+                  짧게 두면 DaemonSet 롤아웃 중의 정상적인 광고 공백을 장애로 오인한다.
+                type: string
+              invalidateOn:
+                description: InvalidateOn 은 값이 바뀌면 근거를 즉시 버릴 환경 축이다. 비면 내장 기본값.
+                items:
+                  enum:
+                  - BootID
+                  - KernelVersion
+                  - DriverVersion
+                  - FirmwareVersion
+                  - Generation
+                  type: string
+                type: array
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                description: |-
+                  NodeSelector 가 비면 모든 노드에 적용된다. 여러 정책이 한 노드에 맞으면 이름 사전순으로
+                  첫 번째가 이긴다(결정론 — 병합하지 않는다. 병합은 "어느 정책이 이 값을 줬는가" 를 못 말한다).
+                type: object
+              ttl:
+                description: TTL 은 근거를 믿는 기간이다(예 30m). 비면 내장 기본값.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}

@@ -1,0 +1,74 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# 모노레포: MNT-APP(Next.js) + MNT-CORE/IAAS/PAAS/OBS(FastAPI)
+
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+coverage/
+
+# next.js
+.next/
+out/
+
+# production
+build/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+config.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# python (FastAPI 백엔드 공통)
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Temporal 로컬 개발 서버 기록(MNT-WORKFLOW/run-local.sh)
+.temporal/
+
+# Office temp / lock files
+~$*
+
+# IDE / OS
+.vscode/
+.idea/
+Thumbs.db
+
+# build output
+*.zip
+
+# Local Netlify folder
+.netlify
+
+# 로컬 전체 기동 스크립트(dev-all.sh) 로그
+.dev-logs/
+
+# git 워크트리
+/git-worktree/

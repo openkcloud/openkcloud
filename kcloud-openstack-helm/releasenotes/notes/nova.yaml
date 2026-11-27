@@ -1,0 +1,122 @@
+---
+nova:
+  - 0.1.0 Initial Chart
+  - 0.1.1 Change helm-toolkit dependency version to ">= 0.1.0"
+  - 0.1.2 Add ssh to Nova compute
+  - 0.1.3 Establish Nova and Placement dependencies
+  - 0.1.4 Remove deprecated os_region_name for placement
+  - 0.1.5 Enable hostIPC
+  - 0.1.6 Swap SSH key names to reflect the correct key
+  - 0.1.7 Use HostToContainer mountPropagation
+  - 0.1.8 Change Issuer to ClusterIssuer
+  - 0.1.9 Revert "Change Issuer to ClusterIssuer"
+  - 0.1.10 Use HostToContainer mount propagation
+  - 0.1.11 Secure libvirt connection from using 127.0.0.1 to use unix socket
+  - 0.1.12 Update RBAC apiVersion from /v1beta1 to /v1
+  - 0.1.13 Change Issuer to ClusterIssuer
+  - 0.1.14 BUG for deploying multiple compute nodes
+  - 0.1.15 Mount /dev/pts in Nova compute container
+  - 0.1.16 Use first IP address for migration
+  - 0.1.17 Add multipathd support for ISCSI backed volume VMs
+  - 0.1.18 Fix the nova-compute-ironic label issue
+  - 0.1.19 Host resource scale adjustment about ironic
+  - 0.2.0 Remove support for releases before T
+  - 0.2.1 Remove unnecessary +x permission on gotpl files
+  - 0.2.2 Adding rabbitmq TLS logic
+  - 0.2.3 Replace deprecated configuration ``[vnc]/vncserver_proxyclient_address``
+  - 0.2.4 Mount rabbitmq TLS secret
+  - 0.2.5 Set reasonable default probe timeouts
+  - 0.2.6 Added cronJob with script for archive deleted rows which cleanup databases
+  - 0.2.7 Add Ussuri release support
+  - 0.2.8 Fix the cron archive_deleted_rows bash script for before and max-rows values
+  - 0.2.9 Add image clean up to rally test
+  - 0.2.10 Add tls cert mounting to nova-novnc
+  - 0.2.11 Add Victoria and Wallaby releases support
+  - 0.2.12 Bootstrap flavor creation efficiencies
+  - 0.2.13 Add missing 'runlock' hostMount when enable_scsi
+  - 0.2.14 Use helm.sh/hook annotations for jobs
+  - 0.2.15 Fix archive-deleted-rows for enabling date command as value for before option
+  - 0.2.16 Remove the policy document in values file
+  - 0.2.17 Fix disablement of helm.sh/hook for Helm v2
+  - 0.2.18 Give service time to restore
+  - 0.2.19 Define service cleaner sleep time
+  - 0.2.20 Update script to true of grep does get anything.
+  - 0.2.21 Helm 3 - Fix Job Labels
+  - 0.2.22 Update htk requirements repo
+  - 0.2.23 Add option to enable extra wait for cell-setup-init
+  - 0.2.24 Fix nova-bootstrap job labels
+  - 0.2.25 Add check for compute nodes
+  - 0.2.26 Fix _ssh-init.sh.tpl to copy the ssh keys to the user on the security context
+  - 0.2.27 Add tls1.2 minimum version to tls overrides
+  - 0.2.28 Move ssl_minimum_version to console section
+  - 0.2.29 Remove ssh-config
+  - 0.2.30 Improve health probe logging
+  - 0.2.31 Update oslo messaging get_transport
+  - 0.2.32 Host of ironic compute service equals pod name
+  - 0.2.33 Cleanup old releases
+  - 0.2.34 Remove consoleauth in nova
+  - 0.2.35 Enable taint toleration for Openstack services
+  - 0.2.36 Support TLS endpoints
+  - 0.2.37 Remove nova-placement
+  - 0.2.38 Update nova image defaults
+  - 0.2.39 Migrated CronJob resource to batch/v1 API version & PodDisruptionBudget to policy/v1
+  - 0.2.40 Updated naming for subchart compatibility
+  - 0.2.41 Add Xena and Yoga values overrides
+  - 0.2.42 Add missing configuration ``[vnc]/novncproxy_host``
+  - 0.2.43 Added OCI registry authentication
+  - 0.2.44 Distinguish between port number of internal endpoint and binding port number
+  - 0.2.45 Support TLS endpoints for metadata-api
+  - 0.2.46 Use HTTP probe instead of TCP probe
+  - 0.2.47 Remove list agents rally test
+  - 0.3.0 Remove support for Train and Ussuri
+  - 0.3.1 Added backoffLimit for bootstrap job
+  - 0.3.2 Remove un-used configs for Nova
+  - 0.3.3 Update all Ceph images to Focal
+  - 0.3.4 Add OVN values_override, disable dependency to ovn-agent and vif configs for ovn
+  - 0.3.5 Replace node-role.kubernetes.io/master with control-plane
+  - 0.3.6 Fix VNC access issues
+  - 0.3.7 Fix live migration without DNS resolution
+  - 0.3.8 Fix missing privilege separation directory for nova compute ssh
+  - 0.3.9 Fix typo in spice proxy deployment
+  - 0.3.10 Define service_type in keystone_authtoken to support application credentials with access rules
+  - 0.3.11 Update get_notification_transport
+  - 0.3.12 Update oslo_messaging_RPCClient
+  - 0.3.13 Add Zed overrides
+  - 0.3.14 Add 2023.1 overrides
+  - 0.3.15 Ensure that the health check script handles cases where the PID file exists but is empty or does not contain the expected data structure.
+  - 0.3.16 Use service tokens
+  - 0.3.17 Set targeted dependency of nova-compute with ovn networking backend
+  - 0.3.18 Fix nova ssh keys permission
+  - 0.3.19 Add support for enabling vencrypt
+  - 0.3.20 Add cinder auth config
+  - 0.3.21 Update health probe script considering ovsdb_connection config
+  - 0.3.22 Replace deprecated configuration vncserver_proxyclient_address to server_proxyclient_address
+  - 0.3.23 Add Ubuntu Jammy overrides
+  - 0.3.24 Create a certificate for novnc vencrypt separately
+  - 0.3.25 Add IP addresses search control flag
+  - 0.3.26 Improve cinder authentication support
+  - 0.3.27 Add 2023.2 Ubuntu Jammy overrides
+  - 0.3.28 Add ability to define extra command(s) for the nova cell setup job
+  - 0.3.29 Add ability to define extra command(s) for the nova service cleaner job
+  - 0.3.30 Add the conditional statement for log_config_append
+  - 0.3.31 Add getting LISTEN IP for CIDR
+  - 0.3.32 Set the startupProbe for nova-compute
+  - 0.3.33 Add job to create 'vms' pool
+  - 0.3.34 Add public endpoints for the spiceproxy
+  - 0.3.35 Use directory mount for vencrypt certificates
+  - 0.3.36 Update Ceph images to Jammy and Reef 18.2.1
+  - 0.3.37 Use metadata_listen_port instead of metadata_port
+  - 0.3.38 Using uWSGI
+  - 0.3.39 Enable custom annotations for Openstack pods
+  - 0.3.40 Add 2024.1 overrides
+  - 0.3.41 Enable custom annotations for Openstack secrets
+  - 0.3.42 Update images used by default
+  - 0.3.43 Use quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal by default
+  - 0.3.44 Add DPDK overrides
+  - 0.3.45 Add configuration for nova-scheduler
+  - 0.3.46 Add 2024.2 Ubuntu Jammy overrides
+  - 0.3.47 Use nova-compute.conf in nova-compute-ironic
+  - 0.3.48 Fix typo in archive_deleted_rows script
+  - 0.3.49 Update Chart.yaml apiVersion to v2
+  - 2024.2.0 Update version to align with the Openstack release cycle
+...

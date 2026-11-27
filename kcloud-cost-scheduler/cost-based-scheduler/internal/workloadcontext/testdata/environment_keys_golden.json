@@ -1,0 +1,75 @@
+{
+  "contract": "build_environment_key / BuildEnvironmentKey — axes order fixed",
+  "note": "concurrency is only on catalog_lookup_key (:cN)",
+  "cases": [
+    {
+      "id": "k1_lsu178_util09",
+      "input": {
+        "model": "meta-llama/Llama-3.1-8B-Instruct",
+        "revision": "na",
+        "runtime": "vllm",
+        "accelerator": "gpu",
+        "sku": "rtx-pro-6000",
+        "node": "gpu-node-01",
+        "precision": "auto",
+        "protocol": "sustained_closed_loop_120s",
+        "input_tokens": 149,
+        "output_tokens": 128,
+        "gpu_memory_utilization": "0.9",
+        "kv_blocks": "4096",
+        "max_num_seqs": "na",
+        "lsu_quota": "178",
+        "engine_count": "1",
+        "allocation_mode": "k1-lsu-exclusive"
+      },
+      "environment_key": "meta-llama/Llama-3.1-8B-Instruct:na:vllm:gpu:rtx-pro-6000:gpu-node-01:auto:sustained_closed_loop_120s:in149:out128:util0.9:kv4096:mnsna:lsu178:engines1:k1-lsu-exclusive",
+      "lookup_c30": "meta-llama/Llama-3.1-8B-Instruct:na:vllm:gpu:rtx-pro-6000:gpu-node-01:auto:sustained_closed_loop_120s:in149:out128:util0.9:kv4096:mnsna:lsu178:engines1:k1-lsu-exclusive:c30"
+    },
+    {
+      "id": "eqkv_solo_lsu89_util04",
+      "input": {
+        "model": "meta-llama/Llama-3.1-8B-Instruct",
+        "revision": "na",
+        "runtime": "vllm",
+        "accelerator": "gpu",
+        "sku": "rtx-pro-6000",
+        "node": "gpu-node-01",
+        "precision": "auto",
+        "protocol": "sustained_closed_loop_120s",
+        "input_tokens": 149,
+        "output_tokens": 128,
+        "gpu_memory_utilization": "0.4",
+        "kv_blocks": "2048",
+        "max_num_seqs": "na",
+        "lsu_quota": "89",
+        "engine_count": "1",
+        "allocation_mode": "eqkv-solo"
+      },
+      "environment_key": "meta-llama/Llama-3.1-8B-Instruct:na:vllm:gpu:rtx-pro-6000:gpu-node-01:auto:sustained_closed_loop_120s:in149:out128:util0.4:kv2048:mnsna:lsu89:engines1:eqkv-solo",
+      "lookup_c30": "meta-llama/Llama-3.1-8B-Instruct:na:vllm:gpu:rtx-pro-6000:gpu-node-01:auto:sustained_closed_loop_120s:in149:out128:util0.4:kv2048:mnsna:lsu89:engines1:eqkv-solo:c30"
+    },
+    {
+      "id": "eqkv_dual_engines2",
+      "input": {
+        "model": "meta-llama/Llama-3.1-8B-Instruct",
+        "revision": "na",
+        "runtime": "vllm",
+        "accelerator": "gpu",
+        "sku": "rtx-pro-6000",
+        "node": "gpu-node-01",
+        "precision": "auto",
+        "protocol": "sustained_closed_loop_120s",
+        "input_tokens": 149,
+        "output_tokens": 128,
+        "gpu_memory_utilization": "0.4",
+        "kv_blocks": "2048",
+        "max_num_seqs": "na",
+        "lsu_quota": "89",
+        "engine_count": "2",
+        "allocation_mode": "eqkv-dual-c15"
+      },
+      "environment_key": "meta-llama/Llama-3.1-8B-Instruct:na:vllm:gpu:rtx-pro-6000:gpu-node-01:auto:sustained_closed_loop_120s:in149:out128:util0.4:kv2048:mnsna:lsu89:engines2:eqkv-dual-c15",
+      "lookup_c15": "meta-llama/Llama-3.1-8B-Instruct:na:vllm:gpu:rtx-pro-6000:gpu-node-01:auto:sustained_closed_loop_120s:in149:out128:util0.4:kv2048:mnsna:lsu89:engines2:eqkv-dual-c15:c15"
+    }
+  ]
+}

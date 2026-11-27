@@ -1,0 +1,9 @@
+# avp-allocation-probe-worker1.yaml: <nvidia-node> 에 AllocationProbe 체크를 켠 검증 정책 샘플 | 생성일: 2026-09-20 | 수정일: 2026-10-11
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorVerificationPolicy
+metadata:
+  name: r3-worker1-allocation-probe
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-worker1
+  checks: [DeviceObservation, NodeDeviceReport, Advertisement, AllocationProbe]

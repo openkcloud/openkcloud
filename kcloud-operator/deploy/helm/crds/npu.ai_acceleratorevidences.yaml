@@ -1,0 +1,151 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: acceleratorevidences.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: AcceleratorEvidence
+    listKind: AcceleratorEvidenceList
+    plural: acceleratorevidences
+    shortNames:
+    - aev
+    singular: acceleratorevidence
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.nodeName
+      name: NODE
+      type: string
+    - jsonPath: .status.level
+      name: LEVEL
+      type: string
+    - jsonPath: .status.expiresAt
+      name: EXPIRES
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              nodeName:
+                type: string
+              vendor:
+                enum:
+                - nvidia
+                - furiosa
+                - rebellions
+                - tenstorrent
+                type: string
+            required:
+            - nodeName
+            type: object
+          status:
+            properties:
+              advertisedResources:
+                additionalProperties:
+                  format: int32
+                  type: integer
+                description: |-
+                  AdvertisedResources 는 검증 시점에 통과한 기대 광고량이다. drift 감시는 이 값과
+                  현재 allocatable 을 비교한다 — 그 자리에서 다시 계산하면 "검증 후에 무너졌다" 를
+                  말할 수 없다.
+                type: object
+              checks:
+                items:
+                  description: |-
+                    EvidenceCheck 는 체크 하나의 결과다. Target 은 그 체크가 본 대상(장치 PCI 등)이며,
+                    노드 전체를 본 체크는 비어 있다.
+                  properties:
+                    message:
+                      type: string
+                    name:
+                      type: string
+                    passed:
+                      type: boolean
+                    probedAt:
+                      description: |-
+                        ProbedAt 은 이 AllocationProbe 를 실제로 실행한 시각이다(AllocationProbe check 에만
+                        실린다). ObservedAt/ExpiresAt 과 달리 매 갱신에 새로 쓰지 않고 실제 probe 시각에 고정해,
+                        재사용 pass 가 재조정마다 창을 밀리게 하지 않는다.
+                      format: date-time
+                      type: string
+                    target:
+                      type: string
+                  required:
+                  - name
+                  - passed
+                  type: object
+                type: array
+              expiresAt:
+                format: date-time
+                type: string
+              fingerprint:
+                description: |-
+                  EnvironmentFingerprint 는 이 근거가 어느 환경에서 나왔는지다.
+                  하나라도 바뀌면 그 환경에서 얻은 근거는 더 이상 이 환경을 설명하지 못한다.
+                properties:
+                  bootID:
+                    description: BootID 는 node.status.nodeInfo.bootID — 재부팅을 가장 확실하게
+                      잡는 축이다.
+                    type: string
+                  driverVersion:
+                    description: DriverVersion/FirmwareVersion 은 NodeDeviceReport
+                      의 해당 벤더 장치에서 읽는다.
+                    type: string
+                  firmwareVersion:
+                    type: string
+                  generation:
+                    description: Generation 은 이 근거를 만든 정책의 metadata.generation 이다.
+                    format: int64
+                    type: integer
+                  kernelVersion:
+                    type: string
+                type: object
+              level:
+                description: |-
+                  Level 은 도달한 근거 등급이다. 어느 체크든 실패하면 **빈 문자열** 이다 —
+                  "일부는 봤다" 를 등급으로 승격하지 않는다(정직성 원칙).
+                enum:
+                - Observed
+                - FunctionallyVerified
+                - AllocationVerified
+                type: string
+              observedAt:
+                format: date-time
+                type: string
+              reason:
+                description: Reason 은 Level 이 비어 있을 때 왜 비었는지다.
+                type: string
+              sourcePolicy:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

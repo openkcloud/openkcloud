@@ -1,0 +1,32 @@
+---
+openstack:
+  - 0.1.0 Initial Chart
+  - 0.1.1 Deploy compute-kit charts (neutron, nova, libvirt, openvswitch, placement)
+  - 0.1.2 Use host path storage for rabbitmq, so that rabbitmq retains data across pod recreation
+  - 0.1.3 Add neutron_netns_cleanup_cron release image override, so that the respective release image is used
+  - 0.1.4 Remove links in openstack/charts
+  - 0.1.5 Revert Remove links in openstack/charts
+  - 0.1.6 Added horizon to install as default component.
+  - 0.1.7 Remove placement db-migrate
+  - 0.2.0 Remove support for Train and Ussuri
+  - 0.2.1 Update all Ceph images to Focal
+  - 0.2.2 Add zed values override
+  - 0.2.3 Add Ubuntu Jammy overrides
+  - 0.2.4 Add 2023.1 overrides for Ubuntu Focal and Jammy
+  - 0.2.5 Add 2023.2 Ubuntu Jammy overrides
+  - 0.2.6 Update libvirt overrides for 2023.1 and 2023.2
+  - 0.2.7 Update Ceph images to Jammy and Reef 18.2.1
+  - 0.2.8 Add 2024.1 overrides
+  - 0.2.9 Add 2024.1 overrides
+  - 0.2.10 Add 2024.1 overrides
+  - 0.2.11 Add 2024.1 overrides
+  - 0.2.12 Add 2024.1 overrides
+  - 0.2.13 Add 2024.1 overrides
+  - 0.2.14 Add 2024.1 overrides
+  - 0.2.15 Add 2024.1 overrides
+  - 0.2.16 Use quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal by default
+  - 0.2.17 Update default values to work on multinode cluster
+  - 0.2.18 Add 2024.2 Ubuntu Jammy overrides
+  - 0.2.19 Update Chart.yaml apiVersion to v2
+  - 2024.2.0 Update version to align with the Openstack release cycle
+...
