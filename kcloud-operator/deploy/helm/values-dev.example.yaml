@@ -1,0 +1,39 @@
+# ============================================================
+# values-dev.example.yaml: 개발 클러스터 오버라이드 예시 — 복사해 values-dev.yaml 로 두면 install.sh 가 병합한다(그 파일은 커밋하지 않는다)
+# 상세: install.sh 가 dev 배포 경로에서 자동으로 -f 로 적용한다. 차트 기본값은 외부 소비자용으로
+#       유지하고, 이 클러스터 전용 설정만 여기 커밋한다 — --set 은 upgrade 한 번에 증발한다.
+# 생성일: 2026-07-16 | 수정일: 2026-10-11
+# ============================================================
+driverInstallPolicies:
+  nvidia:
+    driver:
+      # host-install 전환 이미지(v176). Dockerfile.v17 의 INSTALL_METHOD=hostnamespace 기본값이
+      # entrypoint-v17.sh 를 v16 entrypoint.sh 로 위임시켜, driver userspace 까지 host 에 설치하고
+      # /dev 노드를 보장하며 툴킷/런타임 설정은 비활성화한다(런타임은 toolkit DS 가 담당).
+      # 차트 기본값 -v175(containerized 경로)를 이 dev 클러스터에서 이 값으로 대체해 영속한다.
+      tag: "580.159.03-v179"
+    toolkit:
+      # nvidia-container-toolkit DS 상주 = containerd nvidia runtime 의 소유자.
+      # driver 설치(Mode=job 포함)와 무관하게 항상 상주하여, drain/containerd 재구성 후에도
+      # nvidia-ctk 로 runtime 을 idempotent 재등록한다(device-plugin runtimeClass=nvidia 보장).
+      enabled: true
+      # 벤더 이미지지만 전체 경로 필드라 vendorRegistry 조립 대상이 아니다. 이 dev
+      # 클러스터는 Harbor 미러 경로를 사이트 값 파일에서 덮어쓴다. 여기 기본값은
+      # 미러가 없어도 뜨도록 upstream 경로를 둔다(nvcr.io 는 k8s/ 가 경로에 들어간다).
+      image: "nvcr.io/nvidia/k8s/container-toolkit:v1.17.8-ubuntu20.04"
+
+# 아래 3값은 차트 기본값이 모두 false 라 --set 으로만 켜면 helm upgrade 한 번에 증발해
+# 분리 2-DS 등 이전 상태로 되돌아간다. 이 재발을 막기 위해 여기 커밋해 영속시킨다.
+
+# Furiosa 통합 device-plugin: Warboy+RNGD 를 단일 통합 DS 로 배포.
+furiosa:
+  unified:
+    enabled: true
+
+# Admission webhook: DIP/NCP validating + opt-in Pod mutating. 라이브 검증 상시 on.
+webhook:
+  enabled: true
+
+# 관리 REST API: operator pod 내 HTTPS listener(:9444). 라이브 검증 상시 on.
+api:
+  enabled: true

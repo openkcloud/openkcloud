@@ -1,0 +1,9 @@
+# avp-allocation-probe-worker3.yaml: <tenstorrent-node> 한정 AllocationProbe 검증 정책(descriptor evidence probe 라이브 점검용) | 생성일: 2026-09-20
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorVerificationPolicy
+metadata:
+  name: descriptor-probe-worker3-allocation-probe
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-worker3
+  checks: [DeviceObservation, NodeDeviceReport, Advertisement, AllocationProbe]

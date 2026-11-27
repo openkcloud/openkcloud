@@ -1,0 +1,20 @@
+# ============================================================
+# under-rngd-pod.yaml: under k8s 에서 Furiosa RNGD 1장을 할당받아 furiosa-smi 를 실행하는 확인용 파드
+# 상세: 이미지는 under Harbor(harbor.io:7443) library 프로젝트. under k8s 에 RNGD 광고 노드가
+#       없으면 Pending 이 정상이다(이미지만 확인).
+#       실행: kubectl apply -f under-rngd-pod.yaml → kubectl get pod rngd-test (Completed) → kubectl logs rngd-test → kubectl delete pod rngd-test
+# 생성일: 2026-09-17 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rngd-test
+spec:
+  restartPolicy: Never
+  containers:
+  - name: smi
+    image: harbor.io:7443/library/furiosa-smi-demo:jammy
+    command: ["sh", "-c", "furiosa-smi info && furiosa-smi status"]
+    resources:
+      limits:
+        furiosa.ai/rngd: 1

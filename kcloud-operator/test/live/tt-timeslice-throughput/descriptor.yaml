@@ -1,0 +1,24 @@
+# ============================================================
+# descriptor.yaml: Blackhole p150 을 SW 시분할(replicas 2)로 광고하는 AcceleratorDescriptor
+# 상세: deviceNodes 를 /dev/tenstorrent/0 하나로 고정해 두 소비자 파드가 같은 물리 장치를 받는다 —
+#       생성물 DS 이름은 kcloud-generated-tt-timeslice-throughput-dp, 전제는 timeSlicing=Software.
+# 생성일: 2026-09-22 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorDescriptor
+metadata:
+  name: tt-timeslice-throughput
+spec:
+  vendor: tenstorrent
+  product: blackhole-p150
+  allocationUnit: device
+  identity:
+    source: pciAddress
+    stableAcrossReboot: true
+  deviceNodes:
+    - /dev/tenstorrent/0
+  backends:
+    - devicePlugin
+  sharing:
+    mode: timeSliced
+    replicas: 2

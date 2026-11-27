@@ -1,117 +1,255 @@
 # rbac.yaml: NPU Operator RBAC 리소스
-# 생성일: 2026-03-25
+# 생성일: 2026-03-25 | 수정일: 2026-10-22
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "npu-operator.serviceAccountName" . }}
+  name: {{ include "kcloud-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: {{ include "npu-operator.name" . }}
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- if .Values.rbac.create }}
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "npu-operator.fullname" . }}-role
+  name: {{ include "kcloud-operator.fullname" . }}-role
 rules:
+  # 최소화: NCP 는 사용자 생성 CR — operator 는 reconcile(status/finalizer)만. create/delete 미사용 제거.
   - apiGroups: ["npu.ai"]
     resources: ["npuclusterpolicies", "npuclusterpolicies/status", "npuclusterpolicies/finalizers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # ACPP: reconciler get/list/watch + status/finalizer update (owner-lock 는 DS annotation).
+  # create/delete 는 관리 API 의 정책 생성·되돌리기 라우트(POST/DELETE /api/v1/policies)가 쓴다 —
+  # 그 라우트는 이 SA 의 클라이언트로 만들고, 호출자 인가(SubjectAccessReview)도 같은 verb 를 본다.
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorpartitionpolicies"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["npu.ai"]
-    resources: ["nodedevicereports", "nodedevicereports/status", "driverinstallpolicies"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+    resources: ["acceleratorpartitionpolicies/status", "acceleratorpartitionpolicies/finalizers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # AcceleratorClass: read-only(사용자/관리자가 만든다).
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorclasses"]
+    verbs: ["get", "list", "watch"]
+  # AcceleratorWorkload: 컨트롤러는 status 를 쓰고, 관리 API 의 배포 생성·삭제 라우트
+  # (POST/DELETE /api/v1/workloads)는 이 SA 의 클라이언트로 CR 을 만들고 지운다 —
+  # 호출자 인가(SubjectAccessReview)도 같은 verb 를 본다(정책 라우트와 같은 규약).
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorworkloads"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorworkloads/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # 검증 근거: operator 가 생성·갱신하는 CR — evidence 는 컨트롤러만 쓴다(사용자는 읽기만).
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorevidences", "acceleratorevidences/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # 검증 정책: 사용자/관리자가 만드는 CR — 컨트롤러는 읽기만 한다.
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorverificationpolicies"]
+    verbs: ["get", "list", "watch"]
+  # 트랜잭션: operator 가 만들고 진행시키는 CR. 사용자는 읽기만 하지만 컨트롤러는 정리를 위해
+  # delete 까지 필요하다(종점 operation 회수).
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratoroperations", "acceleratoroperations/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # health 상태: operator 가 생성·갱신하는 CR(노드당 하나). 사용자는 읽기만.
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorhealths", "acceleratorhealths/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # health 정책: 사용자/관리자가 만드는 CR — 컨트롤러는 읽기만 한다.
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratorhealthpolicies"]
+    verbs: ["get", "list", "watch"]
+  # 장치 기술자: 사용자/관리자가 만드는 CR — 컨트롤러는 읽고 판정 결과만 status 에 쓴다.
+  # 이 규칙이 빠지면 기능 하나가 죽는 것이 아니라 operator 파드가 CrashLoopBackOff 로 간다 —
+  # AcceleratorDescriptorReconciler 는 조건 없이 등록되고, 그 informer 가 list/watch 를
+  # 거절당하면 그 실패가 mgr.Start 의 반환값으로 올라와 cmd/main.go 가 프로세스를 종료한다.
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratordescriptors"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["npu.ai"]
+    resources: ["acceleratordescriptors/status"]
+    verbs: ["get", "update", "patch"]
+  # 최소화(get/list/watch) 이후 확장: 정책과 무관한 MIG 관측 컨트롤러가 특권 Job 의 관측 결과를
+  # 이 보고서에 직접 기록한다(detector 는 비특권이라 MIG 를 못 봐 대신 쓴다). status 에
+  # update/patch 가 없으면 그 기록이 거절되고, 보고서가 안 바뀌어 특권 Job 이 반복 생성된다.
+  # status 서브리소스는 list/watch 를 받지 않는다(서브리소스는 컬렉션이 아니라 의미가 없다).
+  - apiGroups: ["npu.ai"]
+    resources: ["nodedevicereports"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["npu.ai"]
+    resources: ["nodedevicereports/status"]
+    verbs: ["get", "update", "patch"]
+  # 최소화: DIP 는 사용자 생성 CR — reconciler get/list/watch + 관리 API(pkg/npuctl)가 spec patch(upgrade/rollback/toggle). create/update 미사용 제거.
+  - apiGroups: ["npu.ai"]
+    resources: ["driverinstallpolicies"]
+    verbs: ["get", "list", "watch", "patch"]
   - apiGroups: ["npu.ai"]
     resources: ["driverupgradestates", "driverupgradestates/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["apps"]
     resources: ["daemonsets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # A6.1: quiesce-on-driver-upgrade — Cordoning 진입 시 라벨 가진 Deployment 의 replicas 를 0 으로 patch, Idle/Failed 진입 시 복구
+  # Mode=job: DUS 상태머신이 install Job 을 생성/조회/삭제하고 controller-runtime 이 Job 을 watch 함
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # quiesce-on-driver-upgrade: Cordoning 진입 시 라벨 가진 Deployment 의 replicas 를 0 으로 patch, Idle/Failed 진입 시 복구
+  # create: AcceleratorWorkload 컨트롤러가 사용자 워크로드 Deployment 를 만든다(삭제는 ownerReference GC 몫이라 delete 불필요).
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["get", "list", "watch", "update", "patch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get", "list", "watch", "patch"]
+    verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get", "list", "watch", "delete"]
-  # P1: PDB-aware drain via Eviction API (pods/eviction create + PDB read)
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # 벤더 기능 probe 파드의 실패 로그를 근거(AcceleratorEvidence)에 남기기 위해 읽는다.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # PDB-aware drain via Eviction API. pods/eviction create 만 있으면 되고, PDB 는 API
+  # server 가 eviction 요청에서 대신 검사하므로 operator 가 직접 읽지 않는다.
   - apiGroups: [""]
     resources: ["pods/eviction"]
     verbs: ["create"]
-  - apiGroups: ["policy"]
-    resources: ["poddisruptionbudgets"]
-    verbs: ["get", "list", "watch"]
+  # events: 컨트롤러가 발행(create/patch)하고, 관리 API 의 /api/v1/events 가 읽는다(get/list/watch).
+  # 읽기 권한이 없으면 UI 의 History 탭이 조용히 500 을 낸다 — 마커만 고치고 여기를 빠뜨리면
+  # 코드는 맞고 배포는 틀린 상태가 된다.
   - apiGroups: [""]
     resources: ["events"]
-    verbs: ["create", "patch"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+  # 노드 Lease: 같은 노드를 두 프로세스가 동시에 만지지 않게 하는 트랜잭션 잠금(internal/operation
+  # 의 LeaseManager). 이 SA 는 이미 leader-election Role 로 이 namespace 의 모든 Lease 에
+  # get/list/watch/create/update/patch/delete 권한이 있어(resourceNames 제한 없음) 이 규칙은
+  # 지금 당장은 중복이다 — 그래도 명시하는 이유는, 그 Role 은 controller-runtime 리더 선출용이고
+  # 나중에 resourceNames 로 좁혀지면(최소권한 정리) 노드 Lease 가 조용히 깨지기 때문이다.
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
   # Rebellions ATOM+ 지원: rbln-system 네임스페이스 + SA + RBAC 생성에 필요
   - apiGroups: [""]
     resources: ["namespaces"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # DRA 드라이버를 끄면 그 드라이버의 SA·역할을 회수하므로 delete 가 필요하다.
   - apiGroups: [""]
     resources: ["serviceaccounts"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # clusterroles/clusterrolebindings 에 bind;escalate 추가 — descriptor auto-apply 가
+  # 생성 DRA 드라이버용 ClusterRole(operator 가 전부는 안 가진 resourceslices 권한 부여)을
+  # 만들려면 escalate 가 필요하다. namespaced roles/rolebindings 는 코드가 만들지도 읽지도
+  # 않아 제거했다(최소권한).
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "bind", "escalate"]
+  # 관리 REST API: 외부 관리툴 Bearer 토큰 인증(TokenReview)·인가(SubjectAccessReview).
+  # api.enabled=false 여도 무해하며, 누락 시 모든 API 요청이 500(리뷰 생성 실패)이 되므로 항상 부여.
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+  # DRA 드라이버에 줄 권한은 operator 자신이 먼저 갖고 있어야 한다 — 쿠버네티스가
+  # 자기가 없는 권한을 담은 ClusterRole 생성을 막는다(권한 상승 방지). 그래서
+  # 가용성 실측용 읽기에 더해 드라이버가 요구하는 쓰기까지 여기 있다.
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceslices", "resourceclaims", "resourceclaimtemplates"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceslices/status", "resourceclaims/status", "resourceclaimtemplates/status"]
+    verbs: ["update", "patch"]
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceclaims/driver"]
+    verbs: ["associated-node:update", "associated-node:patch"]
+  # DeviceClass 는 읽기에 더해 쓰기가 필요하다 — DRA 드라이버를 배포할 때 그 벤더의
+  # DeviceClass 를 operator 가 만들고, 끄면 회수한다.
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["deviceclasses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # 타 벤더 operator 감지 재확인(vendoroperator_detect.go 의 vendorOperatorCRDConfirmed)이
+  # CustomResourceDefinition 자체를 캐시 없는 APIReader 로 get 한다. 이 규칙이 빠지면
+  # Forbidden 이 no-flap 오류 처리로 삼켜져 재확인이 계속 실패하면서도 조건은 안 바뀌어(겉보기엔
+  # 정상) True-reconcile 마다 ERROR 로그만 쌓인다.
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get"]
+  # 벤더 operator 상태 보고(vendoroperator_status.go 의 readVendorOperatorState)가 그 벤더의
+  # ClusterPolicy 류 CR 을 캐시 없는 APIReader 로 get·list 한다. 이 규칙이 빠지면 Forbidden 이
+  # Unknown(StatusProbeUnavailable)으로 보고되므로 조용히 "조회 불가" 상태로만 남는다.
+  - apiGroups: ["nvidia.com"]
+    resources: ["clusterpolicies"]
+    verbs: ["get", "list"]
+  - apiGroups: ["rebellions.ai"]
+    resources: ["rblnclusterpolicies"]
+    verbs: ["get", "list"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "npu-operator.fullname" . }}-rolebinding
+  name: {{ include "kcloud-operator.fullname" . }}-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "npu-operator.fullname" . }}-role
+  name: {{ include "kcloud-operator.fullname" . }}-role
 subjects:
   - kind: ServiceAccount
-    name: {{ include "npu-operator.serviceAccountName" . }}
+    name: {{ include "kcloud-operator.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 
 ---
-# npu-detector DaemonSet이 NodeDeviceReport CR을 생성/업데이트할 수 있도록 허용
+# kcloud-node-manager DaemonSet이 NodeDeviceReport CR을 생성/업데이트할 수 있도록 허용
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: npu-detector-role
+  name: kcloud-node-manager-role
 rules:
   - apiGroups: ["npu.ai"]
     resources: ["nodedevicereports", "nodedevicereports/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
+  # node-agent NFD/GFD 라벨링: 자기 prefix(kcloud.ai/*) 라벨만 patch. 비특권 유지.
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # node-agent 가 device-plugin/allocatable 관찰에 쓴다.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: npu-detector-rolebinding
+  name: kcloud-node-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: npu-detector-role
+  name: kcloud-node-manager-role
 subjects:
   - kind: ServiceAccount
-    name: npu-detector
-    namespace: {{ .Values.detector.namespace | default "kube-system" }}
+    name: kcloud-node-manager
+    # detector SA 는 operator 부속으로 release namespace(=OPERATOR_NAMESPACE, kcloud)에 생성된다.
+    namespace: {{ .Release.Namespace }}
 
 ---
 # Leader election (Lease lock) — controller-runtime 기본 경로
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "npu-operator.fullname" . }}-leader-election
+  name: {{ include "kcloud-operator.fullname" . }}-leader-election
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: {{ include "npu-operator.name" . }}
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
 rules:
   - apiGroups: ["coordination.k8s.io"]
@@ -127,13 +265,47 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "npu-operator.fullname" . }}-leader-election
+  name: {{ include "kcloud-operator.fullname" . }}-leader-election
   namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ include "npu-operator.fullname" . }}-leader-election
+  name: {{ include "kcloud-operator.fullname" . }}-leader-election
 subjects:
   - kind: ServiceAccount
-    name: {{ include "npu-operator.serviceAccountName" . }}
+    name: {{ include "kcloud-operator.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+
+---
+# 설치 Secret 확인 — 드라이버 상태 기계가 Warboy 설치 파드에 마운트할 Secret 이 있는지 메타데이터로만
+# 확인한다(internal/upgrade 의 MissingInstallSecret). 없으면 업그레이드 슬롯·cordon 을 잡지 않고 기다려
+# 같은 노드·클러스터의 다른 벤더 설치를 막지 않는다. 이름 하나에 get 만 준다 — 다른 Secret 은 읽지 못한다.
+# 이 Role 이 없으면 확인을 건너뛰고 종전처럼 진행한다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "kcloud-operator.fullname" . }}-install-secret
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["furiosa-apt-auth"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kcloud-operator.fullname" . }}-install-secret
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kcloud-operator.fullname" . }}-install-secret
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kcloud-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -4,7 +4,7 @@ metadata:
   name: npuclusterpolicy-sample
 spec:
   detector:
-    image: 129.254.202.88:5100/npu-detector:1.0
+    image: registry.example.com:5000/npu-detector:1.0
   nvidia:
     enabled: true
     devicePluginImage: nvcr.io/nvidia/k8s-device-plugin:v0.17.1

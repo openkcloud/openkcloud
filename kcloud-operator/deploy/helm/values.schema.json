@@ -1,0 +1,560 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "values.schema.json: 차트 값의 허용 키 목록. 상세: helm 은 모르는 키를 조용히 버린다 — 오타 키나 소비 코드가 없는 키가 쌓이지 않도록 블록마다 허용 키를 적는다. 키 이름을 고정하고, 타입은 bool 자리에, 허용값은 rebellions.devicePluginGeneration 에만 건다(그 밖의 값 범위 검사는 CRD 와 컨트롤러의 몫). JSON 은 주석을 쓸 수 없어 파일 머리 설명을 이 $comment 로 적는다. 생성일: 2026-10-04 | 수정일: 2026-10-27",
+  "title": "kcloud-operator chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registry": {},
+        "vendorRegistry": {}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "port": {},
+        "secure": { "type": "boolean" },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" } }
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "interval": {}
+          }
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "repository": {}, "tag": {}, "pullPolicy": {} }
+    },
+    "hostExec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "repository": {}, "tag": {} }
+    },
+    "generatedBackend": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "devicePlugin": { "$ref": "#/$defs/repoTag" },
+        "draDriver": { "$ref": "#/$defs/repoTag" }
+      }
+    },
+    "acpp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "probeImage": {},
+        "probeImages": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "nvidia": {},
+            "tenstorrent": {},
+            "furiosa": {},
+            "rebellions": {}
+          }
+        },
+        "probeHostBinary": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "furiosa": {} }
+        },
+        "mpsControlDaemon": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "upstream": {}, "repository": {}, "tag": {} }
+        },
+        "measuredSharing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "multiProcess": {}, "timeSlicing": {} }
+        }
+      }
+    },
+    "operationCoordinator": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "mode": {} }
+    },
+    "nameOverride": {},
+    "fullnameOverride": {},
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "create": { "type": "boolean" }, "name": {} }
+    },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "create": { "type": "boolean" } }
+    },
+    "deployClusterPolicy": { "type": "boolean" },
+    "clusterPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "name": {}, "namespace": {} }
+    },
+    "detector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "repository": {}, "tag": {}, "image": {} }
+    },
+    "nvidia": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "managementMode": {},
+        "advertiseBy": {},
+        "devicePluginImage": {},
+        "nodeSelector": { "$ref": "#/$defs/nodeSelector" },
+        "dcgmExporter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" }, "image": {} }
+        },
+        "dra": { "$ref": "#/$defs/draImage" }
+      }
+    },
+    "furiosa": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "managementMode": {},
+        "advertiseBy": {},
+        "devicePluginImage": {},
+        "configMapName": {},
+        "nodeSelector": { "$ref": "#/$defs/nodeSelector" },
+        "exporter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "repository": {},
+            "tag": {},
+            "interval": {},
+            "kubeResourcesLabel": { "type": "boolean" }
+          }
+        },
+        "rngd": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "advertiseBy": {},
+            "devicePluginUpstream": {},
+            "devicePluginRepository": {},
+            "devicePluginTag": {},
+            "dra": { "$ref": "#/$defs/draImage" },
+            "resourceName": {},
+            "partitionPolicy": {},
+            "debugMode": { "type": "boolean" },
+            "nodeSelector": { "$ref": "#/$defs/nodeSelector" }
+          }
+        },
+        "unified": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "devicePluginRepository": {},
+            "devicePluginTag": {}
+          }
+        }
+      }
+    },
+    "rebellions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "managementMode": {},
+        "advertiseBy": {},
+        "devicePluginUpstream": {},
+        "devicePluginRepository": {},
+        "devicePluginTag": {},
+        "devicePluginGeneration": { "enum": ["", "v0.3", "v0.4"] },
+        "resourceName": {},
+        "resourcePrefix": {},
+        "namespace": {},
+        "configMapName": {},
+        "nodeSelector": { "$ref": "#/$defs/nodeSelector" },
+        "dra": { "$ref": "#/$defs/draImage" }
+      }
+    },
+    "tenstorrent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "managementMode": {},
+        "advertiseBy": {},
+        "devicePluginRepository": {},
+        "devicePluginTag": {},
+        "resourceName": {},
+        "nodeSelector": { "$ref": "#/$defs/nodeSelector" },
+        "dra": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "upstream": {},
+            "repository": {},
+            "tag": {},
+            "fabricManager": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": { "upstream": {}, "repository": {}, "tag": {} }
+            }
+          }
+        }
+      }
+    },
+    "runtimeClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nvidia": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean" } }
+        }
+      }
+    },
+    "webhook": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "port": {},
+        "failurePolicy": {},
+        "injectLabel": {},
+        "injectScope": { "enum": ["pod", "namespace"] }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "port": {},
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {},
+            "nodePort": {},
+            "extraAltNames": {},
+            "extraAltIPs": {}
+          }
+        },
+        "console": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "serviceAccount": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "role": {}
+              }
+            },
+            "extraServiceAccounts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "role": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "driverInstallPolicies": {
+      "type": "object",
+      "additionalProperties": false,
+      "$comment": "벤더마다 읽지 않는 키를 그 벤더 항목에서만 막는다. 정의를 다섯 벌로 펼치지 않으려고 allOf 로 감쌌다 — 대가는 거절 문구가 'allOf' failed 로 뭉개지는 것이다.",
+      "properties": {
+        "furiosa": {
+          "allOf": [
+            { "$ref": "#/$defs/driverInstallPolicy" },
+            { "$ref": "#/$defs/dipWithoutToolkit" },
+            { "$ref": "#/$defs/dipWithoutTenstorrentDriverKeys" }
+          ]
+        },
+        "nvidia": {
+          "allOf": [
+            { "$ref": "#/$defs/driverInstallPolicy" },
+            { "$ref": "#/$defs/dipWithoutTenstorrentDriverKeys" }
+          ]
+        },
+        "rngd": {
+          "allOf": [
+            { "$ref": "#/$defs/driverInstallPolicy" },
+            { "$ref": "#/$defs/dipWithoutToolkit" },
+            { "$ref": "#/$defs/dipWithoutTenstorrentDriverKeys" }
+          ]
+        },
+        "tenstorrent": {
+          "allOf": [
+            { "$ref": "#/$defs/driverInstallPolicy" },
+            { "$ref": "#/$defs/dipWithoutToolkit" }
+          ]
+        },
+        "rebellions": {
+          "allOf": [
+            { "$ref": "#/$defs/driverInstallPolicy" },
+            { "$ref": "#/$defs/dipWithoutToolkit" },
+            { "$ref": "#/$defs/dipTrackOnlyVendor" }
+          ]
+        }
+      }
+    },
+    "rollingUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "maxUnavailable": {} }
+    },
+    "crdUpgrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "kubectlUpstream": {},
+        "kubectlRepository": {},
+        "kubectlTag": {},
+        "kubectlImage": {}
+      }
+    },
+    "leaderElection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "enabled": { "type": "boolean" } }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "name": {} }
+      }
+    },
+    "nodeSelector": { "$ref": "#/$defs/nodeSelector" },
+    "tolerations": {
+      "description": "항목 내부는 열어 둔다: 상위 Kubernetes Toleration 구조를 그대로 통과시키는 자리다.",
+      "type": "array"
+    },
+    "affinity": {
+      "description": "내부는 열어 둔다: 상위 Kubernetes Affinity 구조를 그대로 통과시키는 자리다.",
+      "type": "object"
+    },
+    "resources": {
+      "$comment": "ResourceRequirements 의 세 키는 상위에서 고정이므로 이 단은 닫는다.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "limits": { "$ref": "#/$defs/resourceList" },
+        "requests": { "$ref": "#/$defs/resourceList" },
+        "claims": { "type": "array" }
+      }
+    },
+    "uninstall": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gate": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "skipUsageCheck": { "type": "boolean" },
+            "timeout": {}
+          }
+        },
+        "purgeCRDs": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "dipWithoutToolkit": {
+      "$comment": "toolkit 블록은 nvidia 템플릿만 읽는다. 다른 벤더에 적으면 렌더에서 사라지므로 그 자리에서 막는다.",
+      "properties": { "toolkit": false }
+    },
+    "dipWithoutTenstorrentDriverKeys": {
+      "$comment": "driver.trackOnly·driver.imageVersionBaked 는 tenstorrent·rebellions 템플릿만 읽는다. 다른 벤더에 적으면 렌더에서 사라지므로 그 자리에서 막는다.",
+      "properties": {
+        "driver": {
+          "properties": { "trackOnly": false, "imageVersionBaked": false }
+        }
+      }
+    },
+    "dipTrackOnlyVendor": {
+      "$comment": "설치기 이미지가 없는 벤더(rebellions)의 정책. trackOnly 는 true 로 고정하고 설치 경로 전용 키는 막는다 — 적어도 템플릿이 읽지 않아 조용히 사라진다.",
+      "properties": {
+        "rebootStrategy": false,
+        "kernelAllowlist": false,
+        "upgradePolicy": false,
+        "jobOverrides": false,
+        "workloadProbe": false,
+        "driver": {
+          "properties": {
+            "trackOnly": { "const": true },
+            "mode": { "const": "job" },
+            "repository": false,
+            "tag": false,
+            "installer": false,
+            "imageVersionBaked": false,
+            "allowDowngrade": false,
+            "skipOnPassthrough": false,
+            "env": false,
+            "kernelImages": false,
+            "kernelImageBuildRevision": false,
+            "kernelImageVariant": false
+          }
+        }
+      }
+    },
+    "resourceList": {
+      "$comment": "키가 리소스 이름(cpu·memory·확장 리소스)이라 열어 둔다.",
+      "type": "object"
+    },
+    "repoTag": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "repository": {}, "tag": {} }
+    },
+    "draImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "upstream": {},
+        "repository": {},
+        "tag": {}
+      }
+    },
+    "nodeSelector": {
+      "description": "열어 둔다: 키가 노드 라벨 이름이다. 사이트마다 다르므로 차트가 미리 적을 수 없다."
+    },
+    "driverInstallPolicy": {
+      "$comment": "다섯 벤더가 같은 정의를 쓴다. 벤더별로 쓰이는 키가 조금 다르다 — toolkit 은 nvidia 템플릿만 읽고 driver.trackOnly·driver.imageVersionBaked 는 tenstorrent·rebellions 템플릿만 읽는다. 합집합으로 두는 쪽을 골랐다(정의 다섯 벌이 서로 어긋나는 비용이 더 크다).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "name": {},
+        "vendor": {},
+        "model": {},
+        "rebootStrategy": {},
+        "kernelAllowlist": {},
+        "verifiedVersions": {},
+        "nodeSelector": { "$ref": "#/$defs/nodeSelector" },
+        "driver": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {},
+            "version": {},
+            "repository": {},
+            "tag": {},
+            "installer": {},
+            "allowDowngrade": { "type": "boolean" },
+            "versionSource": {},
+            "skipOnPassthrough": { "type": "boolean" },
+            "trackOnly": { "type": "boolean" },
+            "imageVersionBaked": { "type": "boolean" },
+            "env": {
+              "description": "항목 내부는 열어 둔다: 상위 Kubernetes EnvVar 목록을 그대로 통과시키는 자리다. value·valueFrom 중 무엇이 오는지 차트가 정하지 않는다.",
+              "type": "array"
+            },
+            "kernelImages": {
+              "description": "열어 둔다: 키가 커널 릴리스 문자열(uname -r)이다. 노드 커널마다 생기므로 차트가 미리 적을 수 없다."
+            },
+            "kernelImageBuildRevision": { "type": "string" },
+            "kernelImageVariant": { "type": "string" }
+          }
+        },
+        "toolkit": {
+          "$comment": "키 목록은 DriverInstallPolicy CRD 의 toolkit 스키마와 같다. 블록 전체가 CR 로 그대로 넘어간다.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "image": {},
+            "env": {
+              "description": "항목 내부는 열어 둔다: 상위 Kubernetes EnvVar 목록을 그대로 통과시키는 자리다.",
+              "type": "array"
+            }
+          }
+        },
+        "upgradePolicy": {
+          "$comment": "키 목록은 DriverInstallPolicy CRD 의 upgradePolicy 스키마와 같다.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "autoUpgrade": { "type": "boolean" },
+            "drainEnabled": { "type": "boolean" },
+            "forceUpgrade": { "type": "boolean" },
+            "rollbackOnFailure": { "type": "boolean" },
+            "maxUnavailable": {},
+            "maxParallelUpgrades": {},
+            "maxReboots": {},
+            "maxRollbackAttempts": {},
+            "drainTimeout": {},
+            "rebootTimeout": {},
+            "validationTimeout": {},
+            "idleCooldownSeconds": {},
+            "rollbackTarget": {}
+          }
+        },
+        "jobOverrides": {
+          "$comment": "키 목록은 DriverInstallPolicy CRD 의 jobOverrides 스키마와 같다.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "backoffLimit": {},
+            "priorityClassName": {},
+            "serviceAccountName": {},
+            "ttlSecondsAfterFinished": {}
+          }
+        },
+        "workloadProbe": {
+          "$comment": "키 목록은 DriverInstallPolicy CRD 의 workloadProbe 스키마와 같다.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "image": {},
+            "command": {
+              "description": "항목 내부는 열어 둔다: 상위 벤더 CLI 명령 배열을 그대로 통과시키는 자리다.",
+              "type": "array"
+            },
+            "resourceName": {},
+            "timeoutSeconds": {}
+          }
+        }
+      }
+    }
+  }
+}

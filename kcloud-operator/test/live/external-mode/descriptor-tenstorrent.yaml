@@ -1,0 +1,22 @@
+# ============================================================
+# descriptor-tenstorrent.yaml: external 모드 라이브 데모용 Tenstorrent descriptor — 중재 거절 확인
+# 상세: managementMode=external 벤더는 descriptor 중재에서 managed 와 같이 "관리 중" 으로
+#       판정돼 auto-apply 가 거절돼야 한다(같은 /dev 이중 광고 방지). run.sh 가 적용하고
+#       거절을 확인한 뒤 삭제한다.
+# 생성일: 2026-09-20
+# ============================================================
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorDescriptor
+metadata:
+  name: ext-mode-tt-refusal-probe
+spec:
+  vendor: tenstorrent
+  product: blackhole-p150
+  allocationUnit: device
+  identity:
+    source: pciAddress
+    stableAcrossReboot: true
+  deviceNodes:
+    - /dev/tenstorrent/{{id}}
+  backends:
+    - devicePlugin

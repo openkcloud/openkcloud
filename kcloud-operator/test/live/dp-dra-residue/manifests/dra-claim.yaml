@@ -1,0 +1,39 @@
+# dra-claim.yaml: tenstorrent 장치 1개를 DRA ResourceClaim 으로 요청하는 시험 워크로드
+# 상세: run.sh workload_dra 가 __RUN_ID__/__NODE__/__TEST_IMAGE__ 를 실제 값으로 치환해
+#       적용한다. 주입 확인(파드 Running + /dev/tenstorrent 로그 + resourceclaim.status.allocation)
+#       뒤 같은 함수가 파드와 이 템플릿을 삭제한다. deviceClassName 은 operator 가 만드는
+#       고정 이름(internal/controller/dra_driver.go 의 draDriverNameTenstorrent).
+# 생성일: 2026-09-28
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: dp-dra-residue-__RUN_ID__-claim
+  namespace: default
+spec:
+  spec:
+    devices:
+      requests:
+        - name: accel
+          exactly:
+            deviceClassName: tenstorrent.com
+            count: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dp-dra-residue-__RUN_ID__-dra
+  namespace: default
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: __NODE__
+  resourceClaims:
+    - name: accel
+      resourceClaimTemplateName: dp-dra-residue-__RUN_ID__-claim
+  containers:
+    - name: probe
+      image: __TEST_IMAGE__
+      command: ["sh", "-c", "ls -l /dev/tenstorrent/ ; sleep 600"]
+      resources:
+        claims:
+          - name: accel

@@ -1,12 +1,21 @@
 # deployment.yaml: NPU Operator Controller Manager Deployment
-# 생성일: 2026-03-25
+# 생성일: 2026-03-25 | 수정일: 2026-10-26
+{{/*
+operator 이미지 태그가 이 차트와 같은 릴리스 라인인지 render 단계에서 검사한다. -k8s1.28
+접미는 K8s 1.26~1.30 릴리스 라인(차트는 release/k8s-1.28 브랜치)이다 — 섞으면 구 라인
+operator 가 1.31+ CRD 를 덮어쓴다. 같은 접미 검사가 internal/crdapply/apply.go(k8s128Suffix)
+에도 있지만, 그쪽은 이미 도는 클러스터만 보므로 발행된 구 이미지 조합엔 이 검사가 유일한 방어다.
+*/}}
+{{- if hasSuffix "-k8s1.28" (.Values.image.tag | toString) }}
+{{- fail (printf "image.tag %q 는 K8s 1.26~1.30 라인(-k8s1.28 접미) operator 릴리스다. 이 차트 %s 는 K8s 1.31+ 전용이라 두 라인을 섞으면 구 라인 operator 가 CRD 를 덮어쓴다. 1.26~1.30 클러스터는 release/k8s-1.28 브랜치의 chart 0.6.x 를 쓰고, 이 차트에는 접미 없는 태그를 준다." .Values.image.tag .Chart.Version) }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "npu-operator.fullname" . }}
+  name: {{ include "kcloud-operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: {{ include "npu-operator.name" . }}
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: controller
 spec:
@@ -14,20 +23,20 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 0
+      maxUnavailable: {{ .Values.rollingUpdate.maxUnavailable }}
       maxSurge: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "npu-operator.name" . }}
+      app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "npu-operator.name" . }}
+        app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: controller
     spec:
-      serviceAccountName: {{ include "npu-operator.serviceAccountName" . }}
+      serviceAccountName: {{ include "kcloud-operator.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -45,10 +54,142 @@ spec:
         args:
         - --leader-elect={{ .Values.leaderElection.enabled }}
         - --health-probe-bind-address=:8081
+        {{- if .Values.webhook.enabled }}
+        - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+        - --webhook-inject-scope={{ .Values.webhook.injectScope | default "pod" }}
+        {{- end }}
+        {{- if .Values.api.enabled }}
+        - "--api-bind-address=:{{ .Values.api.port }}"
+        - --api-cert-path=/tmp/k8s-api-server/serving-certs
+        {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - "--metrics-bind-address=:{{ .Values.metrics.port }}"
+        - "--metrics-secure={{ .Values.metrics.secure }}"
+        {{- end }}
+        {{- if and .Values.generatedBackend .Values.generatedBackend.devicePlugin .Values.generatedBackend.devicePlugin.repository }}
+        # --generated-dp-image: descriptor auto-apply 가 만드는 device-plugin DaemonSet
+        # 이미지. repository 를 비우면 이 인자 자체가 빠져 operator 가 auto-apply 하지 않는다.
+        - "--generated-dp-image={{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.generatedBackend.devicePlugin.repository "tag" .Values.generatedBackend.devicePlugin.tag) }}"
+        {{- end }}
+        {{- if and .Values.generatedBackend .Values.generatedBackend.draDriver .Values.generatedBackend.draDriver.repository }}
+        # --generated-dra-image: descriptor auto-apply 가 만드는 DRA driver DaemonSet 이미지.
+        - "--generated-dra-image={{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.generatedBackend.draDriver.repository "tag" .Values.generatedBackend.draDriver.tag) }}"
+        {{- end }}
+        env:
+        # OPERATOR_NAMESPACE: operator 관리 워크로드(driver DS / install Job / toolkit DS)를
+        # 배치할 네임스페이스. release namespace 를 Downward API 로 주입한다. device-plugin 은
+        # 이 값과 무관하게 kube-system 고정. 미설정 시 코드 기본값 kube-system(회귀 0).
+        - name: OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        {{- if .Values.acpp.probeImage }}
+        # ACPP_PROBE_IMAGE: AcceleratorPartitionPolicy verify 단계가 띄우는 1-파티션 테스트 Pod 이미지.
+        # air-gap(Harbor mirror) 클러스터는 미러 도달 가능 이미지로 지정(미설정 시 코드 기본값 registry.k8s.io/pause:3.9).
+        - name: ACPP_PROBE_IMAGE
+          value: {{ .Values.acpp.probeImage | quote }}
+        {{- end }}
+        {{- if and .Values.acpp.probeImages .Values.acpp.probeImages.nvidia }}
+        # ACPP_PROBE_IMAGE_NVIDIA: 벤더 기능 probe(nvidia-smi -L, 종료코드 판정) 이미지.
+        # 비우면(기본) nvidia 는 표에 미등록으로 취급돼 기존 pause/Running 판정을 쓴다.
+        - name: ACPP_PROBE_IMAGE_NVIDIA
+          value: {{ .Values.acpp.probeImages.nvidia | quote }}
+        {{- end }}
+        {{- if and .Values.acpp.probeImages .Values.acpp.probeImages.tenstorrent }}
+        # ACPP_PROBE_IMAGE_TENSTORRENT: 벤더 기능 probe(tt-smi -s, 종료코드 판정) 이미지.
+        - name: ACPP_PROBE_IMAGE_TENSTORRENT
+          value: {{ .Values.acpp.probeImages.tenstorrent | quote }}
+        {{- end }}
+        {{- if and .Values.acpp.probeImages .Values.acpp.probeImages.furiosa }}
+        # ACPP_PROBE_IMAGE_FURIOSA: 벤더 기능 probe(furiosa-smi info, 종료코드 판정) 이미지.
+        - name: ACPP_PROBE_IMAGE_FURIOSA
+          value: {{ .Values.acpp.probeImages.furiosa | quote }}
+        {{- end }}
+        {{- if and .Values.acpp.probeHostBinary .Values.acpp.probeHostBinary.furiosa }}
+        # ACPP_PROBE_HOSTBIN_FURIOSA: furiosa probe 이미지에 CLI 가 없을 때 빌려 쓰는 호스트
+        # furiosa-smi 절대경로. 설정되면 probe 파드에 같은 경로로 읽기 전용 마운트된다.
+        - name: ACPP_PROBE_HOSTBIN_FURIOSA
+          value: {{ .Values.acpp.probeHostBinary.furiosa | quote }}
+        {{- end }}
+        {{- if and .Values.acpp.probeImages .Values.acpp.probeImages.rebellions }}
+        # ACPP_PROBE_IMAGE_REBELLIONS: 벤더 기능 probe(rbln-stat, 종료코드 판정) 이미지.
+        # privileged+hostPID 파드로 뜬다 — 값을 채우면 그 노드에 특권 파드가 뜬다는 뜻이다.
+        - name: ACPP_PROBE_IMAGE_REBELLIONS
+          value: {{ .Values.acpp.probeImages.rebellions | quote }}
+        {{- end }}
+        {{- if and .Values.hostExec .Values.hostExec.repository }}
+        # HOST_EXEC_IMAGE: 호스트 명령 실행 Job(MIG 관측·apply, 재부팅, DRA CDI init) 이미지.
+        - name: HOST_EXEC_IMAGE
+          value: {{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.hostExec.repository "tag" .Values.hostExec.tag) | quote }}
+        # ACPP_MIG_JOB_IMAGE: 구 이름. v0.7.26 이하 operator 이미지가 읽는다. v0.8.0 에서 제거.
+        - name: ACPP_MIG_JOB_IMAGE
+          value: {{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.hostExec.repository "tag" .Values.hostExec.tag) | quote }}
+        {{- end }}
+        {{- if and .Values.acpp.mpsControlDaemon .Values.acpp.mpsControlDaemon.repository }}
+        # ACPP_MPS_CONTROL_IMAGE: MPS 공유 모드에서 뜨는 control daemon 이미지. 레지스트리는
+        # global.registry 가 정한다. repository 를 비우면 코드 기본값(공개 nvcr.io)이 쓰인다.
+        - name: ACPP_MPS_CONTROL_IMAGE
+          value: {{ include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.acpp.mpsControlDaemon.upstream "repo" .Values.acpp.mpsControlDaemon.repository "tag" .Values.acpp.mpsControlDaemon.tag) | quote }}
+        {{- end }}
+        {{- with .Values.acpp.measuredSharing }}
+        {{- if .multiProcess }}
+        # KCLOUD_NVIDIA_MULTIPROCESS / KCLOUD_NVIDIA_TIMESLICING: 라이브 실측 결과를 주입해
+        # capability status 의 검증 축을 올린다("verified" 만 유효, 그 외/미설정은 required).
+        # 코드가 스스로 주장하지 않는 값이므로 이 클러스터에서 실제로 시험한 뒤에만 켠다.
+        - name: KCLOUD_NVIDIA_MULTIPROCESS
+          value: {{ .multiProcess | quote }}
+        {{- end }}
+        {{- if .timeSlicing }}
+        - name: KCLOUD_NVIDIA_TIMESLICING
+          value: {{ .timeSlicing | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if and .Values.operationCoordinator (eq .Values.operationCoordinator.mode "delegate") }}
+        # KCLOUD_OPERATION_COORDINATOR: 위임 모드 스위치. "delegate" 만 유효하고, 이 env 가 아예
+        # 주입되지 않으면 꺼진 것으로 읽힌다.
+        # .Values.operationCoordinator 존재를 먼저 확인하는 이유: --reuse-values 로 이 키가 없던
+        # 이전 릴리스를 업그레이드하면 이 맵 자체가 nil 이라 .mode 접근이 렌더링 실패로 죽는다.
+        - name: KCLOUD_OPERATION_COORDINATOR
+          value: "delegate"
+        {{- end }}
+        # Pod Security: pod-level runAsNonRoot+seccompRuntimeDefault 와 결합해 restricted 준수.
+        # cert(webhook/api)는 read-only secret 마운트, manager 는 rootfs 에 쓰지 않으므로 RO rootfs 안전.
         securityContext:
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
+        {{- if or .Values.webhook.enabled .Values.api.enabled .Values.metrics.enabled }}
+        ports:
+        {{- if .Values.webhook.enabled }}
+        - name: webhook
+          containerPort: {{ .Values.webhook.port }}
+          protocol: TCP
+        {{- end }}
+        {{- if .Values.api.enabled }}
+        - name: mgmt-api
+          containerPort: {{ .Values.api.port }}
+          protocol: TCP
+        {{- end }}
+        {{- if .Values.metrics.enabled }}
+        - name: metrics
+          containerPort: {{ .Values.metrics.port }}
+          protocol: TCP
+        {{- end }}
+        {{- end }}
+        {{- if or .Values.webhook.enabled .Values.api.enabled }}
+        volumeMounts:
+        {{- if .Values.webhook.enabled }}
+        - name: webhook-cert
+          mountPath: /tmp/k8s-webhook-server/serving-certs
+          readOnly: true
+        {{- end }}
+        {{- if .Values.api.enabled }}
+        - name: api-cert
+          mountPath: /tmp/k8s-api-server/serving-certs
+          readOnly: true
+        {{- end }}
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /healthz
@@ -65,6 +206,19 @@ spec:
           periodSeconds: 10
         resources:
           {{- toYaml .Values.resources | nindent 12 }}
+      {{- if or .Values.webhook.enabled .Values.api.enabled }}
+      volumes:
+      {{- if .Values.webhook.enabled }}
+      - name: webhook-cert
+        secret:
+          secretName: {{ include "kcloud-operator.fullname" . }}-webhook-cert
+      {{- end }}
+      {{- if .Values.api.enabled }}
+      - name: api-cert
+        secret:
+          secretName: {{ include "kcloud-operator.fullname" . }}-api-cert
+      {{- end }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

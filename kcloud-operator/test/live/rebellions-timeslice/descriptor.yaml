@@ -1,0 +1,25 @@
+# ============================================================
+# descriptor.yaml: Rebellions ATOM 을 SW 시분할(replicas 2)로 광고하는 AcceleratorDescriptor
+# 상세: deviceNodes 를 /dev/rbln0·/dev/rsd0 둘로 고정해 두 소비자가 같은 물리 장치를 받는다 —
+#       하나만 넣으면 자동탐지가 실패한다. 레지스트리 rebellions timeSlicing=Software 가 전제다.
+# 생성일: 2026-09-25 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorDescriptor
+metadata:
+  name: rebellions-timeslice
+spec:
+  vendor: rebellions
+  product: atom
+  allocationUnit: device
+  identity:
+    source: pciAddress
+    stableAcrossReboot: true
+  deviceNodes:
+    - /dev/rbln0
+    - /dev/rsd0
+  backends:
+    - devicePlugin
+  sharing:
+    mode: timeSliced
+    replicas: 2

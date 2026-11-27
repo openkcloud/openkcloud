@@ -1,20 +1,14 @@
 {{/*
 pre-upgrade-cleanup-old-ds.yaml: helm upgrade 시 구 이름 DaemonSet 전체를 사전 삭제하는 pre-upgrade Job.
-상세: DS selector 가 immutable 이므로 이름 변경 시 구 DS 를 삭제 후 신 DS 를 재생성해야 함.
-      삭제 목록에는 v0.5.23 이전의 모든 구 이름이 포함되어 있어 복수 세대 업그레이드도 안전.
-        - (pre-v0.5.7) npu-op-<vendor>-device-plugin  → 5종
-        - (v0.5.7~v0.5.22) npu-op-detector, npu-op-device-plugin-<vendor> → 6종,
-                            npu-op-driver-<vendor>-<model> → 4종
-      --ignore-not-found 로 이미 없는 경우도 안전하게 처리.
-      kubectl 이미지는 .Values.crdUpgrade.kubectlImage (기본 public "bitnami/kubectl:1.28").
-      airgap 환경은 해당 값을 사설 미러 경로로 override.
-생성일: 2026-04-22 | 수정일: 2026-06-02
+상세: DS selector 가 immutable 이라 이름을 바꾸면 구 DS 를 지우고 신 DS 를 다시 만들어야
+      한다. v0.5.23 이전 전 세대의 구 이름을 모두 지워 복수 세대 업그레이드도 안전하다.
+생성일: 2026-04-22 | 수정일: 2026-10-11
 */}}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: npu-op-cleanup-old-ds
+  name: kcloud-operator-cleanup-old-ds
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": pre-upgrade
@@ -24,7 +18,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: npu-op-cleanup-old-ds
+  name: kcloud-operator-cleanup-old-ds
   annotations:
     "helm.sh/hook": pre-upgrade
     "helm.sh/hook-weight": "-1"
@@ -37,7 +31,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: npu-op-cleanup-old-ds
+  name: kcloud-operator-cleanup-old-ds
   annotations:
     "helm.sh/hook": pre-upgrade
     "helm.sh/hook-weight": "-1"
@@ -45,16 +39,16 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: npu-op-cleanup-old-ds
+  name: kcloud-operator-cleanup-old-ds
 subjects:
   - kind: ServiceAccount
-    name: npu-op-cleanup-old-ds
+    name: kcloud-operator-cleanup-old-ds
     namespace: {{ .Release.Namespace }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: npu-op-cleanup-old-ds
+  name: kcloud-operator-cleanup-old-ds
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": pre-upgrade
@@ -65,11 +59,29 @@ spec:
   ttlSecondsAfterFinished: 60
   template:
     spec:
-      serviceAccountName: npu-op-cleanup-old-ds
+      serviceAccountName: kcloud-operator-cleanup-old-ds
       restartPolicy: OnFailure
+      # cordoned worker 로만 스케줄되면 pre-upgrade hook 이 hang 해 helm upgrade 가 멈춘다.
+      # control-plane taint 를 tolerate 해 workers 전량 cordon 시에도 스케줄 가능하게 하고,
+      # preferred affinity 로 control-plane 에 우선 배치한다(DS 삭제는 API 접근만 필요).
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
       containers:
         - name: cleanup-old-ds
-          image: "{{ .Values.crdUpgrade.kubectlImage | default (include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.crdUpgrade.kubectlRepository "tag" .Values.crdUpgrade.kubectlTag)) }}"
+          image: "{{ .Values.crdUpgrade.kubectlImage | default (include "kcloud-operator.vendorImage" (dict "registry" .Values.global.vendorRegistry "upstream" .Values.crdUpgrade.kubectlUpstream "repo" .Values.crdUpgrade.kubectlRepository "tag" .Values.crdUpgrade.kubectlTag)) }}"
           command: ["/bin/sh", "-c"]
           args:
             - |

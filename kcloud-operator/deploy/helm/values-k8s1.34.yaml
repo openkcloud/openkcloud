@@ -1,0 +1,57 @@
+# ============================================================
+# values-k8s1.34.yaml: K8s 1.31~1.34 릴리스 세트 v0.8.4 배포 프로파일
+# 상세: DRA(resource.k8s.io/v1)를 쓰는 라인. operator 만 라인별 이미지이고
+#       나머지 이미지는 1.28 프리셋과 동일한 것을 가리킨다.
+#       DRA 드라이버·DeviceClass 는 이 프로파일에 없다 — 그것을 켜는 것이
+#       values-k8s1.34-dra.yaml 이며, 같은 릴리스 세트 안의 값 토글이다.
+# 생성일: 2026-08-06 | 수정일: 2026-10-28
+# ============================================================
+# 이 파일은 1.31~1.34 릴리스 세트의 기본 설치 프로파일이다. 사설 미러를 쓰면 설치 시
+#   --set global.registry=<미러>/<프로젝트> --set global.vendorRegistry=<미러>/<프로젝트>
+#   를 함께 준다(전체 경로 필드의 air-gap 치환은 README.md "레지스트리 구성" 참조).
+# DRA 를 켜려면 이 파일 위에 values-k8s1.34-dra.yaml 을 추가 -f 로 얹는다. 로컬 values-dev.yaml 은
+#   이 프로파일과 무관하게 install.sh 가 적용하는 개발 클러스터 전용 오버라이드다.
+image:
+  tag: v0.8.4
+
+# ── 이 릴리스 세트가 켜는 기능 ────────────────────────────────────────────
+# 아래 토글이 프로파일에 없으면 차트만으로 설치했을 때 라이브와 다른 물건이 뜬다.
+
+# 관리 API 서버(REST + 웹 콘솔). 노출 방식(NodePort·주소)은 사이트마다 달라 여기서
+# 정하지 않는다 — 기본 ClusterIP 로 뜬다. 공개 배포 범위 밖이다(Magnum 연동 확정 조건).
+api:
+  enabled: false
+
+# 검증 웹훅. CR 이 받아들여지기 전에 거절되는 경로가 이 세트의 안전 검증 범위다.
+webhook:
+  enabled: true
+
+# Rebellions 은 공개 릴리스 범위 밖이다. 장치가 없어도 빈 DaemonSet·정책이 생기지 않게 끈다.
+rebellions:
+  enabled: false
+
+nvidia:
+  # GPU 텔레메트리. NVIDIA 드라이버는 hwmon 을 등록하지 않아 NVML 경로가 필요하다.
+  dcgmExporter:
+    enabled: true
+
+furiosa:
+  # Warboy/RNGD 를 개별 DS 두 개 대신 통합 DS 하나로 배포.
+  unified:
+    enabled: false
+  # RNGD 텔레메트리 exporter(:9410). dcgm-exporter 의 Furiosa 대응물이다.
+  exporter:
+    enabled: true
+
+driverInstallPolicies:
+  nvidia:
+    # containerd 에 nvidia runtime 을 등록한다. 노드 전체에 영향을 주므로 기본값은
+    # 꺼짐이고, 이 세트는 그 등록까지 포함한 상태를 안전 검증 범위로 삼는다.
+    toolkit:
+      enabled: true
+  # Rebellions 은 이 프리셋의 공개 범위 밖(위 rebellions.enabled 와 같은 이유)이라 추적 전용
+  # DriverInstallPolicy 도 끈다. 켜려면 사이트 값으로 driverInstallPolicies.rebellions.enabled=true 를 준다.
+  # 0.8.2 이하에서 webhook 을 켠 채 올라오는 사이트는 operator 를 먼저 올린 뒤 켠다(옛 webhook 이
+  # image 없는 정책을 거절한다).
+  rebellions:
+    enabled: false

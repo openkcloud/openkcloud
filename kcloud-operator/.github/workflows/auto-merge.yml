@@ -1,18 +1,15 @@
-# Check auto merge contiditons of PR and proceed merging
+# Check auto merge conditions of PR and proceed merging
 name: "Auto-merge in condition"
 
-# Event on a comment (in PR)
 on:
   issue_comment:
     types: [created]
 jobs:
-  # Check auto merge contiditons of PR and proceed merging
+  # Check auto merge conditions of PR and proceed merging
   automerge:  
     # Apply this job if it is a PR and by OWNER with '/approve' comment
     if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/approve') }}
     
-    # This job runs on Ubuntu-latest (Ubuntu 20.04 LTS checked on 2022-09-06)
-    # See https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners
     runs-on: ubuntu-latest
     steps:
       # Check the commenter is a member of the maintainer team of this repo

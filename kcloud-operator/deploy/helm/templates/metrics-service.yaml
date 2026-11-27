@@ -1,0 +1,26 @@
+{{- /*
+metrics-service.yaml: operator 지표 Service
+상세: metrics.enabled 와 metrics.service.enabled 가 모두 참일 때만 만든다. 포트는
+      metrics.port 하나를 따르므로 Service 와 실제 bind 포트가 갈라지지 않는다.
+생성일: 2026-09-17
+*/ -}}
+{{- if and .Values.metrics.enabled .Values.metrics.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kcloud-operator.fullname" . }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: controller
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: {{ .Values.metrics.port }}
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    {{- include "kcloud-operator.selectorLabels" . | nindent 4 }}
+{{- end }}

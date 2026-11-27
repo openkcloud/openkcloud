@@ -1,0 +1,151 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: acceleratorhealthpolicies.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: AcceleratorHealthPolicy
+    listKind: AcceleratorHealthPolicyList
+    plural: acceleratorhealthpolicies
+    shortNames:
+    - ahp
+    singular: acceleratorhealthpolicy
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: AcceleratorHealthPolicy 는 health 감시 정책이다.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AcceleratorHealthPolicySpec 은 감시 임계와 원인별 조치다.
+            properties:
+              checks:
+                description: |-
+                  HealthChecks 는 신호별 임계다. 0 은 "기본값을 쓴다" 는 뜻이다(끄기가 아니다) —
+                  끄려면 Disabled 목록에 신호 이름을 적는다.
+                properties:
+                  advertisementGraceSeconds:
+                    format: int32
+                    type: integer
+                  disabled:
+                    description: Disabled 는 끌 신호 이름이다(신호 상수와 같은 어휘).
+                    items:
+                      type: string
+                    type: array
+                  driverHeartbeatFailureThreshold:
+                    format: int32
+                    type: integer
+                  monitorIntervalSeconds:
+                    description: |-
+                      MonitorIntervalSeconds 는 이 노드를 다시 볼 간격이다(기본 30초). 짧게 잡으면 짧은 장애도
+                      잡히지만 API 부하가 는다. operator 의 자가치유 중 13초 안에 끝나는 장애가 있어, 기본
+                      주기로는 그 창을 아예 못 본다.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  ndrFreshnessSeconds:
+                    format: int32
+                    type: integer
+                  repeatedFailureThreshold:
+                    description: RepeatedFailureThreshold 는 같은 노드에서 몇 번 연속 복구가 실패하면
+                      격리할지다.
+                    format: int32
+                    type: integer
+                type: object
+              remediation:
+                additionalProperties:
+                  description: RemediationRule 은 한 원인에 대한 조치다.
+                  properties:
+                    action:
+                      description: RemediationAction 은 상태별 조치다.
+                      enum:
+                      - None
+                      - StopNewAllocation
+                      - RequestRecovery
+                      - Quarantine
+                      type: string
+                    recoveryCooldownSeconds:
+                      description: RecoveryCooldownSeconds 는 같은 원인으로 다시 작업을 만들기까지의
+                        최소 간격이다.
+                      format: int32
+                      type: integer
+                  required:
+                  - action
+                  type: object
+                description: Remediation 은 원인 이름 → 조치다(원인 상수와 같은 어휘).
+                type: object
+              selector:
+                description: |-
+                  A label selector is a label query over a set of resources. The result of matchLabels and
+                  matchExpressions are ANDed. An empty label selector matches all objects. A null
+                  label selector matches no objects.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
+            type: object
+        type: object
+    served: true
+    storage: true

@@ -14,7 +14,7 @@ NPU Operator {{ .Chart.AppVersion }} 설치 완료!
    kubectl get ndr -A
 
 4. Operator Pod 상태 확인:
-   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=npu-operator
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=kcloud-operator
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Furiosa Registry Secret 생성 (필요 시)
@@ -49,12 +49,12 @@ Furiosa 드라이버 이미지가 인증이 필요한 레지스트리에 있을 
 해결 방법 (둘 중 하나):
 
   1) helm upgrade 시 현재 값으로 명시 동기화:
-     helm upgrade npu-operator helm/kcloud-operator/ \
+     helm upgrade kcloud-operator deploy/helm/ \
        --set detector.image=<현재-레지스트리/이미지:태그> \
        -n {{ .Release.Namespace }}
 
   2) --force-conflicts 로 helm 이 ownership 을 강제 취득:
-     helm upgrade npu-operator helm/kcloud-operator/ \
+     helm upgrade kcloud-operator deploy/helm/ \
        --force-conflicts \
        -n {{ .Release.Namespace }}
 

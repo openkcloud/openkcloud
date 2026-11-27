@@ -1,0 +1,13 @@
+# npu_v1alpha1_acceleratorpartitionpolicy.yaml: RNGD 4-way 파티션 샘플 | 생성일: 2026-07-23
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorPartitionPolicy
+metadata:
+  name: rngd-four-way
+spec:
+  nodeSelector:
+    kcloud.ai/rngd.present: "true"
+  vendor: furiosa
+  layout:
+    - profile: 2core.12gb
+      countPerDevice: 4
+  deletionPolicy: Retain

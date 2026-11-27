@@ -1,0 +1,15 @@
+# avp-allocation-probe.yaml: 전 노드에 AllocationProbe 를 추가로 켜는 검증 정책 샘플 | 생성일: 2026-09-20
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorVerificationPolicy
+metadata:
+  name: allocation-probe-all-nodes
+spec:
+  # nodeSelector 를 비워 전 노드에 적용한다(가장 낮은 이름 사전순 정책 하나만 매치되면 그것으로 확정 —
+  # 다른 노드-특정 정책이 이미 있다면 이름 충돌을 먼저 확인할 것).
+  checks:
+    # AllocationProbe 하나만 켜고 싶어도 나머지 3개를 같이 적어야 한다 — Checks 를 명시하면
+    # 그 목록이 내장 기본값을 대체한다(병합 아님, internal/verification/policy.go apply()).
+    - DeviceObservation
+    - NodeDeviceReport
+    - Advertisement
+    - AllocationProbe

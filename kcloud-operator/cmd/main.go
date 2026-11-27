@@ -24,18 +24,23 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -43,20 +48,47 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	npuv1alpha1 "kcloud-operator/api/v1alpha1"
+	"kcloud-operator/internal/apiserver"
 	"kcloud-operator/internal/controller"
 	"kcloud-operator/internal/crdapply"
 	"kcloud-operator/internal/metrics"
+	"kcloud-operator/internal/naming"
+	"kcloud-operator/internal/operation"
+	"kcloud-operator/internal/uninstall"
 	"kcloud-operator/internal/upgrade"
+	"kcloud-operator/internal/verification"
+	npuwebhook "kcloud-operator/internal/webhook"
+	"kcloud-operator/pkg/npuctl"
 	// +kubebuilder:scaffold:imports
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme      = runtime.NewScheme()
+	setupLog    = ctrl.Log.WithName("setup")
+	buildCommit = "unknown" // ldflags -X main.buildCommit 로 빌드 시 주입
+	// releaseVersion 은 이 바이너리의 릴리스 버전이다. 정본은 deploy/helm/Chart.yaml 의
+	// appVersion 이고 Makefile 의 docker-build 가 그 값을 빌드 인자로 넘긴다. apply-crds 가
+	// 이 값으로 CRD 의 릴리스 표식을 대조한다 — 비면 대조도 기록도 하지 않는다.
+	releaseVersion = "" // ldflags -X main.releaseVersion 로 빌드 시 주입
 )
+
+// versionLine 은 --version 플래그의 한 줄 출력이다. ldflags 로 박힌 buildCommit 을 그대로 내고,
+// 비어 있으면 "unknown" 으로 낸다. test/collect/evidence.sh 가 기동 로그의 "starting manager"
+// 줄이 로테이션으로 사라졌을 때 `kubectl exec ... -- /manager --version` 으로 같은 값을 읽는다.
+// 서브명령이 아니라 플래그인 이유: 이 플래그를 모르는 구버전 바이너리는 usage 를 내고 종료 코드 2 로
+// 끝나 manager 를 한 번 더 기동하지 않는다.
+func versionLine() string {
+	if buildCommit == "" {
+		return "unknown"
+	}
+	return buildCommit
+}
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	// apiextensionsv1 은 vendoroperator_detect.go 의 CRD 재확인(APIReader.Get 으로
+	// CustomResourceDefinition 직접 조회)이 쓴다. client-go 의 기본 scheme 에는 없다.
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 
 	utilruntime.Must(npuv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
@@ -67,15 +99,29 @@ func main() {
 	// === apply-crds 서브명령 분기 (반드시 flag.Parse() 이전) ===
 	if len(os.Args) > 1 && os.Args[1] == "apply-crds" {
 		ctrl.SetLogger(zap.New(zap.UseDevMode(false)))
-		setupLog.Info("apply-crds 서브명령 시작")
-		if err := crdapply.Run(context.Background()); err != nil {
+		// --force 는 릴리스 표식 대조를 넘겨 하향 적용을 강제한다. 되돌리기를 영구히
+		// 막지 않으려고 둔 수단이고, 넘겼다는 사실은 crdapply 가 로그에 남긴다.
+		force := slices.Contains(os.Args[2:], "--force")
+		setupLog.Info("apply-crds 서브명령 시작", "release", releaseVersion, "force", force)
+		if err := crdapply.Run(context.Background(), releaseVersion, force); err != nil {
 			setupLog.Error(err, "apply-crds 실패")
 			os.Exit(1)
 		}
 		setupLog.Info("apply-crds 완료")
 		return
 	}
-	// === 기존 manager 로직 (변경 없음) ===
+	// === uninstall-gate 서브명령 분기 (helm pre-delete hook) ===
+	// 실패는 exit 1 이고, helm 이 그 실패로 삭제를 멈춘다 — 사용 중인 클러스터에서
+	// 아무것도 지우지 않는 것이 이 서브명령의 목적이다.
+	if len(os.Args) > 1 && os.Args[1] == "uninstall-gate" {
+		ctrl.SetLogger(zap.New(zap.UseDevMode(false)))
+		if err := uninstall.Run(context.Background()); err != nil {
+			fmt.Fprintf(os.Stderr, "uninstall-gate 실패: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	// === 이하 기본 manager 로직 ===
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
@@ -83,6 +129,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var apiBindAddress, apiCertPath string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -95,17 +142,37 @@ func main() {
 	flag.StringVar(&webhookCertPath, "webhook-cert-path", "", "The directory that contains the webhook certificate.")
 	flag.StringVar(&webhookCertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
 	flag.StringVar(&webhookCertKey, "webhook-cert-key", "tls.key", "The name of the webhook key file.")
+	var webhookInjectScope string
+	flag.StringVar(&webhookInjectScope, "webhook-inject-scope", npuwebhook.InjectScopePod,
+		"Pod mutating webhook 의 주입 대상 범위: pod(opt-in 라벨 Pod) 또는 namespace(라벨 네임스페이스의 Pod 전부). "+
+			"차트 값 webhook.injectScope 와 같은 값이다.")
 	flag.StringVar(&metricsCertPath, "metrics-cert-path", "",
 		"The directory that contains the metrics server certificate.")
 	flag.StringVar(&metricsCertName, "metrics-cert-name", "tls.crt", "The name of the metrics server certificate file.")
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&apiBindAddress, "api-bind-address", "",
+		"Address for the management REST API (e.g. :9444). Empty (default) disables it.")
+	flag.StringVar(&apiCertPath, "api-cert-path", "",
+		"Directory containing the management API TLS cert (tls.crt/tls.key). Empty serves plain HTTP.")
+	var genDPImage, genDRAImage string
+	flag.StringVar(&genDPImage, "generated-dp-image", "",
+		"Image for descriptor-generated device-plugin DaemonSets (helm 이 주입). 비면 device-plugin backend 를 auto-apply 하지 않는다.")
+	flag.StringVar(&genDRAImage, "generated-dra-image", "",
+		"Image for descriptor-generated DRA driver DaemonSets (helm 이 주입). 비면 DRA backend 를 auto-apply 하지 않는다.")
+	var showVersion bool
+	flag.BoolVar(&showVersion, "version", false, "빌드 커밋을 한 줄로 출력하고 종료한다.")
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+
+	if showVersion {
+		fmt.Println(versionLine())
+		return
+	}
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
@@ -171,10 +238,8 @@ func main() {
 		metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 	}
 
-	// If the certificate is not specified, controller-runtime will automatically
-	// generate self-signed certificates for the metrics server. While convenient for development and testing,
-	// this setup is not recommended for production.
-	//
+	// If the certificate is not specified, controller-runtime will automatically generate
+	// self-signed certificates for the metrics server (not recommended for production).
 	// TODO(user): If you enable certManager, uncomment the following lines:
 	// - [METRICS-WITH-CERTS] at config/default/kustomization.yaml to generate and use certificates
 	// managed by cert-manager for the metrics server.
@@ -205,18 +270,21 @@ func main() {
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "35b22ec5.ai",
+		// operator 쓰기의 managedFields 관리자 이름을 바이너리 파일명(manager) 대신 kcloud-operator 로
+		// 고정한다. 호출마다 FieldOwner 를 넘기는 쓰기는 그 값이 우선한다.
+		NewClient: func(cfg *rest.Config, o client.Options) (client.Client, error) {
+			c, err := client.New(cfg, o)
+			if err != nil {
+				return nil, err
+			}
+			return client.WithFieldOwner(c, "kcloud-operator"), nil
+		},
+		LeaderElection:   enableLeaderElection,
+		LeaderElectionID: "35b22ec5.ai",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
-		// when the Manager ends. This requires the binary to immediately end when the
-		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
-		// speeds up voluntary leader transitions as the new leader don't have to wait
-		// LeaseDuration time first.
-		//
-		// In the default scaffold provided, the program ends immediately after
-		// the manager stops, so would be fine to enable this option. However,
-		// if you are doing or is intended to do any operation such as perform cleanups
-		// after the manager stops then its usage might be unsafe.
+		// when the Manager ends, speeding up leader transitions — but requires the binary to
+		// end immediately when the Manager stops; if any cleanup runs after that, enabling
+		// this is unsafe.
 		// LeaderElectionReleaseOnCancel: true,
 		Cache: cache.Options{SyncPeriod: &syncPeriod},
 	})
@@ -226,9 +294,10 @@ func main() {
 	}
 
 	if err := (&controller.NPUClusterPolicyReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("npuclusterpolicy-controller"),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorderFor("npuclusterpolicy-controller"),
+		APIReader: mgr.GetAPIReader(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NPUClusterPolicy")
 		os.Exit(1)
@@ -243,20 +312,172 @@ func main() {
 		os.Exit(1)
 	}
 
-	sm := &upgrade.UpgradeStateMachine{
+	if err := (&controller.ToolkitDaemonSetReconciler{
 		Client:   mgr.GetClient(),
-		Recorder: mgr.GetEventRecorderFor("driver-upgrade-statemachine"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("toolkitdaemonset-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ToolkitDaemonSet")
+		os.Exit(1)
 	}
-	if err := (&controller.DriverUpgradeReconciler{
+
+	sm := &upgrade.UpgradeStateMachine{
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Recorder:  mgr.GetEventRecorderFor("driver-upgrade-statemachine"),
+	}
+	driverReconciler := &controller.DriverUpgradeReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
 		Recorder:     mgr.GetEventRecorderFor("driverupgrade-controller"),
 		StateMachine: sm,
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err := driverReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DriverUpgrade")
 		os.Exit(1)
 	}
+	// probeLogs 는 벤더 기능 probe 파드의 마지막 로그를 읽는 seam 이다 — controller-runtime client 는
+	// log 서브리소스를 못 읽어 clientset 이 필요하다(실패 사유가 근거에 남지 않으면 파드는 이미 지워진 뒤다).
+	probeLogs, err := controller.NewPodLogGetter(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "unable to build probe log getter")
+		os.Exit(1)
+	}
+	// acppLiveVerifier 는 apply 검증과 근거 게이트의 allocation probe 가 공유하는 단일 인스턴스다 —
+	// 따로 만들면 ACPP_PROBE_IMAGE 설정이 두 곳으로 갈라진다.
+	acppLiveVerifier := controller.NewLiveVerifier(mgr.GetClient(), probeLogs)
+	acppReconciler := &controller.AcceleratorPartitionPolicyReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("acceleratorpartitionpolicy-controller"),
+		Verifier: acppLiveVerifier,
+		Verification: &verification.Verifier{
+			Client: mgr.GetClient(),
+			Prober: controller.NewAllocationProber(acppLiveVerifier),
+		},
+		// 삭제 경로가 위임 모드에서 노드를 되돌리기 전에 조정자와 같은 Lease 를 잡는다(같은
+		// Namespace/Duration — 서로 다른 Lease 로 나뉘면 이 목적 자체가 성립하지 않는다).
+		Leases: &operation.LeaseManager{
+			Client: mgr.GetClient(), Namespace: naming.OperatorNamespace(),
+			Holder: "kcloud-operator", Duration: 60 * time.Second,
+		},
+	}
+	if err := acppReconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AcceleratorPartitionPolicy")
+		os.Exit(1)
+	}
+	// AcceleratorOperation 컨트롤러 — ACPP reconciler 인스턴스를 재사용한다. participant 가 그
+	// seam(Verifier·Executor·Observer)을 그대로 써야 적용 로직이 갈라지지 않는다.
+	if err := (&controller.AcceleratorOperationReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("accelerator-operation"),
+		Participants: operation.Registry{
+			operation.PartitionReconfigure: controller.NewACPPParticipant(acppReconciler),
+			operation.SharingModeChange:    controller.NewACPPParticipant(acppReconciler),
+			operation.Revalidate:           controller.NewRevalidateParticipant(acppReconciler),
+			operation.DriverInstall:        controller.NewDriverParticipant(driverReconciler),
+			operation.DriverUpgrade:        controller.NewDriverParticipant(driverReconciler),
+			operation.DriverRollback:       controller.NewDriverParticipant(driverReconciler),
+			operation.DevicePluginRestart:  controller.NewDevicePluginParticipant(acppReconciler),
+			operation.RecoverDevice:        controller.NewRecoverDeviceParticipant(acppReconciler),
+			operation.NodeReboot: controller.NewNodeRebootParticipant(
+				mgr.GetClient(), controller.HostExecImage()),
+			operation.DeviceReset: controller.NewDeviceResetParticipant(
+				mgr.GetClient(), controller.HostExecImage()),
+		},
+		Leases: &operation.LeaseManager{
+			Client: mgr.GetClient(), Namespace: naming.OperatorNamespace(),
+			Holder: "kcloud-operator", Duration: 60 * time.Second,
+		},
+		Verification: &verification.Verifier{
+			Client: mgr.GetClient(),
+			Prober: controller.NewAllocationProber(controller.NewLiveVerifier(mgr.GetClient(), probeLogs)),
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AcceleratorOperation")
+		os.Exit(1)
+	}
+
+	// Health 감시 컨트롤러 — 장치를 직접 바꾸지 않고 상태 기록·격리 라벨·복구 작업 생성만 한다.
+	if err := (&controller.AcceleratorHealthReconciler{
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("accelerator-health"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AcceleratorHealth")
+		os.Exit(1)
+	}
+	if err := (&controller.AcceleratorDescriptorReconciler{
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(),
+		DPImage:            genDPImage,
+		DRAImage:           genDRAImage,
+		GeneratedNamespace: naming.OperatorNamespace(),
+		Verification: &verification.Verifier{
+			Client: mgr.GetClient(),
+			Prober: controller.NewAllocationProber(acppLiveVerifier),
+		},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AcceleratorDescriptor")
+		os.Exit(1)
+	}
+	if err := (&controller.AcceleratorWorkloadReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("acceleratorworkload-controller"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AcceleratorWorkload")
+		os.Exit(1)
+	}
+	// 정책과 무관한 저빈도 MIG 관측 — 정책이 없어도 보고서의 MIG 필드가 신선해야 한다.
+	if err := (&controller.MigObservationReconciler{
+		Client: mgr.GetClient(), Scheme: mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("migobservation"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "MigObservation")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
+
+	// Admission webhooks(DIP/NCP validating + Pod mutating). webhook-cert-path 가 비면 등록
+	// 자체를 건너뛴다 — 핸들러를 등록하는 순간 controller-runtime 이 웹훅 서버를 띄우고,
+	// 인증서 경로가 비면 기본 경로(/tmp/k8s-webhook-server/serving-certs)에서 찾다가 매니저가
+	// 통째로 죽는다. helm 차트는 webhook.enabled=false 면 --webhook-cert-path 를 주지 않으므로
+	// 이 가드가 없으면 차트 기본값 그대로는 operator 가 뜨지 않는다.
+	if webhookCertPath != "" {
+		if err := npuwebhook.Setup(mgr, webhookInjectScope); err != nil {
+			setupLog.Error(err, "unable to set up admission webhooks")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("webhook-cert-path 가 비어 admission webhook 미등록 — 웹훅 서버도 띄우지 않는다")
+	}
+
+	// Management REST API(opt-in). api-bind-address 가 비면 미기동(무영향).
+	// TokenReview/SAR 는 별도 clientset, 상태·CR patch 는 매니저의 캐시 client 를 재사용한다.
+	if apiBindAddress != "" {
+		authnClient, err := kubernetes.NewForConfig(mgr.GetConfig())
+		if err != nil {
+			setupLog.Error(err, "unable to build clientset for management API auth")
+			os.Exit(1)
+		}
+		apiSrv := &apiserver.Server{
+			Addr:  apiBindAddress,
+			Authn: authnClient,
+			Ctl:   npuctl.NewFromClient(mgr.GetClient()),
+			// 조회 엔드포인트는 매니저 캐시가 아니라 API 서버를 직접 읽는다(캐시에 Event 를
+			// 태우지 않기 위해서다 — apiserver.Server.Reader 주석 참고).
+			Reader: mgr.GetAPIReader(),
+			Log:    ctrl.Log.WithName("apiserver"),
+		}
+		if len(apiCertPath) > 0 {
+			apiSrv.CertFile = filepath.Join(apiCertPath, "tls.crt")
+			apiSrv.KeyFile = filepath.Join(apiCertPath, "tls.key")
+		}
+		if err := mgr.Add(apiSrv); err != nil {
+			setupLog.Error(err, "unable to add management API server to manager")
+			os.Exit(1)
+		}
+	}
 
 	if metricsCertWatcher != nil {
 		setupLog.Info("Adding metrics certificate watcher to manager")
@@ -298,7 +519,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
+	setupLog.Info("starting manager", "commit", buildCommit)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

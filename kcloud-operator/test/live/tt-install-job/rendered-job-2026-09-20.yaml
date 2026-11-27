@@ -1,0 +1,92 @@
+# ============================================================
+# install Job 렌더 실측 출력(상태기계 우회)
+# 상세: go run ./test/live/tt-install-job/render 가 라이브 DIP tenstorrent-blackhole-ds 를 읽어
+#       RenderInstallJob(policy, <tenstorrent-node>, 2.8.0-v1, 2.8.0) 로 뽑고 -manual 접미를 붙인 결과다.
+# 생성일: 2026-09-20 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app.kubernetes.io/component: driver-install
+    app.kubernetes.io/name: kcloud-driver-install
+    npu.ai/node: k8s-worker3
+    npu.ai/vendor: tenstorrent
+  name: kcloud-tenstorrent-blackhole-p150-install-b337dfd8-manual
+  namespace: kcloud
+  ownerReferences:
+  - apiVersion: npu.ai/v1alpha1
+    controller: true
+    kind: DriverInstallPolicy
+    name: tenstorrent-blackhole-ds
+    uid: 48cd8b87-a7fd-4d0c-9596-d218d3d18923
+spec:
+  activeDeadlineSeconds: 1800
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: driver-install
+        app.kubernetes.io/name: kcloud-driver-install
+        npu.ai/node: k8s-worker3
+        npu.ai/vendor: tenstorrent
+    spec:
+      containers:
+      - env:
+        - name: RUN_MODE
+          value: job
+        - name: DRIVER_VERSION
+          value: 2.8.0
+        - name: REBOOT_STRATEGY
+          value: IfNeeded
+        - name: VENDOR
+          value: tenstorrent
+        - name: ALLOW_DOWNGRADE
+          value: "false"
+        - name: VERSION_SOURCE
+          value: Policy
+        - name: SKIP_ON_PASSTHROUGH
+          value: "true"
+        image: <레지스트리>:5100/kcloud/tenstorrent-driver-ds:2.8.0-v1
+        imagePullPolicy: IfNotPresent
+        name: driver-install
+        resources: {}
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /lib/modules
+          name: host-modules
+        - mountPath: /usr/src
+          name: host-src
+        - mountPath: /etc
+          name: host-etc
+        - mountPath: /var/lib/kcloud-operator
+          name: host-var
+        - mountPath: /var/lib/kubelet/device-plugins
+          name: device-plugins
+      hostNetwork: true
+      hostPID: true
+      nodeName: k8s-worker3
+      nodeSelector:
+        kcloud.ai/tenstorrent.present: "true"
+      restartPolicy: OnFailure
+      tolerations:
+      - operator: Exists
+      volumes:
+      - hostPath:
+          path: /lib/modules
+        name: host-modules
+      - hostPath:
+          path: /usr/src
+        name: host-src
+      - hostPath:
+          path: /etc
+        name: host-etc
+      - hostPath:
+          path: /var/lib/kcloud-operator
+        name: host-var
+      - hostPath:
+          path: /var/lib/kubelet/device-plugins
+        name: device-plugins
+  ttlSecondsAfterFinished: 600
+status: {}

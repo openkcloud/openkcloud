@@ -1,0 +1,19 @@
+{
+  "_comment": "footprint 회귀 게이트 baseline. test/footprint/measure.sh -m static --charts kcloud 결과 중 targets.kcloud.static 블록. 생성일 2026-09-20, commit 2c80073. make footprint-check 는 이 값과 현재 렌더를 대조해 상주 operand(Deployment+DaemonSet+StatefulSet) 수가 늘면 실패한다. 의도된 증가면 재측정 후 이 파일을 갱신할 것.",
+  "targets": {
+    "kcloud": {
+      "static": {
+        "Deployment": 1,
+        "DaemonSet": 0,
+        "StatefulSet": 0,
+        "Job": 4,
+        "CRD": 13,
+        "ClusterRole": 6,
+        "Role": 1,
+        "Webhook": 0,
+        "Service": 0,
+        "containers": 5
+      }
+    }
+  }
+}

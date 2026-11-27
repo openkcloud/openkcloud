@@ -1,0 +1,24 @@
+# ============================================================
+# descriptor.yaml: Rebellions ATOM 을 descriptor 하나로 SW 시분할 광고(<rebellions-node> 유휴 재실측 근거)
+# 상세: 레지스트리 rebellions timeSlicing 이 Software 여야 컨트롤러(sharingRefusal)가 켠다.
+#       생성물 DaemonSet 이름은 kcloud-generated-rebellions-atom-share-demo-dp 다.
+# 생성일: 2026-09-22 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: npu.ai/v1alpha1
+kind: AcceleratorDescriptor
+metadata:
+  name: rebellions-atom-share-demo
+spec:
+  vendor: rebellions
+  product: atom
+  allocationUnit: device
+  identity:
+    source: pciAddress
+    stableAcrossReboot: true
+  deviceNodes:
+    - /dev/rbln0
+  backends:
+    - devicePlugin
+  sharing:
+    mode: timeSliced
+    replicas: 2

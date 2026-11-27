@@ -5,6 +5,11 @@
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
 
+# CHART_APP_VERSION 은 이미지에 박을 릴리스 버전이다. 정본은 Chart.yaml 의 appVersion
+# 이고(release.yml 이 태그와 같은지 검사한다), apply-crds 가 이 값으로 CRD 의 릴리스
+# 표식을 대조한다. release/k8s-1.28 브랜치에서는 같은 줄이 v0.6.2-k8s1.28 을 읽는다.
+CHART_APP_VERSION := $(shell grep -oP '^appVersion:\s*\K\S+' deploy/helm/Chart.yaml)
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -28,8 +33,8 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# ai/npu-operator-bundle:$VERSION and ai/npu-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= ai/npu-operator
+# ai/kcloud-operator-bundle:$VERSION and ai/kcloud-operator-catalog:$VERSION.
+IMAGE_TAG_BASE ?= ai/kcloud-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -76,14 +81,9 @@ all: build
 ##@ General
 
 # The help target prints out all targets with their descriptions organized
-# beneath their categories. The categories are represented by '##@' and the
-# target descriptions by '##'. The awk command is responsible for reading the
-# entire set of makefiles included in this invocation, looking for lines of the
-# file as xyz: ## something, and then pretty-format the target and help. Then,
-# if there's a line with ##@ something, that gets pretty-printed as a category.
-# More info on the usage of ANSI control characters for terminal formatting:
+# beneath their categories ('##@') and per-target descriptions ('##'). The awk
+# command parses target:##description lines for pretty-printing.
 # https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
-# More info on the awk command:
 # http://linuxcommand.org/lc3_adv_awk.php
 
 .PHONY: help
@@ -110,6 +110,99 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(MAKE) embed-crds
 	$(MAKE) sync-helm-crds
 
+.PHONY: capmatrix
+capmatrix: ## Generate compatibility matrix into the docs repo (../docs/features/compatibility_matrix.md).
+	go run ./cmd/capmatrix -out $(MAKEFILE_DIR)/../docs/features/compatibility_matrix.md
+
+.PHONY: capmatrix-check
+capmatrix-check: ## Verify the compatibility matrix is up to date (로컬 전용 — CI 환경엔 docs 저장소가 없다).
+	go run ./cmd/capmatrix | cmp - $(MAKEFILE_DIR)/../docs/features/compatibility_matrix.md
+
+.PHONY: private-ip-check
+private-ip-check: ## Verify no internal addresses or accounts are in tracked files.
+	bash hack/private-ip-check.sh --self-test
+	bash hack/private-ip-check.sh
+
+.PHONY: docs-path-check
+docs-path-check: ## Verify no sibling docs/ paths leak into code, charts, or scripts.
+	bash hack/docs-path-check.sh --self-test
+	bash hack/docs-path-check.sh
+
+.PHONY: version-check
+version-check: ## Verify docs release-set matches Chart.yaml (로컬 전용 — CI 엔 docs 저장소가 없다).
+	bash hack/version-check.sh
+
+.PHONY: manifest-check
+manifest-check: ## Verify images.yaml kcloud images are all in image-manifest.yaml, and vice versa (로컬 전용 — CI 엔 images 저장소가 없어 values.yaml 폴백만 검사한다. 역방향 미등재는 기본 경고, CHECK_REVERSE_COVERAGE=1 로 실패로 올린다).
+	bash test/airgap/manifest-coverage.sh
+
+.PHONY: digest-check
+digest-check: ## Verify image-manifest.yaml digests match the registry (레지스트리 조회가 필요해 CI 게이트엔 넣지 않는다).
+	bash hack/refresh-image-digests.sh --check
+
+.PHONY: image-tag-check
+image-tag-check: ## 차트가 당기는 이미지 태그의 레지스트리 실재 확인 (레지스트리 조회가 필요해 기본 게이트엔 꺼둔다. CHECK_REGISTRY=1 로 켠다, release-prepare·CI 는 항상 켠다).
+	@if [ "$${CHECK_REGISTRY:-0}" = "1" ]; then \
+		bash hack/image-tag-check.sh; \
+	else \
+		echo "image-tag-check: SKIP(CHECK_REGISTRY=1 로 켠다 — 미실행이며 통과 아님)"; \
+	fi
+
+.PHONY: release-prepare
+release-prepare: ## 발행 준비 — 선행 조건·정합 검사와 push 명령 출력(기본 dry-run, 로컬 태그 생성은 --apply, 형제 images 저장소가 필요해 로컬 전용).
+	bash hack/release-prepare.sh
+
+.PHONY: crd-check
+crd-check: ## Verify config/crd/kustomization.yaml lists every CRD in config/crd/bases.
+	bash hack/crd-kustomize-check.sh
+
+.PHONY: doc-cite-check
+doc-cite-check: ## 주석·values·워크플로가 가리키는 docs/*.md 경로의 실재 검사(스크립트 자가시험 먼저)
+	bash hack/doc-cite-check.sh --self-test
+	bash hack/doc-cite-check.sh
+
+.PHONY: workspace-cite-check
+workspace-cite-check: ## 추적 파일이 커밋되지 않는 계획 경로나 보고서 파일명을 인용하면 거부(스크립트 자가시험 먼저)
+	bash hack/workspace-cite-check.sh --self-test
+	bash hack/workspace-cite-check.sh
+
+.PHONY: notices
+notices: embed-crds ## 서드파티 고지문 THIRD_PARTY_NOTICES.txt 재생성(모듈 캐시를 읽는다)
+	bash hack/third-party-notices.sh --write THIRD_PARTY_NOTICES.txt .:./cmd
+
+.PHONY: notices-check
+notices-check: embed-crds ## 고지문이 현재 의존성과 같은지 확인
+	bash hack/third-party-notices.sh --check THIRD_PARTY_NOTICES.txt .:./cmd
+
+.PHONY: comment-check
+comment-check: ## 주석·문서의 이력 서술·세션 식별자·날짜·긴 블록 거부(스크립트 자가시험 먼저)
+	bash hack/comment-check.sh --self-test
+	bash hack/comment-check.sh
+
+.PHONY: comment-only-check
+comment-only-check: ## BASE..HEAD 가 주석·문서만 바꿨는지 확인 (make comment-only-check BASE=<커밋>)
+	bash hack/comment-only-check.sh --self-test
+	bash hack/comment-only-check.sh $(BASE)
+
+.PHONY: conformance
+conformance: ## Verify every registered vendor satisfies the onboarding contract (test/conformance + internal/controller).
+	go test ./test/conformance/... -v
+	go test ./internal/controller/... -run 'TestIsAcceleratorNodeRecognizesEveryVendorPresentLabel|TestAcceleratorOperationVendorsMatchesCRDEnum' -count=1 -v
+
+# footprint 회귀 게이트 — test/footprint/measure.sh 로 kcloud 차트 정적 렌더를 재고
+# baseline.json 과 상주 operand(Deployment+DaemonSet+StatefulSet) 수를 대조한다.
+# 라이브 모드는 클러스터가 필요해 CI 에서는 static 만 돌린다.
+.PHONY: footprint
+footprint: ## Static K8s footprint of the kcloud chart (JSON) — test/footprint
+	OUT=$(CURDIR)/footprint.json bash test/footprint/measure.sh -m static --charts kcloud
+
+.PHONY: footprint-check
+footprint-check: footprint ## Fail if long-running operands grew vs test/footprint/baseline.json
+	jq -e --slurpfile b test/footprint/baseline.json '(.targets.kcloud.static|type)=="object" and ($$b[0].targets.kcloud.static|type)=="object"' footprint.json >/dev/null \
+	  || (echo "footprint 측정 없음(static null) — helm template 실패 여부 확인" && exit 1)
+	jq -e --slurpfile b test/footprint/baseline.json '.targets.kcloud.static as $$s | $$b[0].targets.kcloud.static as $$base | ($$s.Deployment+$$s.DaemonSet+$$s.StatefulSet) <= ($$base.Deployment+$$base.DaemonSet+$$base.StatefulSet)' footprint.json \
+	  || (echo "footprint 회귀: 상주 operand 수가 baseline 을 넘었다 — 의도면 baseline.json 갱신" && exit 1)
+
 .PHONY: sync-helm-crds
 sync-helm-crds: ## Sync generated CRDs to helm chart crds/ directory.
 	@mkdir -p $(HELM_CRDS_DIR)
@@ -130,13 +223,20 @@ vet: ## Run go vet against code.
 
 .PHONY: test
 test: manifests generate fmt vet setup-envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" KCLOUD_EXPECT_K8S_MINOR="$(ENVTEST_K8S_VERSION)" go test -p 1 $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+# cmd/kubectl-npu 는 자체 go.mod 를 가진 중첩 모듈이라 위의 go list ./... 에 잡히지 않는다.
+# 따로 부르지 않으면 그 안의 시험은 있는데 한 번도 돌지 않는다.
+	cd cmd/kubectl-npu && go test ./...
+
+.PHONY: fault-test
+fault-test: manifests generate setup-envtest ## Run the fault-injection harness only (test/fault).
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./test/fault/ -v
 
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
 # CertManager is installed by default; skip with:
 # - CERT_MANAGER_INSTALL_SKIP=true
-KIND_CLUSTER ?= npu-operator-test-e2e
+KIND_CLUSTER ?= kcloud-operator-test-e2e
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
@@ -162,8 +262,9 @@ cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 	@$(KIND) delete cluster --name $(KIND_CLUSTER)
 
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint linter
+lint: golangci-lint ## Run golangci-lint linter (root module + cmd/kubectl-npu plugin module)
 	$(GOLANGCI_LINT) run
+	cd cmd/kubectl-npu && $(GOLANGCI_LINT) run ./...
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
@@ -188,7 +289,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: embed-crds ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+	$(CONTAINER_TOOL) build $(DOCKER_BUILD_ARGS) --build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) --build-arg RELEASE_VERSION=$(CHART_APP_VERSION) -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -205,10 +306,13 @@ PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
-	- $(CONTAINER_TOOL) buildx create --name npu-operator-builder
-	$(CONTAINER_TOOL) buildx use npu-operator-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
-	- $(CONTAINER_TOOL) buildx rm npu-operator-builder
+	- $(CONTAINER_TOOL) buildx create --name kcloud-operator-builder
+	$(CONTAINER_TOOL) buildx use kcloud-operator-builder
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) \
+		--build-arg GIT_COMMIT=$(shell git rev-parse --short HEAD) \
+		--build-arg RELEASE_VERSION=$(CHART_APP_VERSION) \
+		--tag ${IMG} -f Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx rm kcloud-operator-builder
 	rm Dockerfile.cross
 
 .PHONY: build-installer
@@ -216,6 +320,27 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	mkdir -p dist
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
+
+.PHONY: disk-check
+disk-check: ## 빌드 호스트 디스크·docker 사용량 확인(여유 20% 미만이면 실패)
+	bash hack/build-host-disk-check.sh
+
+.PHONY: helm-option-check
+helm-option-check: ## helm upgrade 의 --reuse-values 단독 사용을 금지한다
+	bash hack/helm-values-option-check.sh
+
+.PHONY: chart-default-check
+chart-default-check: ## 차트 기본값만으로 드라이버 설치가 가능한 조합인지 검사
+	bash hack/chart-default-installable.sh
+
+.PHONY: vendor-branch-check
+vendor-branch-check: ## 컨트롤러의 벤더 조건 분기 수가 상한을 넘으면 실패
+	bash hack/vendor-branch-count.sh
+
+KEEP ?= 3
+.PHONY: image-gc
+image-gc: ## 로컬 빌드 이미지 저장소별 최신 3개만 남기고 정리(KEEP=N)
+	bash hack/local-image-gc.sh --keep $(KEEP)
 
 ##@ Deployment
 

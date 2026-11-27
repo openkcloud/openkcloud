@@ -1,0 +1,20 @@
+# dp-pod.yaml: tenstorrent 장치 1개를 classic 확장 자원(devicePlugin)으로 요청하는 시험 워크로드
+# 상세: run.sh workload_dp 가 __RUN_ID__/__NODE__/__TEST_IMAGE__ 를 실제 값으로 치환해
+#       적용한다. 주입 확인(파드 Running + /dev/tenstorrent 로그) 뒤 같은 함수가 삭제한다.
+# 생성일: 2026-09-28
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dp-dra-residue-__RUN_ID__-dp
+  namespace: default
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: __NODE__
+  containers:
+    - name: probe
+      image: __TEST_IMAGE__
+      command: ["sh", "-c", "ls -l /dev/tenstorrent/ ; sleep 600"]
+      resources:
+        limits:
+          tenstorrent.com/blackhole: 1

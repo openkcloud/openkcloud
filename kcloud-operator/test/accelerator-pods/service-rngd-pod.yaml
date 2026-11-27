@@ -1,0 +1,20 @@
+# ============================================================
+# service-rngd-pod.yaml: service k8s(Magnum) 에서 Furiosa RNGD 1장을 할당받아 furiosa-smi 를 실행하는 확인용 파드
+# 상세: 이미지는 VM Harbor(harbor.internal — 적용 전에 실제 레지스트리 주소로 바꾼다) library 프로젝트.
+#       k8s-furiosa-rngd worker 에서 npu0 alive 확인.
+#       실행: kubectl apply -f service-rngd-pod.yaml → kubectl get pod rngd-test (Completed) → kubectl logs rngd-test → kubectl delete pod rngd-test
+# 생성일: 2026-09-17 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rngd-test
+spec:
+  restartPolicy: Never
+  containers:
+  - name: smi
+    image: harbor.internal/library/furiosa-smi-demo:jammy
+    command: ["sh", "-c", "furiosa-smi info && furiosa-smi status"]
+    resources:
+      limits:
+        furiosa.ai/rngd: 1

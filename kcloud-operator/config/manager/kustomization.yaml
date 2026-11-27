@@ -4,5 +4,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: 129.254.202.88:5100/npu-operator
+  newName: registry.example.com:5000/kcloud-operator
   newTag: "1.0"

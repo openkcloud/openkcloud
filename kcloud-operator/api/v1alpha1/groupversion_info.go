@@ -41,5 +41,11 @@ func init() {
 		&NodeDeviceReport{}, &NodeDeviceReportList{},
 		&DriverInstallPolicy{}, &DriverInstallPolicyList{},
 		&DriverUpgradeState{}, &DriverUpgradeStateList{},
+		&AcceleratorPartitionPolicy{}, &AcceleratorPartitionPolicyList{},
+		&AcceleratorClass{}, &AcceleratorClassList{},
+		&AcceleratorWorkload{}, &AcceleratorWorkloadList{},
+		&AcceleratorEvidence{}, &AcceleratorEvidenceList{},
+		&AcceleratorVerificationPolicy{}, &AcceleratorVerificationPolicyList{},
+		&AcceleratorOperation{}, &AcceleratorOperationList{},
 	)
 }

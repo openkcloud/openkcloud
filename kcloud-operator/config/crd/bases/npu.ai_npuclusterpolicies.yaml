@@ -49,12 +49,309 @@ spec:
                 type: object
               furiosa:
                 properties:
+                  advertiseBy:
+                    description: |-
+                      AdvertiseBy 는 devicePlugin(기본) 또는 dra 다. dra 면 operator 가 대상 노드에
+                      DRAOwnedNodeLabel 을 붙이고, 그 노드에서 이 벤더의 device-plugin DaemonSet 이 물러난다.
+                    enum:
+                    - devicePlugin
+                    - dra
+                    type: string
+                  advertiseByNodeSelector:
+                    description: |-
+                      AdvertiseByNodeSelector 는 dra 로 넘길 노드를 좁힌다. 미지정이면 그 벤더 장치가 있는
+                      모든 노드가 대상이다. DRA 드라이버가 일부 노드에만 깔린 과도기를 위한 축이다.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
                   configMapName:
                     type: string
                   devicePluginImage:
                     type: string
+                  dra:
+                    description: DRA 는 이 벤더의 DRA 드라이버 배포 여부다. 광고 주체(AdvertiseBy)와
+                      독립이다.
+                    properties:
+                      args:
+                        description: Args 는 드라이버 컨테이너 인자를 덮는다. 비우면 렌더러 기본값.
+                        items:
+                          type: string
+                        type: array
+                      enabled:
+                        description: |-
+                          Enabled 는 이 벤더의 DRA 드라이버를 배포할 것인가다. 기본 false.
+                          켜도 광고 주체는 바뀌지 않는다 — 그건 AdvertiseBy 의 몫이다.
+                        type: boolean
+                      env:
+                        description: Env 는 드라이버 컨테이너 환경변수에 더한다. 같은 이름이면 이쪽이 이긴다.
+                        items:
+                          description: EnvVar represents an environment variable present
+                            in a Container.
+                          properties:
+                            name:
+                              description: |-
+                                Name of the environment variable.
+                                May consist of any printable ASCII characters except '='.
+                              type: string
+                            value:
+                              description: |-
+                                Variable references $(VAR_NAME) are expanded
+                                using the previously defined environment variables in the container and
+                                any service environment variables. If a variable cannot be resolved,
+                                the reference in the input string will be unchanged. Double $$ are reduced
+                                to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                Escaped references will never be expanded, regardless of whether the variable
+                                exists or not.
+                                Defaults to "".
+                              type: string
+                            valueFrom:
+                              description: Source for the environment variable's value.
+                                Cannot be used if value is not empty.
+                              properties:
+                                configMapKeyRef:
+                                  description: Selects a key of a ConfigMap.
+                                  properties:
+                                    key:
+                                      description: The key to select.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the ConfigMap or
+                                        its key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fieldRef:
+                                  description: |-
+                                    Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                    spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                  properties:
+                                    apiVersion:
+                                      description: Version of the schema the FieldPath
+                                        is written in terms of, defaults to "v1".
+                                      type: string
+                                    fieldPath:
+                                      description: Path of the field to select in
+                                        the specified API version.
+                                      type: string
+                                  required:
+                                  - fieldPath
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fileKeyRef:
+                                  description: |-
+                                    FileKeyRef selects a key of the env file.
+                                    Requires the EnvFiles feature gate to be enabled.
+                                  properties:
+                                    key:
+                                      description: |-
+                                        The key within the env file. An invalid key will prevent the pod from starting.
+                                        The keys defined within a source may consist of any printable ASCII characters except '='.
+                                        During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                      type: string
+                                    optional:
+                                      default: false
+                                      description: |-
+                                        Specify whether the file or its key must be defined. If the file or key
+                                        does not exist, then the env var is not published.
+                                        If optional is set to true and the specified key does not exist,
+                                        the environment variable will not be set in the Pod's containers.
+
+                                        If optional is set to false and the specified key does not exist,
+                                        an error will be returned during Pod creation.
+                                      type: boolean
+                                    path:
+                                      description: |-
+                                        The path within the volume from which to select the file.
+                                        Must be relative and may not contain the '..' path or start with '..'.
+                                      type: string
+                                    volumeName:
+                                      description: The name of the volume mount containing
+                                        the env file.
+                                      type: string
+                                  required:
+                                  - key
+                                  - path
+                                  - volumeName
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                resourceFieldRef:
+                                  description: |-
+                                    Selects a resource of the container: only resources limits and requests
+                                    (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                  properties:
+                                    containerName:
+                                      description: 'Container name: required for volumes,
+                                        optional for env vars'
+                                      type: string
+                                    divisor:
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      description: Specifies the output format of
+                                        the exposed resources, defaults to "1"
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
+                                    resource:
+                                      description: 'Required: resource to select'
+                                      type: string
+                                  required:
+                                  - resource
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                secretKeyRef:
+                                  description: Selects a key of a secret in the pod's
+                                    namespace
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                          required:
+                          - name
+                          type: object
+                        type: array
+                      fabricManagerImage:
+                        description: |-
+                          FabricManagerImage 는 Tenstorrent 전용이다. 이 벤더의 드라이버는 장치 발견을
+                          직접 하지 않고 같은 파드의 Fabric Manager agent 에 gRPC 로 맡기므로 이미지가
+                          둘이다. 다른 세 벤더는 이 값을 읽지 않는다. 비우면 렌더러 기본값.
+                        type: string
+                      image:
+                        description: Image 는 드라이버 이미지를 덮는다. 비우면 렌더러 기본값.
+                        type: string
+                    type: object
                   enabled:
                     type: boolean
+                  excludeNodeSelector:
+                    description: |-
+                      ExcludeNodeSelector 는 이 벤더의 배포 대상에서 뺄 노드를 고른다 — nodeSelector(양성 선택)는
+                      노드 하나를 빼려면 나머지 전부에 라벨이 필요해 노드가 늘수록 나빠지는데, 이 축은 반대
+                      방향이다. control-plane 배제는 이 필드와 무관하게 항상 걸린다(정책으로 끌 수 없다).
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  managementMode:
+                    description: |-
+                      ManagementMode 는 managed(기본)·delegated·external 이다. managed 는 kcloud 가 벤더
+                      operand 를 직접 배포, delegated 는 벤더 operator 가 이미 배포해 존재만 확인, external 은
+                      드라이버·런타임이 kcloud 밖에서 설치되어 노드만 관측한다. 미지정 시 managed.
+                    enum:
+                    - managed
+                    - delegated
+                    - external
+                    type: string
                   nodeSelector:
                     additionalProperties:
                       type: string
@@ -64,12 +361,305 @@ spec:
                       RngdSpec defines the RNGD-specific (Furiosa RNGD NPU) device plugin configuration.
                       Backward-compatible: all fields are omitempty; omit the whole block to keep legacy behavior.
                     properties:
+                      advertiseBy:
+                        description: |-
+                          AdvertiseBy 는 devicePlugin(기본) 또는 dra 다. dra 면 operator 가 대상 노드에
+                          DRAOwnedNodeLabel 을 붙이고, 그 노드에서 이 벤더의 device-plugin DaemonSet 이 물러난다.
+                        enum:
+                        - devicePlugin
+                        - dra
+                        type: string
+                      advertiseByNodeSelector:
+                        description: |-
+                          AdvertiseByNodeSelector 는 dra 로 넘길 노드를 좁힌다. 미지정이면 그 벤더 장치가 있는
+                          모든 노드가 대상이다. DRA 드라이버가 일부 노드에만 깔린 과도기를 위한 축이다.
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: |-
+                                A label selector requirement is a selector that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: |-
+                                    operator represents a key's relationship to a set of values.
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.
+                                  type: string
+                                values:
+                                  description: |-
+                                    values is an array of string values. If the operator is In or NotIn,
+                                    the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                    the values array must be empty. This array is replaced during a strategic
+                                    merge patch.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                              map is equivalent to an element of matchExpressions, whose key field is "key", the
+                              operator is "In", and the values array contains only "value". The requirements are ANDed.
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
                       configMapName:
                         type: string
+                      debugMode:
+                        description: |-
+                          DebugMode 는 device plugin 바이너리에 --debugMode 를 넘길지 정한다. 파티션을 지원하는 별도 빌드는
+                          이 flag 가 없으면 장치를 인식 못한다. 공개 이미지 docker.io/furiosaai/furiosa-device-plugin:2026.1.1
+                          은 이 flag 를 디버그 로그 옵션으로 받는다(--policy 는 unknown flag 로 거부). 기본값 nil=켠 것
+                          (기존 유지), 차트는 공개 이미지에 false 를 명시한다.
+                        type: boolean
                       devicePluginImage:
                         type: string
+                      dra:
+                        description: DRA 는 이 벤더의 DRA 드라이버 배포 여부다. 광고 주체(AdvertiseBy)와
+                          독립이다.
+                        properties:
+                          args:
+                            description: Args 는 드라이버 컨테이너 인자를 덮는다. 비우면 렌더러 기본값.
+                            items:
+                              type: string
+                            type: array
+                          enabled:
+                            description: |-
+                              Enabled 는 이 벤더의 DRA 드라이버를 배포할 것인가다. 기본 false.
+                              켜도 광고 주체는 바뀌지 않는다 — 그건 AdvertiseBy 의 몫이다.
+                            type: boolean
+                          env:
+                            description: Env 는 드라이버 컨테이너 환경변수에 더한다. 같은 이름이면 이쪽이 이긴다.
+                            items:
+                              description: EnvVar represents an environment variable
+                                present in a Container.
+                              properties:
+                                name:
+                                  description: |-
+                                    Name of the environment variable.
+                                    May consist of any printable ASCII characters except '='.
+                                  type: string
+                                value:
+                                  description: |-
+                                    Variable references $(VAR_NAME) are expanded
+                                    using the previously defined environment variables in the container and
+                                    any service environment variables. If a variable cannot be resolved,
+                                    the reference in the input string will be unchanged. Double $$ are reduced
+                                    to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                    "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                    Escaped references will never be expanded, regardless of whether the variable
+                                    exists or not.
+                                    Defaults to "".
+                                  type: string
+                                valueFrom:
+                                  description: Source for the environment variable's
+                                    value. Cannot be used if value is not empty.
+                                  properties:
+                                    configMapKeyRef:
+                                      description: Selects a key of a ConfigMap.
+                                      properties:
+                                        key:
+                                          description: The key to select.
+                                          type: string
+                                        name:
+                                          default: ""
+                                          description: |-
+                                            Name of the referent.
+                                            This field is effectively required, but due to backwards compatibility is
+                                            allowed to be empty. Instances of this type with an empty value here are
+                                            almost certainly wrong.
+                                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          type: string
+                                        optional:
+                                          description: Specify whether the ConfigMap
+                                            or its key must be defined
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    fieldRef:
+                                      description: |-
+                                        Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                        spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                      properties:
+                                        apiVersion:
+                                          description: Version of the schema the FieldPath
+                                            is written in terms of, defaults to "v1".
+                                          type: string
+                                        fieldPath:
+                                          description: Path of the field to select
+                                            in the specified API version.
+                                          type: string
+                                      required:
+                                      - fieldPath
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    fileKeyRef:
+                                      description: |-
+                                        FileKeyRef selects a key of the env file.
+                                        Requires the EnvFiles feature gate to be enabled.
+                                      properties:
+                                        key:
+                                          description: |-
+                                            The key within the env file. An invalid key will prevent the pod from starting.
+                                            The keys defined within a source may consist of any printable ASCII characters except '='.
+                                            During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                          type: string
+                                        optional:
+                                          default: false
+                                          description: |-
+                                            Specify whether the file or its key must be defined. If the file or key
+                                            does not exist, then the env var is not published.
+                                            If optional is set to true and the specified key does not exist,
+                                            the environment variable will not be set in the Pod's containers.
+
+                                            If optional is set to false and the specified key does not exist,
+                                            an error will be returned during Pod creation.
+                                          type: boolean
+                                        path:
+                                          description: |-
+                                            The path within the volume from which to select the file.
+                                            Must be relative and may not contain the '..' path or start with '..'.
+                                          type: string
+                                        volumeName:
+                                          description: The name of the volume mount
+                                            containing the env file.
+                                          type: string
+                                      required:
+                                      - key
+                                      - path
+                                      - volumeName
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    resourceFieldRef:
+                                      description: |-
+                                        Selects a resource of the container: only resources limits and requests
+                                        (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                      properties:
+                                        containerName:
+                                          description: 'Container name: required for
+                                            volumes, optional for env vars'
+                                          type: string
+                                        divisor:
+                                          anyOf:
+                                          - type: integer
+                                          - type: string
+                                          description: Specifies the output format
+                                            of the exposed resources, defaults to
+                                            "1"
+                                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                          x-kubernetes-int-or-string: true
+                                        resource:
+                                          description: 'Required: resource to select'
+                                          type: string
+                                      required:
+                                      - resource
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    secretKeyRef:
+                                      description: Selects a key of a secret in the
+                                        pod's namespace
+                                      properties:
+                                        key:
+                                          description: The key of the secret to select
+                                            from.  Must be a valid secret key.
+                                          type: string
+                                        name:
+                                          default: ""
+                                          description: |-
+                                            Name of the referent.
+                                            This field is effectively required, but due to backwards compatibility is
+                                            allowed to be empty. Instances of this type with an empty value here are
+                                            almost certainly wrong.
+                                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                          type: string
+                                        optional:
+                                          description: Specify whether the Secret
+                                            or its key must be defined
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                  type: object
+                              required:
+                              - name
+                              type: object
+                            type: array
+                          fabricManagerImage:
+                            description: |-
+                              FabricManagerImage 는 Tenstorrent 전용이다. 이 벤더의 드라이버는 장치 발견을
+                              직접 하지 않고 같은 파드의 Fabric Manager agent 에 gRPC 로 맡기므로 이미지가
+                              둘이다. 다른 세 벤더는 이 값을 읽지 않는다. 비우면 렌더러 기본값.
+                            type: string
+                          image:
+                            description: Image 는 드라이버 이미지를 덮는다. 비우면 렌더러 기본값.
+                            type: string
+                        type: object
                       enabled:
                         type: boolean
+                      excludeNodeSelector:
+                        description: ExcludeNodeSelector 는 이 벤더의 배포 대상에서 뺄 노드를 고른다.
+                          FuriosaSpec.ExcludeNodeSelector 참조.
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: |-
+                                A label selector requirement is a selector that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: |-
+                                    operator represents a key's relationship to a set of values.
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.
+                                  type: string
+                                values:
+                                  description: |-
+                                    values is an array of string values. If the operator is In or NotIn,
+                                    the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                    the values array must be empty. This array is replaced during a strategic
+                                    merge patch.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                              map is equivalent to an element of matchExpressions, whose key field is "key", the
+                              operator is "In", and the values array contains only "value". The requirements are ANDed.
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
                       nodeSelector:
                         additionalProperties:
                           type: string
@@ -87,16 +677,357 @@ spec:
                       resourceName:
                         type: string
                     type: object
+                  unified:
+                    description: |-
+                      Unified: true 면 Warboy/RNGD 를 하나의 통합 DaemonSet(동봉 바이너리 + PCI 감지 exec)으로
+                      배포한다. 기본 false = 기존 2-DS 경로. 통합 DS 는 자립 라벨(furiosa-family.present)로
+                      양 노드에 스케줄되며, 리소스명(beta.furiosa.ai/npu / furiosa.ai/rngd)은 바이너리가 광고한다.
+                    type: boolean
+                  unifiedDevicePluginImage:
+                    description: 'UnifiedDevicePluginImage: 통합 DS 가 사용할 동봉 이미지. Unified=true
+                      일 때만 사용.'
+                    type: string
                 required:
                 - devicePluginImage
                 - enabled
                 type: object
+              imagePullSecrets:
+                description: |-
+                  ImagePullSecrets 는 operator 가 생성하는 자식 DaemonSet(detector/device-plugin) pod spec 과
+                  ServiceAccount 에 부착되는 pull secret 목록입니다. helm `imagePullSecrets` 값이 CR 로 전파됩니다.
+                  미지정 시 빈 목록 — 노드레벨(containerd) 인증 경로를 유지하는 하위호환 동작입니다.
+                items:
+                  description: |-
+                    LocalObjectReference contains enough information to let you locate the
+                    referenced object inside the same namespace.
+                  properties:
+                    name:
+                      default: ""
+                      description: |-
+                        Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
+                type: array
               nvidia:
                 properties:
+                  advertiseBy:
+                    description: |-
+                      AdvertiseBy 는 devicePlugin(기본) 또는 dra 다. dra 면 operator 가 대상 노드에
+                      DRAOwnedNodeLabel 을 붙이고, 그 노드에서 이 벤더의 device-plugin DaemonSet 이 물러난다.
+                    enum:
+                    - devicePlugin
+                    - dra
+                    type: string
+                  advertiseByNodeSelector:
+                    description: |-
+                      AdvertiseByNodeSelector 는 dra 로 넘길 노드를 좁힌다. 미지정이면 그 벤더 장치가 있는
+                      모든 노드가 대상이다. DRA 드라이버가 일부 노드에만 깔린 과도기를 위한 축이다.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  dcgmExporter:
+                    description: |-
+                      DcgmExporter 는 NVIDIA GPU 텔레메트리(온도/사용률/메모리/전력) exporter 설정이다. NPU 4벤더는
+                      hwmon 으로 수집하지만 NVIDIA 드라이버는 hwmon 을 등록하지 않아 NVML 경로의 dcgm-exporter 가
+                      필요하다. 미지정 또는 Enabled=false 면 배포하지 않고 기존 DS 가 있으면 제거한다.
+                    properties:
+                      enabled:
+                        description: Enabled=false(기본) 면 배포하지 않는다.
+                        type: boolean
+                      image:
+                        description: Image 미지정 시 nvcr.io upstream 기본값을 사용한다(air-gap
+                          환경은 미러 경로를 지정).
+                        type: string
+                    type: object
                   devicePluginImage:
                     type: string
+                  dra:
+                    description: DRA 는 이 벤더의 DRA 드라이버 배포 여부다. 광고 주체(AdvertiseBy)와
+                      독립이다.
+                    properties:
+                      args:
+                        description: Args 는 드라이버 컨테이너 인자를 덮는다. 비우면 렌더러 기본값.
+                        items:
+                          type: string
+                        type: array
+                      enabled:
+                        description: |-
+                          Enabled 는 이 벤더의 DRA 드라이버를 배포할 것인가다. 기본 false.
+                          켜도 광고 주체는 바뀌지 않는다 — 그건 AdvertiseBy 의 몫이다.
+                        type: boolean
+                      env:
+                        description: Env 는 드라이버 컨테이너 환경변수에 더한다. 같은 이름이면 이쪽이 이긴다.
+                        items:
+                          description: EnvVar represents an environment variable present
+                            in a Container.
+                          properties:
+                            name:
+                              description: |-
+                                Name of the environment variable.
+                                May consist of any printable ASCII characters except '='.
+                              type: string
+                            value:
+                              description: |-
+                                Variable references $(VAR_NAME) are expanded
+                                using the previously defined environment variables in the container and
+                                any service environment variables. If a variable cannot be resolved,
+                                the reference in the input string will be unchanged. Double $$ are reduced
+                                to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                Escaped references will never be expanded, regardless of whether the variable
+                                exists or not.
+                                Defaults to "".
+                              type: string
+                            valueFrom:
+                              description: Source for the environment variable's value.
+                                Cannot be used if value is not empty.
+                              properties:
+                                configMapKeyRef:
+                                  description: Selects a key of a ConfigMap.
+                                  properties:
+                                    key:
+                                      description: The key to select.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the ConfigMap or
+                                        its key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fieldRef:
+                                  description: |-
+                                    Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                    spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                  properties:
+                                    apiVersion:
+                                      description: Version of the schema the FieldPath
+                                        is written in terms of, defaults to "v1".
+                                      type: string
+                                    fieldPath:
+                                      description: Path of the field to select in
+                                        the specified API version.
+                                      type: string
+                                  required:
+                                  - fieldPath
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fileKeyRef:
+                                  description: |-
+                                    FileKeyRef selects a key of the env file.
+                                    Requires the EnvFiles feature gate to be enabled.
+                                  properties:
+                                    key:
+                                      description: |-
+                                        The key within the env file. An invalid key will prevent the pod from starting.
+                                        The keys defined within a source may consist of any printable ASCII characters except '='.
+                                        During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                      type: string
+                                    optional:
+                                      default: false
+                                      description: |-
+                                        Specify whether the file or its key must be defined. If the file or key
+                                        does not exist, then the env var is not published.
+                                        If optional is set to true and the specified key does not exist,
+                                        the environment variable will not be set in the Pod's containers.
+
+                                        If optional is set to false and the specified key does not exist,
+                                        an error will be returned during Pod creation.
+                                      type: boolean
+                                    path:
+                                      description: |-
+                                        The path within the volume from which to select the file.
+                                        Must be relative and may not contain the '..' path or start with '..'.
+                                      type: string
+                                    volumeName:
+                                      description: The name of the volume mount containing
+                                        the env file.
+                                      type: string
+                                  required:
+                                  - key
+                                  - path
+                                  - volumeName
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                resourceFieldRef:
+                                  description: |-
+                                    Selects a resource of the container: only resources limits and requests
+                                    (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                  properties:
+                                    containerName:
+                                      description: 'Container name: required for volumes,
+                                        optional for env vars'
+                                      type: string
+                                    divisor:
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      description: Specifies the output format of
+                                        the exposed resources, defaults to "1"
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
+                                    resource:
+                                      description: 'Required: resource to select'
+                                      type: string
+                                  required:
+                                  - resource
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                secretKeyRef:
+                                  description: Selects a key of a secret in the pod's
+                                    namespace
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                          required:
+                          - name
+                          type: object
+                        type: array
+                      fabricManagerImage:
+                        description: |-
+                          FabricManagerImage 는 Tenstorrent 전용이다. 이 벤더의 드라이버는 장치 발견을
+                          직접 하지 않고 같은 파드의 Fabric Manager agent 에 gRPC 로 맡기므로 이미지가
+                          둘이다. 다른 세 벤더는 이 값을 읽지 않는다. 비우면 렌더러 기본값.
+                        type: string
+                      image:
+                        description: Image 는 드라이버 이미지를 덮는다. 비우면 렌더러 기본값.
+                        type: string
+                    type: object
                   enabled:
                     type: boolean
+                  excludeNodeSelector:
+                    description: ExcludeNodeSelector 는 이 벤더의 배포 대상에서 뺄 노드를 고른다. FuriosaSpec.ExcludeNodeSelector
+                      참조.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  managementMode:
+                    description: |-
+                      ManagementMode 는 managed(기본)·delegated·external 이다. managed 는 kcloud 가 벤더
+                      operand 를 직접 배포, delegated 는 벤더 operator 가 이미 배포해 존재만 확인, external 은
+                      드라이버·런타임이 kcloud 밖에서 설치되어 노드만 관측한다. 미지정 시 managed.
+                    enum:
+                    - managed
+                    - delegated
+                    - external
+                    type: string
                   nodeSelector:
                     additionalProperties:
                       type: string
@@ -110,12 +1041,316 @@ spec:
                   RebellionsSpec defines the Rebellions ATOM+ device plugin configuration.
                   Backward-compatible: all fields are omitempty; omit the whole block to keep legacy behavior.
                 properties:
+                  advertiseBy:
+                    description: |-
+                      AdvertiseBy 는 devicePlugin(기본) 또는 dra 다. dra 면 operator 가 대상 노드에
+                      DRAOwnedNodeLabel 을 붙이고, 그 노드에서 이 벤더의 device-plugin DaemonSet 이 물러난다.
+                    enum:
+                    - devicePlugin
+                    - dra
+                    type: string
+                  advertiseByNodeSelector:
+                    description: |-
+                      AdvertiseByNodeSelector 는 dra 로 넘길 노드를 좁힌다. 미지정이면 그 벤더 장치가 있는
+                      모든 노드가 대상이다. DRA 드라이버가 일부 노드에만 깔린 과도기를 위한 축이다.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
                   configMapName:
+                    type: string
+                  devicePluginGeneration:
+                    description: |-
+                      DevicePluginGeneration 은 device plugin 이미지의 판 형식이다. v0.3 은 SR-IOV 기반 구판
+                      (인자 --log-dir, /etc/pcidp ConfigMap), v0.4 는 rbln-device-plugin 신판(인자 없음, 환경변수)이다.
+                      비우면 DevicePluginImage 의 태그로 판별하고, 판별할 수 없으면 v0.3 으로 본다.
+                    enum:
+                    - v0.3
+                    - v0.4
                     type: string
                   devicePluginImage:
                     type: string
+                  dra:
+                    description: DRA 는 이 벤더의 DRA 드라이버 배포 여부다. 광고 주체(AdvertiseBy)와
+                      독립이다.
+                    properties:
+                      args:
+                        description: Args 는 드라이버 컨테이너 인자를 덮는다. 비우면 렌더러 기본값.
+                        items:
+                          type: string
+                        type: array
+                      enabled:
+                        description: |-
+                          Enabled 는 이 벤더의 DRA 드라이버를 배포할 것인가다. 기본 false.
+                          켜도 광고 주체는 바뀌지 않는다 — 그건 AdvertiseBy 의 몫이다.
+                        type: boolean
+                      env:
+                        description: Env 는 드라이버 컨테이너 환경변수에 더한다. 같은 이름이면 이쪽이 이긴다.
+                        items:
+                          description: EnvVar represents an environment variable present
+                            in a Container.
+                          properties:
+                            name:
+                              description: |-
+                                Name of the environment variable.
+                                May consist of any printable ASCII characters except '='.
+                              type: string
+                            value:
+                              description: |-
+                                Variable references $(VAR_NAME) are expanded
+                                using the previously defined environment variables in the container and
+                                any service environment variables. If a variable cannot be resolved,
+                                the reference in the input string will be unchanged. Double $$ are reduced
+                                to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                Escaped references will never be expanded, regardless of whether the variable
+                                exists or not.
+                                Defaults to "".
+                              type: string
+                            valueFrom:
+                              description: Source for the environment variable's value.
+                                Cannot be used if value is not empty.
+                              properties:
+                                configMapKeyRef:
+                                  description: Selects a key of a ConfigMap.
+                                  properties:
+                                    key:
+                                      description: The key to select.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the ConfigMap or
+                                        its key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fieldRef:
+                                  description: |-
+                                    Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                    spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                  properties:
+                                    apiVersion:
+                                      description: Version of the schema the FieldPath
+                                        is written in terms of, defaults to "v1".
+                                      type: string
+                                    fieldPath:
+                                      description: Path of the field to select in
+                                        the specified API version.
+                                      type: string
+                                  required:
+                                  - fieldPath
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fileKeyRef:
+                                  description: |-
+                                    FileKeyRef selects a key of the env file.
+                                    Requires the EnvFiles feature gate to be enabled.
+                                  properties:
+                                    key:
+                                      description: |-
+                                        The key within the env file. An invalid key will prevent the pod from starting.
+                                        The keys defined within a source may consist of any printable ASCII characters except '='.
+                                        During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                      type: string
+                                    optional:
+                                      default: false
+                                      description: |-
+                                        Specify whether the file or its key must be defined. If the file or key
+                                        does not exist, then the env var is not published.
+                                        If optional is set to true and the specified key does not exist,
+                                        the environment variable will not be set in the Pod's containers.
+
+                                        If optional is set to false and the specified key does not exist,
+                                        an error will be returned during Pod creation.
+                                      type: boolean
+                                    path:
+                                      description: |-
+                                        The path within the volume from which to select the file.
+                                        Must be relative and may not contain the '..' path or start with '..'.
+                                      type: string
+                                    volumeName:
+                                      description: The name of the volume mount containing
+                                        the env file.
+                                      type: string
+                                  required:
+                                  - key
+                                  - path
+                                  - volumeName
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                resourceFieldRef:
+                                  description: |-
+                                    Selects a resource of the container: only resources limits and requests
+                                    (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                  properties:
+                                    containerName:
+                                      description: 'Container name: required for volumes,
+                                        optional for env vars'
+                                      type: string
+                                    divisor:
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      description: Specifies the output format of
+                                        the exposed resources, defaults to "1"
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
+                                    resource:
+                                      description: 'Required: resource to select'
+                                      type: string
+                                  required:
+                                  - resource
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                secretKeyRef:
+                                  description: Selects a key of a secret in the pod's
+                                    namespace
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                          required:
+                          - name
+                          type: object
+                        type: array
+                      fabricManagerImage:
+                        description: |-
+                          FabricManagerImage 는 Tenstorrent 전용이다. 이 벤더의 드라이버는 장치 발견을
+                          직접 하지 않고 같은 파드의 Fabric Manager agent 에 gRPC 로 맡기므로 이미지가
+                          둘이다. 다른 세 벤더는 이 값을 읽지 않는다. 비우면 렌더러 기본값.
+                        type: string
+                      image:
+                        description: Image 는 드라이버 이미지를 덮는다. 비우면 렌더러 기본값.
+                        type: string
+                    type: object
                   enabled:
                     type: boolean
+                  excludeNodeSelector:
+                    description: ExcludeNodeSelector 는 이 벤더의 배포 대상에서 뺄 노드를 고른다. FuriosaSpec.ExcludeNodeSelector
+                      참조.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  managementMode:
+                    description: |-
+                      ManagementMode 는 managed(기본)·delegated·external 이다. managed 는 kcloud 가 벤더
+                      operand 를 직접 배포, delegated 는 벤더 operator 가 이미 배포해 존재만 확인, external 은
+                      드라이버·런타임이 kcloud 밖에서 설치되어 노드만 관측한다. 미지정 시 managed.
+                    enum:
+                    - managed
+                    - delegated
+                    - external
+                    type: string
                   namespace:
                     type: string
                   nodeSelector:
@@ -129,6 +1364,317 @@ spec:
                 required:
                 - devicePluginImage
                 type: object
+              tenstorrent:
+                description: |-
+                  TenstorrentSpec defines the Tenstorrent Blackhole NPU device plugin configuration.
+                  Backward-compatible: all fields are omitempty; omit the whole block to keep legacy behavior.
+                properties:
+                  advertiseBy:
+                    description: |-
+                      AdvertiseBy 는 devicePlugin(기본) 또는 dra 다. dra 면 operator 가 대상 노드에
+                      DRAOwnedNodeLabel 을 붙이고, 그 노드에서 이 벤더의 device-plugin DaemonSet 이 물러난다.
+                    enum:
+                    - devicePlugin
+                    - dra
+                    type: string
+                  advertiseByNodeSelector:
+                    description: |-
+                      AdvertiseByNodeSelector 는 dra 로 넘길 노드를 좁힌다. 미지정이면 그 벤더 장치가 있는
+                      모든 노드가 대상이다. DRA 드라이버가 일부 노드에만 깔린 과도기를 위한 축이다.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  devicePluginImage:
+                    type: string
+                  dra:
+                    description: DRA 는 이 벤더의 DRA 드라이버 배포 여부다. 광고 주체(AdvertiseBy)와
+                      독립이다.
+                    properties:
+                      args:
+                        description: Args 는 드라이버 컨테이너 인자를 덮는다. 비우면 렌더러 기본값.
+                        items:
+                          type: string
+                        type: array
+                      enabled:
+                        description: |-
+                          Enabled 는 이 벤더의 DRA 드라이버를 배포할 것인가다. 기본 false.
+                          켜도 광고 주체는 바뀌지 않는다 — 그건 AdvertiseBy 의 몫이다.
+                        type: boolean
+                      env:
+                        description: Env 는 드라이버 컨테이너 환경변수에 더한다. 같은 이름이면 이쪽이 이긴다.
+                        items:
+                          description: EnvVar represents an environment variable present
+                            in a Container.
+                          properties:
+                            name:
+                              description: |-
+                                Name of the environment variable.
+                                May consist of any printable ASCII characters except '='.
+                              type: string
+                            value:
+                              description: |-
+                                Variable references $(VAR_NAME) are expanded
+                                using the previously defined environment variables in the container and
+                                any service environment variables. If a variable cannot be resolved,
+                                the reference in the input string will be unchanged. Double $$ are reduced
+                                to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+                                "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+                                Escaped references will never be expanded, regardless of whether the variable
+                                exists or not.
+                                Defaults to "".
+                              type: string
+                            valueFrom:
+                              description: Source for the environment variable's value.
+                                Cannot be used if value is not empty.
+                              properties:
+                                configMapKeyRef:
+                                  description: Selects a key of a ConfigMap.
+                                  properties:
+                                    key:
+                                      description: The key to select.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the ConfigMap or
+                                        its key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fieldRef:
+                                  description: |-
+                                    Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels['<KEY>']`, `metadata.annotations['<KEY>']`,
+                                    spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.
+                                  properties:
+                                    apiVersion:
+                                      description: Version of the schema the FieldPath
+                                        is written in terms of, defaults to "v1".
+                                      type: string
+                                    fieldPath:
+                                      description: Path of the field to select in
+                                        the specified API version.
+                                      type: string
+                                  required:
+                                  - fieldPath
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                fileKeyRef:
+                                  description: |-
+                                    FileKeyRef selects a key of the env file.
+                                    Requires the EnvFiles feature gate to be enabled.
+                                  properties:
+                                    key:
+                                      description: |-
+                                        The key within the env file. An invalid key will prevent the pod from starting.
+                                        The keys defined within a source may consist of any printable ASCII characters except '='.
+                                        During Alpha stage of the EnvFiles feature gate, the key size is limited to 128 characters.
+                                      type: string
+                                    optional:
+                                      default: false
+                                      description: |-
+                                        Specify whether the file or its key must be defined. If the file or key
+                                        does not exist, then the env var is not published.
+                                        If optional is set to true and the specified key does not exist,
+                                        the environment variable will not be set in the Pod's containers.
+
+                                        If optional is set to false and the specified key does not exist,
+                                        an error will be returned during Pod creation.
+                                      type: boolean
+                                    path:
+                                      description: |-
+                                        The path within the volume from which to select the file.
+                                        Must be relative and may not contain the '..' path or start with '..'.
+                                      type: string
+                                    volumeName:
+                                      description: The name of the volume mount containing
+                                        the env file.
+                                      type: string
+                                  required:
+                                  - key
+                                  - path
+                                  - volumeName
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                resourceFieldRef:
+                                  description: |-
+                                    Selects a resource of the container: only resources limits and requests
+                                    (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.
+                                  properties:
+                                    containerName:
+                                      description: 'Container name: required for volumes,
+                                        optional for env vars'
+                                      type: string
+                                    divisor:
+                                      anyOf:
+                                      - type: integer
+                                      - type: string
+                                      description: Specifies the output format of
+                                        the exposed resources, defaults to "1"
+                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                      x-kubernetes-int-or-string: true
+                                    resource:
+                                      description: 'Required: resource to select'
+                                      type: string
+                                  required:
+                                  - resource
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                secretKeyRef:
+                                  description: Selects a key of a secret in the pod's
+                                    namespace
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select
+                                        from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its
+                                        key must be defined
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                          required:
+                          - name
+                          type: object
+                        type: array
+                      fabricManagerImage:
+                        description: |-
+                          FabricManagerImage 는 Tenstorrent 전용이다. 이 벤더의 드라이버는 장치 발견을
+                          직접 하지 않고 같은 파드의 Fabric Manager agent 에 gRPC 로 맡기므로 이미지가
+                          둘이다. 다른 세 벤더는 이 값을 읽지 않는다. 비우면 렌더러 기본값.
+                        type: string
+                      image:
+                        description: Image 는 드라이버 이미지를 덮는다. 비우면 렌더러 기본값.
+                        type: string
+                    type: object
+                  enabled:
+                    type: boolean
+                  excludeNodeSelector:
+                    description: ExcludeNodeSelector 는 이 벤더의 배포 대상에서 뺄 노드를 고른다. FuriosaSpec.ExcludeNodeSelector
+                      참조.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  managementMode:
+                    description: |-
+                      ManagementMode 는 managed(기본)·delegated·external 이다. managed 는 kcloud 가 벤더
+                      operand 를 직접 배포, delegated 는 벤더 operator 가 이미 배포해 존재만 확인, external 은
+                      드라이버·런타임이 kcloud 밖에서 설치되어 노드만 관측한다. 미지정 시 managed.
+                    enum:
+                    - managed
+                    - delegated
+                    - external
+                    type: string
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  resourceName:
+                    type: string
+                type: object
             required:
             - furiosa
             - nvidia
@@ -136,6 +1682,45 @@ spec:
           status:
             description: NPUClusterPolicyStatus defines the observed state of NPUClusterPolicy.
             properties:
+              advertiseSwitch:
+                description: |-
+                  AdvertiseSwitch 는 광고 주체 전환이 노드마다 어떻게 됐는가다. 거절된 노드가 왜
+                  거절됐는지 여기서 읽는다 — 조용히 안 되는 것과 이유 있는 거절은 다르다.
+                items:
+                  description: |-
+                    AdvertiseSwitchStatus 는 관리 벤더의 장치 노드 하나에 대한 광고 주체 판정이다. 선언
+                    (Mode)과 관측이 같으면 Applied, 다르면 Reason 이 그 이유다 — devicePlugin 벤더의 노드도
+                    항목을 가지므로 "항목 없음" 이 "광고 없음" 으로 읽히지 않는다.
+                  properties:
+                    applied:
+                      description: |-
+                        Applied 는 이 노드의 광고 주체가 선언과 같은가다(dra: dra-owned 라벨 부여됨,
+                        devicePlugin: dra-owned 라벨 없음).
+                      type: boolean
+                    blockingPods:
+                      description: BlockingPods 는 장치를 쥐고 있어 전환을 막은 pod 들이다(namespace/name).
+                      items:
+                        type: string
+                      type: array
+                    mode:
+                      description: Mode 는 이 벤더가 선언한 광고 주체다.
+                      enum:
+                      - devicePlugin
+                      - dra
+                      type: string
+                    node:
+                      type: string
+                    reason:
+                      description: Reason 은 같지 않은 사유다(같으면 비어 있다).
+                      type: string
+                    vendor:
+                      type: string
+                  required:
+                  - applied
+                  - node
+                  - vendor
+                  type: object
+                type: array
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -190,6 +1775,35 @@ spec:
                   - reason
                   - status
                   - type
+                  type: object
+                type: array
+              draDrivers:
+                description: DRADrivers 는 벤더별 DRA 드라이버 배포 상태다.
+                items:
+                  description: DRADriverStatus 는 벤더 하나의 DRA 드라이버 배포 상태다.
+                  properties:
+                    driverName:
+                      description: 'DriverName 은 발행물의 spec.driver 값이다(예: npu.furiosa.ai).
+                        미확인이면 빈 값.'
+                      type: string
+                    message:
+                      description: |-
+                        Message 는 이 드라이버에 대해 사람이 알아야 할 사실이다. Blocked·Installing 에서는
+                        무엇이 없는지이고, Ready 에서도 반영하지 않은 설정이 있으면 그 통지가 남는다.
+                      type: string
+                    phase:
+                      description: Phase 는 Absent | Blocked | Installing | Ready 다.
+                      type: string
+                    publishedNodes:
+                      description: PublishedNodes 는 이 드라이버가 ResourceSlice 를 발행 중인
+                        노드 수다.
+                      format: int32
+                      type: integer
+                    vendor:
+                      type: string
+                  required:
+                  - phase
+                  - vendor
                   type: object
                 type: array
               phase:

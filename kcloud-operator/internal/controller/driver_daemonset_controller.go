@@ -1,12 +1,13 @@
 // driver_daemonset_controller.go: Driver DaemonSet 컨트롤러
 // 상세: DriverInstallPolicy.spec.driver.mode="daemonset"인 정책에 대해
 //       컨테이너화 드라이버 DaemonSet을 생성/업데이트합니다.
-// 생성일: 2026-04-13 | 수정일: 2026-06-15
+// 생성일: 2026-04-13 | 수정일: 2026-10-14
 
 package controller
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -23,6 +24,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	npuv1alpha1 "kcloud-operator/api/v1alpha1"
+	"kcloud-operator/internal/driveradapter"
 	"kcloud-operator/internal/metrics"
 	"kcloud-operator/internal/naming"
 )
@@ -36,6 +38,7 @@ type DriverDaemonSetReconciler struct {
 }
 
 // +kubebuilder:rbac:groups=npu.ai,resources=driverinstallpolicies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=npu.ai,resources=driverupgradestates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
@@ -50,12 +53,23 @@ func (r *DriverDaemonSetReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
+	var states npuv1alpha1.DriverUpgradeStateList
+	if err := r.List(ctx, &states); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	for i := range pols.Items {
 		pol := &pols.Items[i]
 		if pol.Spec.Driver.Mode != "daemonset" {
 			continue
 		}
-		if err := r.createOrUpdateDriverDS(ctx, pol); err != nil {
+		// TrackOnly 정책은 설치 DaemonSet 을 생성하지 않는다(DUS 추적만).
+		// installer 이미지 미비 벤더(예: Tenstorrent, 실제 설치는 DKMS 2차)를 버전 관리에 편입.
+		if pol.Spec.Driver.TrackOnly {
+			logger.Info("TrackOnly 정책 — driver DaemonSet 생성 skip", "policy", pol.Name, "vendor", pol.Spec.Vendor)
+			continue
+		}
+		if err := r.createOrUpdateDriverDS(ctx, pol, rollbackHeld(pols.Items, states.Items, pol)); err != nil {
 			logger.Error(err, "failed to ensure driver DaemonSet", "policy", pol.Name)
 			r.Recorder.Eventf(pol, corev1.EventTypeWarning, "ReconcileFailed",
 				"Failed to ensure driver DaemonSet for policy %s: %v", pol.Name, err)
@@ -67,9 +81,40 @@ func (r *DriverDaemonSetReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
+// rollbackHeld 는 이 정책이 맡는 노드 중 하나라도 현재 정책 generation 에서 롤백을 기록했는지다
+// (롤백 진행 중 또는 Idle 보류). 그동안 DS 이미지는 상태 기계가 롤백으로 패치한 값이다.
+// 정책 매칭은 상태 기계 쪽과 같은 findPolicy 다 — 규칙을 복제하면 한쪽만 고쳐진다.
+func rollbackHeld(pols []npuv1alpha1.DriverInstallPolicy, states []npuv1alpha1.DriverUpgradeState,
+	pol *npuv1alpha1.DriverInstallPolicy) bool {
+	for i := range states {
+		s := &states[i]
+		if s.Status.RolledBackVersion == "" || s.Status.RolledBackGeneration != pol.Generation {
+			continue
+		}
+		if owner := findPolicy(pols, s.Spec.Vendor, s.Spec.Model); owner != nil && owner.Name == pol.Name {
+			return true
+		}
+	}
+	return false
+}
+
 // createOrUpdateDriverDS는 DriverInstallPolicy에 맞는 드라이버 DaemonSet을 생성하거나 업데이트합니다.
-func (r *DriverDaemonSetReconciler) createOrUpdateDriverDS(ctx context.Context, pol *npuv1alpha1.DriverInstallPolicy) error {
+// keepImage 면 드라이버 컨테이너 이미지를 현재 DS 값으로 둔다(롤백 보류 중, rollbackHeld).
+func (r *DriverDaemonSetReconciler) createOrUpdateDriverDS(ctx context.Context, pol *npuv1alpha1.DriverInstallPolicy,
+	keepImage bool) error {
 	ds := renderDriverDaemonSet(pol)
+	if keepImage {
+		var cur appsv1.DaemonSet
+		err := r.Get(ctx, types.NamespacedName{Name: ds.Name, Namespace: ds.Namespace}, &cur)
+		if client.IgnoreNotFound(err) != nil {
+			return err
+		}
+		if err == nil && len(cur.Spec.Template.Spec.Containers) > 0 && len(ds.Spec.Template.Spec.Containers) > 0 {
+			ds.Spec.Template.Spec.Containers[0].Image = cur.Spec.Template.Spec.Containers[0].Image
+			logf.FromContext(ctx).Info("롤백 보류 중 — 드라이버 DS 이미지 유지", "policy", pol.Name,
+				"image", ds.Spec.Template.Spec.Containers[0].Image)
+		}
+	}
 	return r.createOrUpdateDS(ctx, ds)
 }
 
@@ -106,21 +151,24 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 	}
 
 	// 벤더별 nodeSelector (model 포함, RNGD 분기 지원)
-	nodeSelector := vendorNodeSelector(pol.Spec.Vendor, pol.Spec.Model)
+	nodeSelector := driverNodeSelector(pol.Spec.Vendor, pol.Spec.Model)
 	// DriverInstallPolicy에 nodeSelector가 지정된 경우 우선 사용
 	if len(pol.Spec.NodeSelector) > 0 {
 		nodeSelector = pol.Spec.NodeSelector
 	}
 
 	// 벤더별 rmmod 명령 (model 포함, RNGD 분기 지원)
-	rmmodCmd := vendorRmmodCommand(pol.Spec.Vendor, pol.Spec.Model)
+	rmmodCmd := "true" // 미등록 벤더 방어 기본값 — 내릴 모듈 없음(셸 no-op)
+	if a, ok := driveradapter.ForModel(pol.Spec.Vendor, pol.Spec.Model); ok {
+		rmmodCmd = a.RmmodCommand()
+	}
 
 	image := pol.Spec.Driver.Image
 
 	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "kube-system",
+			Namespace: naming.OperatorNamespace(),
 			Labels:    labels,
 			// DIP(cluster-scoped) 를 owner 로 지정 → DIP 삭제 시 K8s GC 가
 			// driver DaemonSet 을 cascade 삭제(orphan 방지). cluster-scoped owner +
@@ -159,7 +207,9 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 									PodAffinityTerm: corev1.PodAffinityTerm{
 										LabelSelector: &metav1.LabelSelector{
 											MatchLabels: map[string]string{
-												"app.kubernetes.io/name":      "npu-operator",
+												// 차트 이름이 라벨 값이다(kcloud-operator.name). 이 값이 차트와 어긋나면
+												// 셀렉터가 아무 pod 도 못 집어 anti-affinity 가 무동작이 된다.
+												"app.kubernetes.io/name":      "kcloud-operator",
 												"app.kubernetes.io/component": "controller",
 											},
 										},
@@ -171,25 +221,30 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 					},
 					InitContainers: []corev1.Container{
 						{
-							Name:    "driver-manager",
-							Image:   image,
-							Command: []string{"/usr/local/bin/driver-manager.sh"},
+							Name:            "driver-manager",
+							Image:           image,
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Command:         []string{"/usr/local/bin/driver-manager.sh"},
 							Env: []corev1.EnvVar{
 								{Name: "DRIVER_VERSION", Value: pol.Spec.Driver.Version},
 								{Name: "REBOOT_STRATEGY", Value: pol.Spec.RebootStrategy},
 								{Name: "VENDOR", Value: pol.Spec.Vendor},
+								{Name: "ALLOW_DOWNGRADE", Value: strconv.FormatBool(pol.Spec.Driver.AllowDowngrade)},
+								{Name: "VERSION_SOURCE", Value: versionSourceOrDefault(pol.Spec.Driver.VersionSource)},
+								{Name: "SKIP_ON_PASSTHROUGH", Value: strconv.FormatBool(pol.Spec.Driver.SkipOnPassthrough)},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								Privileged: boolPtr(true),
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "host-modules", MountPath: "/lib/modules"},
-								{Name: "host-var", MountPath: "/var/lib/npu-operator"},
+								{Name: "host-var", MountPath: "/var/lib/kcloud-operator"},
 							},
 						},
 						{
-							Name:  "check-kernel-headers",
-							Image: image,
+							Name:            "check-kernel-headers",
+							Image:           image,
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							Command: []string{
 								"/usr/local/bin/check-kernel-headers.sh",
 							},
@@ -210,6 +265,9 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 							Env: []corev1.EnvVar{
 								{Name: "DRIVER_VERSION", Value: pol.Spec.Driver.Version},
 								{Name: "VENDOR", Value: pol.Spec.Vendor},
+								{Name: "ALLOW_DOWNGRADE", Value: strconv.FormatBool(pol.Spec.Driver.AllowDowngrade)},
+								{Name: "VERSION_SOURCE", Value: versionSourceOrDefault(pol.Spec.Driver.VersionSource)},
+								{Name: "SKIP_ON_PASSTHROUGH", Value: strconv.FormatBool(pol.Spec.Driver.SkipOnPassthrough)},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								Privileged: boolPtr(true),
@@ -217,7 +275,7 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									Exec: &corev1.ExecAction{
-										Command: []string{"cat", "/var/lib/npu-operator/driver.ready"},
+										Command: []string{"cat", "/var/lib/kcloud-operator/driver.ready"},
 									},
 								},
 								InitialDelaySeconds: 60,
@@ -240,7 +298,7 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 								PreStop: &corev1.LifecycleHandler{
 									Exec: &corev1.ExecAction{
 										Command: []string{"/bin/sh", "-c",
-											"timeout 30 sh -c 'rm -f /var/lib/npu-operator/driver.ready /tmp/driver-ready; " + rmmodCmd + "' || true"},
+											"timeout 30 sh -c 'rm -f /var/lib/kcloud-operator/driver.ready /tmp/driver-ready; " + rmmodCmd + "' || true"},
 									},
 								},
 							},
@@ -248,7 +306,7 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 								{Name: "host-modules", MountPath: "/lib/modules"},
 								{Name: "host-src", MountPath: "/usr/src"},
 								{Name: "host-etc", MountPath: "/etc"},
-								{Name: "host-var", MountPath: "/var/lib/npu-operator"},
+								{Name: "host-var", MountPath: "/var/lib/kcloud-operator"},
 								{Name: "device-plugins", MountPath: "/var/lib/kubelet/device-plugins"},
 							},
 						},
@@ -275,7 +333,7 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 						{
 							Name: "host-var",
 							VolumeSource: corev1.VolumeSource{
-								HostPath: &corev1.HostPathVolumeSource{Path: "/var/lib/npu-operator"},
+								HostPath: &corev1.HostPathVolumeSource{Path: "/var/lib/kcloud-operator"},
 							},
 						},
 						{
@@ -290,8 +348,12 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 		},
 	}
 
-	// Furiosa 전용 Secret 마운트 (APT 인증)
-	if strings.EqualFold(pol.Spec.Vendor, "furiosa") {
+	// Furiosa APT 인증 Secret 마운트 (Warboy 전용).
+	// Warboy 는 사설 archive.furiosa.ai 인증(furiosa.conf)이 필수라 secret 부재 시 fail-fast 가 맞다.
+	// 반면 RNGD 는 공개 repo 를 사용하여 entrypoint 가 /secrets 를 전혀 참조하지 않으므로, secret
+	// 오브젝트(furiosa-apt-auth)를 하드코딩 마운트하면 공개 repo 클러스터에서 secret 부재 시 파드가
+	// 스케줄되지 못한다. → RNGD 는 마운트를 부착하지 않는다.
+	if a, ok := driveradapter.ForModel(pol.Spec.Vendor, pol.Spec.Model); ok && a.AptAuthRequired() {
 		ds.Spec.Template.Spec.Containers[0].VolumeMounts = append(
 			ds.Spec.Template.Spec.Containers[0].VolumeMounts,
 			corev1.VolumeMount{Name: "furiosa-auth", MountPath: "/secrets", ReadOnly: true},
@@ -300,57 +362,42 @@ func renderDriverDaemonSet(pol *npuv1alpha1.DriverInstallPolicy) *appsv1.DaemonS
 			corev1.Volume{
 				Name: "furiosa-auth",
 				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{SecretName: "furiosa-apt-auth"},
+					Secret: &corev1.SecretVolumeSource{SecretName: driveradapter.AptAuthSecretName},
 				},
 			},
 		)
 	}
 
+	// private 레지스트리 pull 을 위해 policy 레벨 imagePullSecrets 를 부착.
+	// 빈 목록(미지정)이면 no-op — imagePullPolicy(IfNotPresent) 는 건드리지 않는다.
+	applyImagePullSecrets(&ds.Spec.Template.Spec, pol.Spec.ImagePullSecrets)
+
+	// control-plane/master 제외 — DS 모드 driver install 도 제어 평면은 건드리지 않는다
+	// (Job 경로는 driver_upgrade_controller 가 이미 control-plane/master 를 skip).
+	applyControlPlaneExclusion(&ds.Spec.Template.Spec)
+
 	return ds
 }
 
-// vendorNodeSelector는 벤더/모델별 기본 노드 셀렉터를 반환합니다.
-// model 이 비어 있거나 "warboy" 인 경우 기존 Furiosa Warboy 셀렉터를 유지하고,
-// model="rngd" 인 경우 RNGD 전용 셀렉터를 반환합니다.
-func vendorNodeSelector(vendor, model string) map[string]string {
-	v := strings.ToLower(vendor)
-	m := strings.ToLower(model)
-	switch v {
-	case vendorNvidia:
-		return map[string]string{"nvidia.com/gpu.present": "true"}
-	case "furiosa":
-		if m == "rngd" {
-			return map[string]string{"furiosa-rngd": "true"}
+// driverNodeSelector 는 벤더 장치가 있는 노드를 고르는 셀렉터를 어댑터에서 가져온다.
+// 미등록 벤더와 셀렉터 없는 벤더(tenstorrent)는 빈 맵을 돌려준다 — 현재 default 동작이고,
+// nodeSelector 필드에 nil 대신 빈 맵을 유지해 회귀를 막는다.
+func driverNodeSelector(vendor, model string) map[string]string {
+	if a, ok := driveradapter.ForModel(vendor, model); ok {
+		if sel := a.PresentNodeSelector(); sel != nil {
+			return sel
 		}
-		return map[string]string{"furiosa": "true"}
-	case "rebellions":
-		// Rebellions ATOM+ 는 DriverInstallPolicy 를 생성하지 않음 (host-managed driver).
-		// 호출 경로가 실제로 도달하지 않지만 분기 완전성을 위해 셀렉터 반환.
-		return map[string]string{"rebellions-atom": "true"}
-	default:
-		return map[string]string{}
 	}
+	return map[string]string{}
 }
 
-// vendorRmmodCommand는 벤더/모델별 커널 모듈 언로드 명령을 반환합니다.
-// Furiosa RNGD 는 별도 커널 모듈(furiosa_rngd)을 사용하므로 분기합니다.
-func vendorRmmodCommand(vendor, model string) string {
-	v := strings.ToLower(vendor)
-	m := strings.ToLower(model)
-	switch v {
-	case vendorNvidia:
-		return "rmmod nvidia_uvm nvidia_drm nvidia || true"
-	case "furiosa":
-		if m == "rngd" {
-			return "rmmod furiosa_rngd || true"
-		}
-		return "rmmod npu_pdma npu_mgmt || true"
-	case "rebellions":
-		// Rebellions 드라이버는 호스트에서 관리되므로 rmmod 금지 (no-op).
-		return "true"
-	default:
-		return "true"
+// versionSourceOrDefault 는 VersionSource 가 빈 값이면 기존 동작인 "Policy" 를 반환합니다.
+// CRD default 가 적용되기 전(구 CR)에도 회귀 없이 Policy 로 동작하도록 보장합니다.
+func versionSourceOrDefault(vs string) string {
+	if vs == "" {
+		return "Policy"
 	}
+	return vs
 }
 
 // SetupWithManager는 DriverDaemonSetReconciler를 Manager에 등록합니다.

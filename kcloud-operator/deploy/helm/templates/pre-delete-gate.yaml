@@ -1,0 +1,120 @@
+{{/*
+pre-delete-gate.yaml: helm uninstall 을 게이트하는 pre-delete Job.
+상세: uninstall-gate 서브명령이 가속기 사용 중인 Pod 를 찾으면 Job 을 실패시켜 helm 삭제를
+      막는다(아직 아무것도 지워지지 않은 상태). 없으면 CR·DaemonSet 을 정리한다.
+생성일: 2026-09-10 | 수정일: 2026-10-11
+*/}}
+{{- if .Values.uninstall.gate.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-uninstall-gate
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-uninstall-gate
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  # 사용 중 판정: 전 네임스페이스 Pod 를 읽는다(쓰기 권한 없음).
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # DRA 축 확인용. 클러스터에 resource.k8s.io 가 없어도 규칙은 무해하다.
+  - apiGroups: ["resource.k8s.io"]
+    resources: ["resourceclaims"]
+    verbs: ["get", "list"]
+  # CR 삭제와 고착 finalizer 제거.
+  - apiGroups: ["npu.ai"]
+    resources: ["*"]
+    verbs: ["get", "list", "delete", "update", "patch"]
+  # operator 가 동적으로 만든 DaemonSet 정리.
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list", "delete"]
+  # operator 가 만든 Job 정리. install·preflight Job 은 정책이 owner 라 GC 가 걷지만, owner 가 없는 Job
+  # (mig-observe·mig-apply·device-reset, 위임 경로의 node-reboot)은 CR 을 지워도 남는다.
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "delete"]
+  # operator 가 벤더 device-plugin 을 위해 만든 부속 오브젝트 정리(npu.ai/owner 표시).
+  # ClusterRole 삭제에는 그 규칙을 스스로 들고 있을 필요가 없다(권한 상승 규칙은 생성·수정에만 적용).
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts", "configmaps"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-uninstall-gate
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Name }}-uninstall-gate
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-uninstall-gate
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-uninstall-gate
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  # 보류 판정은 재시도해도 같은 결과이고, 재시도하면 helm 이 실패를 늦게 안다.
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: {{ .Release.Name }}-uninstall-gate
+      restartPolicy: Never
+      # worker 전량 cordon 상태에서도 스케줄되도록 control-plane taint 를 tolerate 한다
+      # (pre-upgrade hook 과 같은 이유 — 스케줄 안 되면 helm 이 그대로 멈춘다).
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      containers:
+        - name: uninstall-gate
+          image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.image.repository "tag" .Values.image.tag) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["uninstall-gate"]
+          env:
+            - name: OPERATOR_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: UNINSTALL_SKIP_USAGE_CHECK
+              value: {{ .Values.uninstall.gate.skipUsageCheck | quote }}
+            - name: UNINSTALL_TIMEOUT
+              value: {{ .Values.uninstall.gate.timeout | quote }}
+{{- end }}

@@ -1,0 +1,219 @@
+{{- if .Values.webhook.enabled }}
+# ============================================================
+# webhook.yaml: Admission webhook Service + cert Secret + Validating/Mutating 설정
+# 상세: cert 는 lookup 으로 최초 1회 발급·재사용(멱등), failurePolicy=Ignore, opt-in 라벨 mutating.
+#       injectScope=namespace 면 라벨 네임스페이스 대상 mutating 을 하나 더 둔다.
+# 생성일: 2026-07-20 | 수정일: 2026-10-26
+# ============================================================
+{{- $fullname := include "kcloud-operator.fullname" . -}}
+{{- $svcName := printf "%s-webhook" $fullname -}}
+{{- $secretName := printf "%s-webhook-cert" $fullname -}}
+{{- $altNames := list (printf "%s.%s.svc" $svcName .Release.Namespace) (printf "%s.%s.svc.cluster.local" $svcName .Release.Namespace) -}}
+{{/*
+cert 멱등성: 기존 Secret 이 있으면 그 값을 그대로 재사용(caBundle 불변).
+없을 때만 genCA/genSignedCert 로 최초 1회 발급. helm upgrade 반복에도 cert 불변.
+lookup 은 base64 인코딩된 data 를 반환하고, gen* 은 PEM 을 반환하므로 b64enc 로 통일한다.
+*/}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $caCert := "" -}}
+{{- $tlsCert := "" -}}
+{{- $tlsKey := "" -}}
+{{- if $existing -}}
+{{- $caCert = index $existing.data "ca.crt" -}}
+{{- $tlsCert = index $existing.data "tls.crt" -}}
+{{- $tlsKey = index $existing.data "tls.key" -}}
+{{- else -}}
+{{- $ca := genCA "kcloud-operator-webhook-ca" 3650 -}}
+{{- $cert := genSignedCert $svcName nil $altNames 3650 $ca -}}
+{{- $caCert = b64enc $ca.Cert -}}
+{{- $tlsCert = b64enc $cert.Cert -}}
+{{- $tlsKey = b64enc $cert.Key -}}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+type: kubernetes.io/tls
+data:
+  ca.crt: {{ $caCert }}
+  tls.crt: {{ $tlsCert }}
+  tls.key: {{ $tlsKey }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svcName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    {{- include "kcloud-operator.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: webhook
+    port: 443
+    targetPort: {{ .Values.webhook.port }}
+    protocol: TCP
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ $fullname }}-validating
+  labels:
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+webhooks:
+# DIP/NCP 는 cluster-scoped(DIP)·namespaced(NCP) CR — namespaceSelector 무효, rules 로만 스코프.
+- name: vdriverinstallpolicy.npu.ai
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
+  clientConfig:
+    service:
+      name: {{ $svcName }}
+      namespace: {{ .Release.Namespace }}
+      path: /validate-npu-ai-v1alpha1-driverinstallpolicy
+    caBundle: {{ $caCert }}
+  rules:
+  - apiGroups: ["npu.ai"]
+    apiVersions: ["v1alpha1"]
+    operations: ["CREATE", "UPDATE"]
+    resources: ["driverinstallpolicies"]
+    scope: "*"
+- name: vnpuclusterpolicy.npu.ai
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
+  clientConfig:
+    service:
+      name: {{ $svcName }}
+      namespace: {{ .Release.Namespace }}
+      path: /validate-npu-ai-v1alpha1-npuclusterpolicy
+    caBundle: {{ $caCert }}
+  rules:
+  - apiGroups: ["npu.ai"]
+    apiVersions: ["v1alpha1"]
+    operations: ["CREATE", "UPDATE"]
+    resources: ["npuclusterpolicies"]
+    scope: "*"
+- name: vacceleratorclass.npu.ai
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
+  clientConfig:
+    service:
+      name: {{ $svcName }}
+      namespace: {{ .Release.Namespace }}
+      path: /validate-npu-ai-v1alpha1-acceleratorclass
+    caBundle: {{ $caCert }}
+  rules:
+  - apiGroups: ["npu.ai"]
+    apiVersions: ["v1alpha1"]
+    operations: ["CREATE", "UPDATE"]
+    resources: ["acceleratorclasses"]
+    scope: "*"
+- name: vacceleratorworkload.npu.ai
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
+  clientConfig:
+    service:
+      name: {{ $svcName }}
+      namespace: {{ .Release.Namespace }}
+      path: /validate-npu-ai-v1alpha1-acceleratorworkload
+    caBundle: {{ $caCert }}
+  rules:
+  - apiGroups: ["npu.ai"]
+    apiVersions: ["v1alpha1"]
+    operations: ["CREATE", "UPDATE"]
+    resources: ["acceleratorworkloads"]
+    scope: "Namespaced"
+- name: vacceleratorpartitionpolicy.npu.ai
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  # 다른 항목과 달리 .Values.webhook.failurePolicy 를 따르지 않고 Ignore 로 고정한다.
+  # 이 검증은 편의이지 안전 장치가 아니다 — 실제 안전 장치는 컨트롤러의 Validating 단계와
+  # 하드웨어다. operator 가 죽어 있을 때도 파티션 정책 생성 자체는 막지 않는다.
+  failurePolicy: Ignore
+  clientConfig:
+    service:
+      name: {{ $svcName }}
+      namespace: {{ .Release.Namespace }}
+      path: /validate-npu-ai-v1alpha1-acceleratorpartitionpolicy
+    caBundle: {{ $caCert }}
+  rules:
+  - apiGroups: ["npu.ai"]
+    apiVersions: ["v1alpha1"]
+    operations: ["CREATE", "UPDATE"]
+    resources: ["acceleratorpartitionpolicies"]
+    scope: "*"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ $fullname }}-mutating
+  labels:
+    app.kubernetes.io/name: {{ include "kcloud-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+webhooks:
+# Pod mutating(pod 범위): kube-system 제외 + opt-in 라벨(injectLabel=true) Pod 만. injectScope 와 무관하게 항상 둔다.
+- name: mpod.npu.ai
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
+  reinvocationPolicy: Never
+  clientConfig:
+    service:
+      name: {{ $svcName }}
+      namespace: {{ .Release.Namespace }}
+      path: /mutate--v1-pod
+    caBundle: {{ $caCert }}
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values: ["kube-system"]
+  objectSelector:
+    matchLabels:
+      {{ .Values.webhook.injectLabel }}: "true"
+  rules:
+  - apiGroups: [""]
+    apiVersions: ["v1"]
+    operations: ["CREATE"]
+    resources: ["pods"]
+    scope: "Namespaced"
+{{- if eq (.Values.webhook.injectScope | default "pod") "namespace" }}
+# Pod mutating(namespace 범위): injectLabel=true 라벨이 붙은 네임스페이스의 Pod 전부. kube-system 제외.
+#   objectSelector 가 없어 Pod 라벨을 보지 않는다 — Pod 에 라벨을 넣을 수 없는 도구가 만드는 GPU Pod 가 대상이다.
+- name: mpod-namespace.npu.ai
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
+  reinvocationPolicy: Never
+  clientConfig:
+    service:
+      name: {{ $svcName }}
+      namespace: {{ .Release.Namespace }}
+      path: /mutate--v1-pod
+    caBundle: {{ $caCert }}
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values: ["kube-system"]
+    - key: {{ .Values.webhook.injectLabel }}
+      operator: In
+      values: ["true"]
+  rules:
+  - apiGroups: [""]
+    apiVersions: ["v1"]
+    operations: ["CREATE"]
+    resources: ["pods"]
+    scope: "Namespaced"
+{{- end }}
+{{- end }}

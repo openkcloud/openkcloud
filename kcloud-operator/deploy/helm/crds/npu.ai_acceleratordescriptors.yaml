@@ -1,0 +1,225 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: acceleratordescriptors.npu.ai
+spec:
+  group: npu.ai
+  names:
+    kind: AcceleratorDescriptor
+    listKind: AcceleratorDescriptorList
+    plural: acceleratordescriptors
+    shortNames:
+    - adesc
+    singular: acceleratordescriptor
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.vendor
+      name: VENDOR
+      type: string
+    - jsonPath: .spec.allocationUnit
+      name: UNIT
+      type: string
+    - jsonPath: .status.feasibleBackends
+      name: FEASIBLE
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AcceleratorDescriptorSpec 은 장치 하나의 backend 중립 기술이다.
+            properties:
+              allocationUnit:
+                description: AllocationUnit 은 할당의 최소 단위다.
+                enum:
+                - device
+                - partition
+                type: string
+              attributes:
+                additionalProperties:
+                  type: string
+                description: |-
+                  Attributes 는 sysfs 로는 알 수 없는 장치 속성 선언이다(제품명 등). 생성 DRA 런타임이
+                  ResourceSlice 속성으로 그대로 발행한다. 이 맵과 Capacity·CapacityFiles 의 MaxProperties
+                  합(24)은 런타임의 sysfs 관측 자리를 뺀 발행 예산 안이어야 한다 — 넘으면 드라이버 기동 실패.
+                maxProperties: 8
+                type: object
+              backends:
+                description: |-
+                  Backends 는 이 descriptor 로 만들 수 있다고 주장하는 backend 목록이다.
+                  주장일 뿐이며 실제 가능 여부는 정적 검증기가 판정한다.
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              capacity:
+                additionalProperties:
+                  type: string
+                description: Capacity 는 장치 capacity 선언이다. 값은 Quantity 표기다(예 "80Gi").
+                maxProperties: 8
+                type: object
+              capacityFiles:
+                additionalProperties:
+                  type: string
+                description: |-
+                  CapacityFiles 는 capacity 이름에서 그 바이트 수를 담은 파일의 경로로 가는 사상이다.
+                  경로는 장치의 PCI sysfs 디렉터리 아래 상대 경로다. 어느 파일에 용량이 있는지는 벤더마다
+                  달라 그 지식을 여기 두고 런타임은 읽기만 한다. 읽히면 Capacity 선언값을 덮는다.
+                maxProperties: 8
+                type: object
+              cleanup:
+                description: Cleanup 은 반납 후 조건이다.
+                properties:
+                  requiresDeviceReset:
+                    description: |-
+                      RequiresDeviceReset 이 true 면 반납 후 장치 리셋이 필요하다.
+                      리셋 수단이 선언되지 않으면 backend 생성이 거절된다.
+                    type: boolean
+                  resetCommand:
+                    description: ResetCommand 는 리셋 수단이다. RequiresDeviceReset 이 true
+                      면 필수.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              deviceNodes:
+                description: |-
+                  DeviceNodes 는 컨테이너에 주입할 /dev 경로 glob 목록이다. 비면 주입할 것이 없다는 뜻이라
+                  어느 backend 로도 갈 수 없다.
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              identity:
+                description: Identity 는 장치 식별 근거다.
+                properties:
+                  source:
+                    description: Source 는 식별자의 출처다.
+                    enum:
+                    - pciAddress
+                    - uuid
+                    - serial
+                    type: string
+                  stableAcrossReboot:
+                    description: |-
+                      StableAcrossReboot 이 true 면 재부팅 후에도 같은 값이어야 한다.
+                      pciAddress 를 쓰면서 true 로 두는 것은 허용하되, 슬롯 변경 시 계약 위반이며
+                      그 책임은 descriptor 작성자가 진다.
+                    type: boolean
+                required:
+                - source
+                - stableAcrossReboot
+                type: object
+              product:
+                description: Product 는 제품 키다("a30"·"blackhole-p150" 등).
+                type: string
+              sharing:
+                description: Sharing 은 SW 공유 선언이다(현재 timeSliced). 선언 시 devicePlugin
+                  backend 가 필수다.
+                properties:
+                  mode:
+                    enum:
+                    - timeSliced
+                    type: string
+                  replicas:
+                    format: int32
+                    maximum: 16
+                    minimum: 2
+                    type: integer
+                required:
+                - mode
+                type: object
+              vendor:
+                description: Vendor 는 벤더 키다("nvidia"·"rngd"·"tenstorrent" 등, detector
+                  의 vendorKey 와 같은 어휘).
+                type: string
+            required:
+            - allocationUnit
+            - backends
+            - deviceNodes
+            - identity
+            - product
+            - vendor
+            type: object
+          status:
+            description: AcceleratorDescriptorStatus 는 정적 검증 결과다.
+            properties:
+              conditions:
+                items:
+                  properties:
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              feasibleBackends:
+                description: FeasibleBackends 는 검증기가 생성 가능하다고 판정한 backend 목록이다.
+                items:
+                  type: string
+                type: array
+              refusals:
+                description: Refusals 는 거절된 backend 와 그 사유다. 거절을 조용히 삼키지 않는다.
+                items:
+                  description: DescriptorRefusal 은 backend 하나가 왜 거절됐는지다.
+                  properties:
+                    backend:
+                      type: string
+                    reason:
+                      type: string
+                  required:
+                  - backend
+                  - reason
+                  type: object
+                type: array
+              resolvedDevices:
+                description: ResolvedDevices 는 이 descriptor 의 vendor/product 에 맞는
+                  NDR 카드들의 노드별 안정 ID 다.
+                items:
+                  description: NodeDeviceIDs 는 한 노드에서 이 descriptor 에 맞는 장치들의 안정 식별자
+                    목록이다.
+                  properties:
+                    ids:
+                      items:
+                        type: string
+                      type: array
+                    node:
+                      type: string
+                  required:
+                  - node
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

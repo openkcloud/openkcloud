@@ -1,0 +1,128 @@
+# ============================================================
+# pod-smoke-desc.yaml: descriptor 경로 확정 스모크 — 컴파일 실패 원인 덤프 + 사전 컴파일 적재·추론
+# 상세: descriptor-smoke.yaml 이 광고하는 자원으로 compile_from_torch 를 시도해 실패 시
+#       /debug_* 덤프를 남기고, 성공·실패와 무관하게 사전 컴파일 모델로 추론까지 확정한다.
+# 생성일: 2026-09-29 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rbln-ts-smoke
+  namespace: default
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: node5
+  containers:
+    - name: c
+      image: <레지스트리>:5100/kcloud/rebellions/rbln-workload:ubuntu22.04-v1
+      command: ["python3", "-c"]
+      args:
+        - |
+          import os, subprocess, time, rebel, numpy as np, torch, torch.nn as nn
+          t = time.time()
+          print("DEV", sorted(os.listdir("/dev")), flush=True)
+          r = subprocess.run(["rbln-stat"], capture_output=True, text=True)
+          print("RBLN_STAT rc=%d" % r.returncode, flush=True)
+          for line in (r.stdout or r.stderr).splitlines()[:6]:
+              print("RBLN_STAT|", line, flush=True)
+          auto = rebel.get_npu_name()
+          npu = auto or os.environ.get("RBLN_NPU_NAME")
+          detect = "auto" if auto else "env"
+          compile_ok = True
+          try:
+              m = nn.Linear(64, 64, bias=False).eval()
+              rebel.compile_from_torch(m, input_info=[("x", [64, 64], "float32")], npu=npu)
+          except Exception as e:
+              compile_ok = False
+              print("COMPILE_ERR:", repr(e), flush=True)
+              for root, dirs, files in os.walk("/"):
+                  if root == "/":
+                      dirs[:] = [d for d in dirs if d.startswith("debug_")]
+                      continue
+                  for f in files:
+                      p = os.path.join(root, f)
+                      try:
+                          sz = os.path.getsize(p)
+                      except OSError:
+                          sz = -1
+                      print("DEBUGDUMP| FILE %s size=%d" % (p, sz), flush=True)
+                      if 0 <= sz <= 20 * 1024:
+                          try:
+                              with open(p, "r", encoding="utf-8") as fh:
+                                  lines = fh.readlines()[-60:]
+                          except (UnicodeDecodeError, OSError):
+                              continue
+                          for ln in lines:
+                              print("DEBUGDUMP|", ln.rstrip("\n"), flush=True)
+          c = rebel.RBLNCompiledModel("/models/linear64.rbln")
+          rt = c.create_runtime(tensor_type="np", device=0)
+          y = rt(np.random.rand(64, 64).astype("float32"))
+          print("SMOKE_OK rebel=%s npu=%s detect=%s compile=%s load=ok open=%.2f infer=ok path=descriptor" % (
+              rebel.__version__, npu, detect, "ok" if compile_ok else "fail", time.time() - t), flush=True)
+      env:
+        - name: RBLN_NPU_NAME
+          value: "RBLN-CA22"
+        - name: RBLN_DEBUG_LEVEL
+          value: "3"
+      resources:
+        limits:
+          rebellions/atom: "1"
+      volumeMounts:
+        - name: host-local
+          mountPath: /host-local
+          readOnly: true
+        - name: host-lib
+          mountPath: /host-lib
+          readOnly: true
+        - name: rbln-thunk-so
+          mountPath: /usr/lib/librbln-thunk.so.3.0.0
+          readOnly: true
+        - name: rbln-ccl-so
+          mountPath: /usr/lib/librbln-ccl.so.3.0.0
+          readOnly: true
+        - name: rbln-ml-so
+          mountPath: /usr/lib/librbln-ml.so
+          readOnly: true
+        - name: rbln-stat-bin
+          mountPath: /usr/bin/rbln-stat
+          readOnly: true
+        - name: rbln-smi-bin
+          mountPath: /usr/bin/rbln-smi
+          readOnly: true
+        - name: models
+          mountPath: /models
+          readOnly: true
+  volumes:
+    - name: host-local
+      hostPath:
+        path: /usr/local/lib/python3.10/dist-packages
+        type: Directory
+    - name: host-lib
+      hostPath:
+        path: /usr/lib/python3/dist-packages
+        type: Directory
+    - name: rbln-thunk-so
+      hostPath:
+        path: /usr/lib/librbln-thunk.so.3.0.0
+        type: File
+    - name: rbln-ccl-so
+      hostPath:
+        path: /usr/lib/librbln-ccl.so.3.0.0
+        type: File
+    - name: rbln-ml-so
+      hostPath:
+        path: /usr/lib/librbln-ml.so
+        type: File
+    - name: rbln-stat-bin
+      hostPath:
+        path: /usr/bin/rbln-stat
+        type: File
+    - name: rbln-smi-bin
+      hostPath:
+        path: /usr/bin/rbln-smi
+        type: File
+    - name: models
+      hostPath:
+        path: /home/kcloud/rbln-ts-cache
+        type: Directory

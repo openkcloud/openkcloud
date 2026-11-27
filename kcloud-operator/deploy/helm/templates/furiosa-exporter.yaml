@@ -1,0 +1,105 @@
+{{- if and .Values.furiosa.exporter.enabled (has .Values.furiosa.managementMode (list "" "managed")) }}
+# ============================================================
+# furiosa-exporter.yaml: Furiosa RNGD 텔레메트리 exporter DaemonSet
+# 상세: :9410 에서 코어 사용률·DRAM·전력·온도를 Prometheus 포맷으로 낸다.
+#       비특권 — /sys·/dev 읽기만으로 furiosa-smi 가 동작한다(기존 통합
+#       device-plugin 과 동일 조건). 대상은 RNGD 노드뿐이다. kubeResourcesLabel 이면
+#       kubelet 할당 기록으로 장치를 쓰는 파드의 namespace·pod·container 라벨을 붙인다.
+# 생성일: 2026-08-07 | 수정일: 2026-10-15
+# ============================================================
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kcloud-furiosa-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: kcloud-furiosa-exporter
+    app.kubernetes.io/component: telemetry
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kcloud-furiosa-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kcloud-furiosa-exporter
+        app.kubernetes.io/component: telemetry
+    spec:
+      # RNGD 전용이다. Warboy 노드에 올리면 벤더 SMI 가 furiosa_smi_init 에서
+      # "unsupported device id 0" 으로 abort 하고 컨테이너가 죽는다. 오류 반환이 아니라
+      # 프로세스 abort 라 코드로 감쌀 수 없다.
+      nodeSelector:
+        kcloud.ai/rngd.present: "true"
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: furiosa-exporter
+          image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.furiosa.exporter.repository "tag" .Values.furiosa.exporter.tag) }}"
+          args:
+            - "--interval={{ .Values.furiosa.exporter.interval }}"
+            {{- if .Values.furiosa.exporter.kubeResourcesLabel }}
+            - "--kube-resources-label=true"
+            {{- end }}
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: metrics
+              containerPort: 9410
+              protocol: TCP
+          securityContext:
+            # root 로 돈다. kubelet pod-resources 디렉터리(root:root 0750)에 연결하려면 uid 0 이어야
+            # 해서, 이미지 기본값에 기대지 않고 여기서 정한다.
+            runAsUser: 0
+            runAsNonRoot: false
+            privileged: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+            - name: dev
+              mountPath: /dev
+              readOnly: true
+            # 벤더 libfuriosa_smi.so 는 이미지에 없다(재배포 회피). 드라이버 설치기가 furiosa-smi 와
+            # 함께 호스트에 설치한 것을 읽기 전용으로 쓴다. 파일이 아직 없으면(설치 Job 이전)
+            # kubelet 이 파드를 ContainerCreating 으로 잡아 두었다가 생기면 기동한다.
+            - name: libsmi
+              mountPath: /usr/lib/x86_64-linux-gnu/libfuriosa_smi.so
+              readOnly: true
+            {{- if .Values.furiosa.exporter.kubeResourcesLabel }}
+            # kubelet 할당 기록(PodResources) 소켓. 디렉터리가 root:root 0750 이라 uid 0 으로 도는
+            # 이 컨테이너만 연결할 수 있다(이미지에 USER 지정 없음).
+            - name: pod-resources
+              mountPath: /var/lib/kubelet/pod-resources
+              readOnly: true
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9410
+            initialDelaySeconds: 5
+      volumes:
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: dev
+          hostPath:
+            path: /dev
+        - name: libsmi
+          hostPath:
+            path: /usr/lib/x86_64-linux-gnu/libfuriosa_smi.so
+            type: File
+        {{- if .Values.furiosa.exporter.kubeResourcesLabel }}
+        # DirectoryOrCreate: kubelet root 를 옮긴 노드에서도 파드는 뜬다. 소켓이 없으면 exporter 가
+        # 로그를 남기고 세 라벨만 비운다 — 장치 지표까지 멈추지 않는다.
+        - name: pod-resources
+          hostPath:
+            path: /var/lib/kubelet/pod-resources
+            type: DirectoryOrCreate
+        {{- end }}
+{{- end }}

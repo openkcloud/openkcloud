@@ -1,0 +1,51 @@
+# ============================================================
+# .golangci.yml: cmd/kubectl-npu 전용 lint 설정
+# 상세: 루트 .golangci.yml 과 같은 린터 목록에서 goconst 만 뺀다 — dispatch switch 의
+#       명령·플래그 리터럴을 상수로 빼면 호출부가 상수 정의를 오가야 해 더 읽기 어려워진다.
+#       이 파일을 지우면 golangci-lint 가 상위 디렉터리 루트 설정을 그대로 쓴다(병합이
+#       아니라 대체라 이 goconst 제외도 함께 사라진다).
+# 생성일: 2026-09-28 | 수정일: 2026-10-11
+# ============================================================
+version: "2"
+run:
+  allow-parallel-runners: true
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - dupl
+    - errcheck
+    - ginkgolinter
+    - gocyclo
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - prealloc
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+  settings:
+    revive:
+      rules:
+        - name: comment-spacings
+        - name: import-shadowing
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

@@ -1,25 +1,24 @@
 # ============================================================
 # driverinstallpolicy.yaml: DriverInstallPolicy CR 자동 생성
-# 상세: driverInstallPolicies.<vendor>.enabled=true 인 각 벤더에 대해 DIP CR 생성.
-#       Furiosa (warboy) / NVIDIA (generic) 두 벤더 모두 mode=daemonset 기본.
-# 생성일: 2026-04-10 | 수정일: 2026-04-21
+# 상세: driverInstallPolicies.<vendor>.enabled=true 인 벤더마다 DIP CR 을 만든다. helm hook 이
+#       아니라 릴리스 자원이라 업그레이드로 uid 가 바뀌어도 소유 DaemonSet 이 연쇄 재생성되지 않는다.
+# 생성일: 2026-04-10 | 수정일: 2026-10-27
 # ============================================================
 {{- if .Values.driverInstallPolicies.furiosa.enabled }}
 apiVersion: npu.ai/v1alpha1
 kind: DriverInstallPolicy
 metadata:
   name: {{ .Values.driverInstallPolicies.furiosa.name }}
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "5"
-    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   vendor: {{ .Values.driverInstallPolicies.furiosa.vendor }}
   model: {{ .Values.driverInstallPolicies.furiosa.model }}
   rebootStrategy: {{ .Values.driverInstallPolicies.furiosa.rebootStrategy }}
   kernelAllowlist:
     {{- toYaml .Values.driverInstallPolicies.furiosa.kernelAllowlist | nindent 4 }}
-  containerdMinVersion: "{{ .Values.driverInstallPolicies.furiosa.containerdMinVersion }}"
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   driver:
     {{- with .Values.driverInstallPolicies.furiosa.driver.mode }}
     mode: {{ . }}
@@ -29,9 +28,21 @@ spec:
     {{- with .Values.driverInstallPolicies.furiosa.driver.installer }}
     installer: {{ . }}
     {{- end }}
+    allowDowngrade: {{ .Values.driverInstallPolicies.furiosa.driver.allowDowngrade }}
+    versionSource: {{ .Values.driverInstallPolicies.furiosa.driver.versionSource | quote }}
+    skipOnPassthrough: {{ .Values.driverInstallPolicies.furiosa.driver.skipOnPassthrough }}
     {{- with .Values.driverInstallPolicies.furiosa.driver.env }}
     env:
       {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.driverInstallPolicies.furiosa.driver.kernelImages }}
+    kernelImages: {{ toYaml . | nindent 6 }}
+    {{- end }}
+    {{- if .Values.driverInstallPolicies.furiosa.driver.kernelImageBuildRevision }}
+    kernelImageBuildRevision: {{ .Values.driverInstallPolicies.furiosa.driver.kernelImageBuildRevision | quote }}
+    {{- with .Values.driverInstallPolicies.furiosa.driver.kernelImageVariant }}
+    kernelImageVariant: {{ . | quote }}
+    {{- end }}
     {{- end }}
   {{- with .Values.driverInstallPolicies.furiosa.verifiedVersions }}
   verifiedVersions:
@@ -45,6 +56,14 @@ spec:
   upgradePolicy:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- with .Values.driverInstallPolicies.furiosa.jobOverrides }}
+  jobOverrides:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.furiosa.workloadProbe }}
+  workloadProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
 {{- if .Values.driverInstallPolicies.nvidia.enabled }}
 ---
@@ -52,17 +71,16 @@ apiVersion: npu.ai/v1alpha1
 kind: DriverInstallPolicy
 metadata:
   name: {{ .Values.driverInstallPolicies.nvidia.name }}
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "5"
-    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   vendor: {{ .Values.driverInstallPolicies.nvidia.vendor }}
   model: {{ .Values.driverInstallPolicies.nvidia.model }}
   rebootStrategy: {{ .Values.driverInstallPolicies.nvidia.rebootStrategy }}
   kernelAllowlist:
     {{- toYaml .Values.driverInstallPolicies.nvidia.kernelAllowlist | nindent 4 }}
-  containerdMinVersion: "{{ .Values.driverInstallPolicies.nvidia.containerdMinVersion }}"
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   driver:
     {{- with .Values.driverInstallPolicies.nvidia.driver.mode }}
     mode: {{ . }}
@@ -72,9 +90,21 @@ spec:
     {{- with .Values.driverInstallPolicies.nvidia.driver.installer }}
     installer: {{ . }}
     {{- end }}
+    allowDowngrade: {{ .Values.driverInstallPolicies.nvidia.driver.allowDowngrade }}
+    versionSource: {{ .Values.driverInstallPolicies.nvidia.driver.versionSource | quote }}
+    skipOnPassthrough: {{ .Values.driverInstallPolicies.nvidia.driver.skipOnPassthrough }}
     {{- with .Values.driverInstallPolicies.nvidia.driver.env }}
     env:
       {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.driverInstallPolicies.nvidia.driver.kernelImages }}
+    kernelImages: {{ toYaml . | nindent 6 }}
+    {{- end }}
+    {{- if .Values.driverInstallPolicies.nvidia.driver.kernelImageBuildRevision }}
+    kernelImageBuildRevision: {{ .Values.driverInstallPolicies.nvidia.driver.kernelImageBuildRevision | quote }}
+    {{- with .Values.driverInstallPolicies.nvidia.driver.kernelImageVariant }}
+    kernelImageVariant: {{ . | quote }}
+    {{- end }}
     {{- end }}
   {{- with .Values.driverInstallPolicies.nvidia.toolkit }}
   toolkit:
@@ -92,6 +122,14 @@ spec:
   upgradePolicy:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- with .Values.driverInstallPolicies.nvidia.jobOverrides }}
+  jobOverrides:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.nvidia.workloadProbe }}
+  workloadProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
 {{- if .Values.driverInstallPolicies.rngd.enabled }}
 ---
@@ -99,17 +137,16 @@ apiVersion: npu.ai/v1alpha1
 kind: DriverInstallPolicy
 metadata:
   name: {{ .Values.driverInstallPolicies.rngd.name }}
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "5"
-    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   vendor: {{ .Values.driverInstallPolicies.rngd.vendor }}
   model: {{ .Values.driverInstallPolicies.rngd.model }}
   rebootStrategy: {{ .Values.driverInstallPolicies.rngd.rebootStrategy }}
   kernelAllowlist:
     {{- toYaml .Values.driverInstallPolicies.rngd.kernelAllowlist | nindent 4 }}
-  containerdMinVersion: "{{ .Values.driverInstallPolicies.rngd.containerdMinVersion }}"
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   driver:
     {{- with .Values.driverInstallPolicies.rngd.driver.mode }}
     mode: {{ . }}
@@ -119,9 +156,21 @@ spec:
     {{- with .Values.driverInstallPolicies.rngd.driver.installer }}
     installer: {{ . }}
     {{- end }}
+    allowDowngrade: {{ .Values.driverInstallPolicies.rngd.driver.allowDowngrade }}
+    versionSource: {{ .Values.driverInstallPolicies.rngd.driver.versionSource | quote }}
+    skipOnPassthrough: {{ .Values.driverInstallPolicies.rngd.driver.skipOnPassthrough }}
     {{- with .Values.driverInstallPolicies.rngd.driver.env }}
     env:
       {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.driverInstallPolicies.rngd.driver.kernelImages }}
+    kernelImages: {{ toYaml . | nindent 6 }}
+    {{- end }}
+    {{- if .Values.driverInstallPolicies.rngd.driver.kernelImageBuildRevision }}
+    kernelImageBuildRevision: {{ .Values.driverInstallPolicies.rngd.driver.kernelImageBuildRevision | quote }}
+    {{- with .Values.driverInstallPolicies.rngd.driver.kernelImageVariant }}
+    kernelImageVariant: {{ . | quote }}
+    {{- end }}
     {{- end }}
   {{- with .Values.driverInstallPolicies.rngd.verifiedVersions }}
   verifiedVersions:
@@ -133,6 +182,104 @@ spec:
   {{- end }}
   {{- with .Values.driverInstallPolicies.rngd.upgradePolicy }}
   upgradePolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.rngd.jobOverrides }}
+  jobOverrides:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.rngd.workloadProbe }}
+  workloadProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.driverInstallPolicies.tenstorrent.enabled }}
+---
+apiVersion: npu.ai/v1alpha1
+kind: DriverInstallPolicy
+metadata:
+  name: {{ .Values.driverInstallPolicies.tenstorrent.name }}
+spec:
+  vendor: {{ .Values.driverInstallPolicies.tenstorrent.vendor }}
+  model: {{ .Values.driverInstallPolicies.tenstorrent.model }}
+  rebootStrategy: {{ .Values.driverInstallPolicies.tenstorrent.rebootStrategy }}
+  kernelAllowlist:
+    {{- toYaml .Values.driverInstallPolicies.tenstorrent.kernelAllowlist | nindent 4 }}
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  driver:
+    {{- with .Values.driverInstallPolicies.tenstorrent.driver.mode }}
+    mode: {{ . }}
+    {{- end }}
+    trackOnly: {{ .Values.driverInstallPolicies.tenstorrent.driver.trackOnly }}
+    version: "{{ .Values.driverInstallPolicies.tenstorrent.driver.version }}"
+    image: "{{ include "kcloud-operator.image" (dict "registry" .Values.global.registry "repo" .Values.driverInstallPolicies.tenstorrent.driver.repository "tag" .Values.driverInstallPolicies.tenstorrent.driver.tag) }}"
+    {{- with .Values.driverInstallPolicies.tenstorrent.driver.installer }}
+    installer: {{ . }}
+    {{- end }}
+    imageVersionBaked: {{ .Values.driverInstallPolicies.tenstorrent.driver.imageVersionBaked | default false }}
+    allowDowngrade: {{ .Values.driverInstallPolicies.tenstorrent.driver.allowDowngrade }}
+    versionSource: {{ .Values.driverInstallPolicies.tenstorrent.driver.versionSource | quote }}
+    skipOnPassthrough: {{ .Values.driverInstallPolicies.tenstorrent.driver.skipOnPassthrough }}
+    {{- with .Values.driverInstallPolicies.tenstorrent.driver.env }}
+    env:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.driverInstallPolicies.tenstorrent.driver.kernelImages }}
+    kernelImages: {{ toYaml . | nindent 6 }}
+    {{- end }}
+    {{- if .Values.driverInstallPolicies.tenstorrent.driver.kernelImageBuildRevision }}
+    kernelImageBuildRevision: {{ .Values.driverInstallPolicies.tenstorrent.driver.kernelImageBuildRevision | quote }}
+    {{- with .Values.driverInstallPolicies.tenstorrent.driver.kernelImageVariant }}
+    kernelImageVariant: {{ . | quote }}
+    {{- end }}
+    {{- end }}
+  {{- with .Values.driverInstallPolicies.tenstorrent.verifiedVersions }}
+  verifiedVersions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.tenstorrent.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.tenstorrent.upgradePolicy }}
+  upgradePolicy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.tenstorrent.jobOverrides }}
+  jobOverrides:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.tenstorrent.workloadProbe }}
+  workloadProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.driverInstallPolicies.rebellions.enabled }}
+---
+apiVersion: npu.ai/v1alpha1
+kind: DriverInstallPolicy
+metadata:
+  name: {{ .Values.driverInstallPolicies.rebellions.name }}
+spec:
+  vendor: {{ .Values.driverInstallPolicies.rebellions.vendor }}
+  model: {{ .Values.driverInstallPolicies.rebellions.model }}
+  rebootStrategy: Never
+  driver:
+    mode: {{ .Values.driverInstallPolicies.rebellions.driver.mode }}
+    trackOnly: {{ .Values.driverInstallPolicies.rebellions.driver.trackOnly }}
+    {{- with .Values.driverInstallPolicies.rebellions.driver.version }}
+    version: {{ . | quote }}
+    {{- end }}
+    versionSource: {{ .Values.driverInstallPolicies.rebellions.driver.versionSource | quote }}
+  {{- with .Values.driverInstallPolicies.rebellions.verifiedVersions }}
+  verifiedVersions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.driverInstallPolicies.rebellions.nodeSelector }}
+  nodeSelector:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}

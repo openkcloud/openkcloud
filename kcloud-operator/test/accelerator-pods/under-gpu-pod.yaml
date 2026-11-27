@@ -1,0 +1,20 @@
+# ============================================================
+# under-gpu-pod.yaml: under k8s 에서 NVIDIA GPU 1장을 할당받아 nvidia-smi 를 실행하는 확인용 파드
+# 상세: 이미지는 under Harbor(harbor.io:7443) library 프로젝트. compute6(L40S) 에서 정상 출력 확인.
+#       실행: kubectl apply -f under-gpu-pod.yaml → kubectl get pod gpu-test (Completed) → kubectl logs gpu-test → kubectl delete pod gpu-test
+# 생성일: 2026-09-17 | 수정일: 2026-10-11
+# ============================================================
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-test
+spec:
+  restartPolicy: Never
+  runtimeClassName: nvidia
+  containers:
+  - name: smi
+    image: harbor.io:7443/library/cuda:12.9.1-base-ubuntu22.04
+    command: ["nvidia-smi"]
+    resources:
+      limits:
+        nvidia.com/gpu: 1

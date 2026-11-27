@@ -1,0 +1,101 @@
+# ============================================================
+# release.yml: v* 태그 push 시 operator 이미지와 Helm 차트를 GHCR 로 발행한다.
+# 상세: 태그와 Chart.yaml appVersion 이 어긋나면 발행 전에 실패시킨다.
+#       Go 시험은 test.yml·lint.yml 이 같은 push 에서 따로 돌므로 여기서는 다루지 않는다.
+#       차트를 올리기 전에 차트 기본값의 이미지가 레지스트리에 모두 있는지 확인한다.
+# 생성일: 2026-09-09 | 수정일: 2026-10-15
+# ============================================================
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+# 발행 네임스페이스는 이 워크플로가 도는 저장소의 소유자다(소문자). 조직 저장소면
+# ghcr.io/openkcloud, 개인 fork 에서 리허설하면 그 계정 아래로 간다.
+
+jobs:
+  release:
+    name: Publish image and chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v5
+
+      - name: Resolve registry namespace
+        run: |
+          set -euo pipefail
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "IMAGE=ghcr.io/${OWNER}/kcloud-operator" >> "$GITHUB_ENV"
+          echo "CHART_REPO=oci://ghcr.io/${OWNER}/charts" >> "$GITHUB_ENV"
+
+      # 태그가 차트 선언과 갈라지면 배포된 것이 무엇인지 알 수 없게 된다.
+      # chart_version_sync_test.go 가 values 프리셋까지 고정하므로 여기서는
+      # 태그 <-> Chart.yaml 한 쌍만 본다.
+      - name: Verify chart version matches tag
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          APP_VERSION=$(yq '.appVersion' deploy/helm/Chart.yaml)
+          CHART_VERSION=$(yq '.version' deploy/helm/Chart.yaml)
+          echo "tag=${TAG} appVersion=${APP_VERSION} version=${CHART_VERSION}"
+          if [ "${TAG}" != "${APP_VERSION}" ]; then
+            echo "!! 태그 ${TAG} 와 Chart.yaml appVersion ${APP_VERSION} 이 다르다." >&2
+            exit 1
+          fi
+          # 릴리스 라인 태그(vX.Y.Z-k8s1.28)는 차트 버전 X.Y.Z 에 K8s 라인 접미사만 더한 것이다.
+          EXPECTED="${TAG#v}"; EXPECTED="${EXPECTED%-k8s*}"
+          if [ "${CHART_VERSION}" != "${EXPECTED}" ]; then
+            echo "!! Chart.yaml version ${CHART_VERSION} 이 ${EXPECTED} 가 아니다." >&2
+            exit 1
+          fi
+          echo "CHART_VERSION=${CHART_VERSION}" >> "$GITHUB_ENV"
+
+      # 차트의 crds/ 와 go:embed 번들의 출처는 모두 config/crd/bases 다. 차트만 낡으면
+      # 설치된 CRD 와 operator 가 적용하는 CRD 가 갈라진다.
+      - name: Verify chart CRDs match generated CRDs
+        run: diff -r config/crd/bases deploy/helm/crds
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # docker-build 가 embed-crds 를 선행하므로 CRD 번들은 여기서 채워진다.
+      - name: Build and push operator image
+        run: |
+          set -euo pipefail
+          make docker-build IMG="${IMAGE}:${GITHUB_REF_NAME}" \
+            DOCKER_BUILD_ARGS="--build-arg SOURCE_URL=https://github.com/${GITHUB_REPOSITORY}"
+          docker push "${IMAGE}:${GITHUB_REF_NAME}"
+      # 차트 기본값이 당기는 이미지가 레지스트리에 모두 있어야 차트를 발행한다. operator 이미지는
+      # 바로 위 단계가 올리므로 이 검사는 그 뒤에 돈다. 같은 태그로 동시에 도는 lint.yml 에서
+      # 검사하면 operator 이미지가 아직 없어 태그마다 실패한다.
+      - name: Install image check tools
+        run: sudo apt-get update -y && sudo apt-get install -y jq python3-yaml
+      - name: Image tag existence gate
+        run: make image-tag-check
+        env:
+          CHECK_REGISTRY: "1"
+
+      - name: Package and push Helm chart
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          helm package deploy/helm -d dist
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" --password-stdin
+          helm push "dist/kcloud-operator-${CHART_VERSION}.tgz" "${CHART_REPO}"
+
+      - name: Attach chart to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/kcloud-operator-${{ env.CHART_VERSION }}.tgz
+          generate_release_notes: true
