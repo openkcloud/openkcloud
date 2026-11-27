@@ -1,0 +1,65 @@
+{{- $g := .Values.global -}}
+{{- $f := .Values.frontend -}}
+{{- $port := default 8080 $f.port -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mnt-app
+  namespace: {{ $g.namespace }}
+  labels:
+    app: mnt-app
+    {{- include "okc.labels" . | nindent 4 }}
+spec:
+  replicas: {{ default 1 $f.replicas }}
+  selector:
+    matchLabels:
+      app: mnt-app
+  template:
+    metadata:
+      labels:
+        app: mnt-app
+    spec:
+      {{- with $g.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $g.nodeSelectorWorkerOnly }}
+      {{- include "okc.workerAffinity" . | nindent 6 }}
+      {{- end }}
+      containers:
+        - name: mnt-app
+          image: {{ printf "%s/%s:%s" $g.image.registry $f.image (default $g.image.tag $f.tag) }}
+          imagePullPolicy: {{ $g.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $port }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ $port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ $port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml (default $g.resources $f.resources) | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mnt-app
+  namespace: {{ $g.namespace }}
+  labels:
+    app: mnt-app
+    {{- include "okc.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: mnt-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ $port }}

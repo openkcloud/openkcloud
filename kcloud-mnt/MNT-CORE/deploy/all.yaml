@@ -1,0 +1,85 @@
+# MNT-CORE 배포 — ConfigMap(주소·일반값) + Secret(DB) + Deployment + Service
+# 이미지: harbor.io:7443/mnt/mnt-core:<TAG>  (Harbor push 후 TAG 교체)
+# 적용: kubectl apply -f all.yaml  (ns: openkcloud-mnt)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mnt-core-config
+  namespace: openkcloud-mnt
+data:
+  SERVICE_NAME: "mnt-core"
+  API_PREFIX: "/api/core"
+  # 게이트웨이 single-origin 구성이면 CORS 불필요 → 빈 값
+  CORS_ORIGINS: ""
+  # 다른 MNT 모듈 주소 — 파드 환경에서 동적 주입 (클러스터 내부 DNS)
+  IAAS_API_BASE: "http://mnt-iaas.openkcloud-mnt.svc.cluster.local"
+  PAAS_API_BASE: "http://mnt-paas.openkcloud-mnt.svc.cluster.local"
+  OBS_API_BASE: "http://mnt-obs.openkcloud-mnt.svc.cluster.local"
+  AINB_API_BASE: ""   # MNT-AINB 파드화 전까지 비움
+  TEMPORAL_API_BASE: "mnt-workflow.openkcloud-mnt.svc.cluster.local:7233"   # Temporal 서버(gRPC)
+---
+# ⚠️ 예시 — 실제 값은 git 에 커밋하지 말 것 (SealedSecrets 전환 예정)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mnt-core-secret
+  namespace: openkcloud-mnt
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql+psycopg://portal_user:CHANGE_ME@openkcloud-db-rw.openkcloud-mnt:5432/openkcloud_portal"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mnt-core
+  namespace: openkcloud-mnt
+  labels: { app: mnt-core }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mnt-core }
+  template:
+    metadata:
+      labels: { app: mnt-core }
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist   # 워커 전용 (master taint 없음 대비)
+      containers:
+        - name: mnt-core
+          image: harbor.io:7443/mnt/mnt-core:TAG
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: mnt-core-config }
+            - secretRef: { name: mnt-core-secret }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mnt-core
+  namespace: openkcloud-mnt
+  labels: { app: mnt-core }
+spec:
+  selector: { app: mnt-core }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+# 외부 노출은 게이트웨이(Istio VirtualService)에서 /api/core → mnt-core:80 으로 라우팅

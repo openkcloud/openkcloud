@@ -1,0 +1,41 @@
+{{- /* [openkcloud] Istio VirtualService - istio.enabled 일 때 생성 */ -}}
+{{- if .Values.istio.enabled }}
+{{- $svcHost := printf "%s-http.%s.svc.%s" (include "keycloak.fullname" .) (include "keycloak.namespace" .) .Values.clusterDomain }}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ include "keycloak.fullname" . }}-vs
+  namespace: {{ include "keycloak.namespace" . }}
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- toYaml .Values.istio.hosts | nindent 4 }}
+  gateways:
+    {{- if .Values.istio.gateway.create }}
+    - {{ include "keycloak.fullname" . }}-gateway
+    {{- else }}
+    - {{ required "istio.gateway.existingGateway is required when istio.gateway.create=false" .Values.istio.gateway.existingGateway }}
+    {{- end }}
+  http:
+    {{- if .Values.istio.blockAdminConsole }}
+    - match:
+        - uri:
+            prefix: {{ trimSuffix "/" .Values.http.relativePath }}/admin
+      directResponse:
+        status: 403
+    {{- end }}
+    - match:
+        - uri:
+            prefix: {{ .Values.http.relativePath }}
+      route:
+        - destination:
+            host: {{ $svcHost }}
+            port:
+              number: {{ .Values.service.httpPort }}
+      headers:
+        request:
+          set:
+            X-Forwarded-Proto: https
+            X-Forwarded-Port: "25443"
+{{- end }}

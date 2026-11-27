@@ -1,0 +1,23 @@
+openKcloud 포털 배포됨 — ns {{ .Values.global.namespace }}
+
+1) 선행조건(1회):
+   - Harbor pull 시크릿:
+       kubectl -n {{ .Values.global.namespace }} create secret docker-registry harbor-pull \
+         --docker-server={{ .Values.global.image.registry }} \
+         --docker-username=<user> --docker-password=<pass>
+   - 앱 시크릿: 이 차트가 만든다(values.yaml 의 secrets·workflow.dbPassword, 비우면 기존 값 유지)
+   - DB 스키마(1회): MNT-CORE/db/ddl.sql + seed.sql 을 CNPG 에 적용
+       (docs/포털DB_PostgreSQL_설치.md 참고)
+
+2) 상태 확인:
+     kubectl -n {{ .Values.global.namespace }} get pods,svc
+     kubectl -n {{ .Values.global.namespace }} get deploy
+
+3) 접속:
+   - 게이트웨이 host: {{ .Values.gateway.host }}
+   - 외부: 210.114.95.50:25443 (istio-ingressgateway), /etc/hosts 에 host 매핑
+   - 라우팅: / → mnt-app, /api/core → mnt-core, /api/iaas → mnt-iaas, /api/paas, /api/obs
+
+4) 이미지 태그 덮어쓰기:
+     helm upgrade --install openkcloud-portal charts/openkcloud-portal \
+       -n {{ .Values.global.namespace }} --set global.image.tag=<git-sha>

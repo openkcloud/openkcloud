@@ -1,0 +1,6 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic-settings>=2.4
+httpx>=0.27
+cryptography>=43     # kubeconfig 발급(클라이언트 키·CSR 생성)
+temporalio>=1.34     # 클러스터 프로비저닝 작업 워커(큐 okc-paas)

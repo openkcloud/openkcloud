@@ -1,0 +1,87 @@
+{{- if .Values.gateway.enabled }}
+{{- $g := .Values.global -}}
+{{- $gw := .Values.gateway -}}
+{{- /* 리소스 이름은 항상 평이한 이름. gatewayName 은 참조(spec.gateways)용이라 ns/name 가능 */ -}}
+{{- $gwName := "openkcloud-portal" -}}
+{{- $gwRef := $gw.gatewayName -}}
+{{- if $gw.create }}{{- $gwRef = $gwName -}}{{- end }}
+{{- if $gw.create }}
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: {{ $gwName }}
+  namespace: {{ $g.namespace }}
+  labels:
+    {{- include "okc.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- toYaml $gw.istioSelector | nindent 4 }}
+  servers:
+    - port:
+        number: {{ $gw.port }}
+        name: https
+        protocol: HTTPS
+      hosts:
+        - {{ $gw.host | quote }}
+      tls:
+        {{- toYaml $gw.tls | nindent 8 }}
+{{- end }}
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ $gwName }}
+  namespace: {{ $g.namespace }}
+  labels:
+    {{- include "okc.labels" . | nindent 4 }}
+spec:
+  hosts:
+    - {{ $gw.host | quote }}
+  gateways:
+    - {{ $gwRef }}
+  http:
+    {{- range $name, $b := .Values.backends }}
+    {{- if ne (toString $b.enabled) "false" }}
+    - match:
+        - uri:
+            prefix: {{ $b.env.API_PREFIX | quote }}
+        {{- range $b.extraPrefixes }}
+        - uri:
+            prefix: {{ . | quote }}
+        {{- end }}
+      route:
+        - destination:
+            host: {{ printf "mnt-%s.%s.svc.cluster.local" $name $g.namespace }}
+            port:
+              number: 80
+    {{- end }}
+    {{- end }}
+    {{- with $gw.keycloak }}{{- if .enabled }}
+    {{- $kc := . }}
+    # Keycloak 로그인에 필요한 두 경로만(접두사 떼고 전달) — 관리 화면·master realm 은 열지 않음
+    {{- range $p := list (printf "/realms/%s/" $kc.realm) "/resources/" }}
+    - match:
+        - uri:
+            prefix: {{ printf "%s%s" $kc.pathPrefix $p | quote }}
+      rewrite:
+        uri: {{ $p | quote }}
+      headers:
+        request:
+          set:
+            X-Forwarded-Port: {{ $kc.externalPort | quote }}
+            X-Forwarded-Proto: https
+      route:
+        - destination:
+            host: {{ $kc.service }}
+            port:
+              number: {{ $kc.port }}
+    {{- end }}
+    {{- end }}{{- end }}
+    # 그 외 전부 → 프론트(mnt-app)
+    - route:
+        - destination:
+            host: {{ printf "mnt-app.%s.svc.cluster.local" $g.namespace }}
+            port:
+              number: 80
+{{- end }}

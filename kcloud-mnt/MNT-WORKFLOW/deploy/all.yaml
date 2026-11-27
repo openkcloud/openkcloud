@@ -1,0 +1,252 @@
+# MNT-WORKFLOW 배포 — Temporal 서버(프로비저닝 워크플로의 작업 장부). 공식 이미지만 사용(빌드 없음).
+#   ConfigMap(서버 설정·동적 설정) + Secret(DB 비밀번호) + Deployment(schema·temporal·ui) + Service
+#   + Job(워크플로 네임스페이스 준비) + VirtualService(웹 화면 temporal.kcloud.etri)
+# 배포 전 1회: db/temporal_schema.sql 을 슈퍼유저로 적용(계정·스키마·btree_gin)
+# 적용: kubectl apply -f all.yaml  (ns: openkcloud-mnt)
+#   ※ 평소 배포는 helm 차트(charts/openkcloud-portal, workflow 항목) — 이 파일은 단독 배포용으로 같은 내용을 유지
+#   ※ Job 은 내용이 바뀌면 다시 apply 할 수 없다 → kubectl -n openkcloud-mnt delete job mnt-workflow-namespace 후 apply
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mnt-workflow-config
+  namespace: openkcloud-mnt
+data:
+  DB: "postgres12"
+  POSTGRES_SEEDS: "openkcloud-db-rw.openkcloud-mnt"
+  DB_PORT: "5432"
+  # 포털 DB — 스키마는 계정 search_path 로 고정(temporal / temporal_visibility)
+  DBNAME: "openkcloud_portal"
+  VISIBILITY_DBNAME: "openkcloud_portal"
+  POSTGRES_USER: "temporal"
+  VISIBILITY_POSTGRES_USER: "temporal_view"
+  NUM_HISTORY_SHARDS: "4"          # ⚠️ 처음 만든 뒤에는 바꿀 수 없음
+  BIND_ON_IP: "0.0.0.0"            # 같은 파드의 ui 가 127.0.0.1:7233 으로 연결
+  DYNAMIC_CONFIG_FILE_PATH: "/etc/temporal/dynamicconfig/dynamicconfig.yaml"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mnt-workflow-dynamicconfig
+  namespace: openkcloud-mnt
+data:
+  # Temporal 동적 설정(키: 값 목록) — 비우면 기본값
+  dynamicconfig.yaml: |
+    {}
+---
+# ⚠️ 예시 — 실제 값은 git 에 커밋하지 말 것 (SealedSecrets 전환 예정)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mnt-workflow-secret
+  namespace: openkcloud-mnt
+type: Opaque
+stringData:
+  # db/temporal_schema.sql 에서 만든 계정 temporal / temporal_view 의 비밀번호
+  POSTGRES_PWD: "CHANGE_ME"
+  VISIBILITY_POSTGRES_PWD: "CHANGE_ME"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mnt-workflow
+  namespace: openkcloud-mnt
+  labels:
+    app: mnt-workflow
+spec:
+  replicas: 1
+  # 옛 파드를 내린 뒤 새 파드를 띄운다 — Temporal 서버 2개가 같은 DB 를 동시에 쓰지 않게
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mnt-workflow
+  template:
+    metadata:
+      labels:
+        app: mnt-workflow
+      annotations:
+        # Istio 사이드카가 주입돼도 initContainer(스키마)의 DB 연결이 막히지 않게
+        traffic.sidecar.istio.io/excludeOutboundPorts: "5432"
+    spec:
+      imagePullSecrets:
+        - name: harbor-pull   # Harbor pull 자격증명(차트 global.imagePullSecrets 와 같음)
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+      initContainers:
+        # Temporal 스키마 설치·업그레이드(멱등) — 이미 최신이면 바뀌는 것 없음. 이미지 버전을 올리면 자동 업그레이드.
+        - name: schema
+          image: harbor.io:7443/mnt/mnt-workflow/temporalio/admin-tools:1.31.3
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              DIR=/etc/temporal/schema/postgresql/v12
+              tool() { temporal-sql-tool --plugin "$DB" --ep "$POSTGRES_SEEDS" -p "$DB_PORT" --db "$DBNAME" "$@"; }
+              tool -u "$POSTGRES_USER" --pw "$POSTGRES_PWD" setup-schema -v 0.0
+              tool -u "$POSTGRES_USER" --pw "$POSTGRES_PWD" update-schema -d "$DIR/temporal/versioned"
+              tool -u "$VISIBILITY_POSTGRES_USER" --pw "$VISIBILITY_POSTGRES_PWD" setup-schema -v 0.0
+              tool -u "$VISIBILITY_POSTGRES_USER" --pw "$VISIBILITY_POSTGRES_PWD" update-schema -d "$DIR/visibility/versioned"
+          envFrom:
+            - configMapRef:
+                name: mnt-workflow-config
+            - secretRef:
+                name: mnt-workflow-secret
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+      containers:
+        # Temporal 서버 — frontend·history·matching·worker 를 한 프로세스로 실행
+        - name: temporal
+          image: harbor.io:7443/mnt/mnt-workflow/temporalio/server:1.31.3
+          ports:
+            - name: grpc
+              containerPort: 7233
+          envFrom:
+            - configMapRef:
+                name: mnt-workflow-config
+            - secretRef:
+                name: mnt-workflow-secret
+          volumeMounts:
+            - name: dynamicconfig
+              mountPath: /etc/temporal/dynamicconfig
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7233
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { cpu: "1", memory: 1Gi }
+        # 웹 화면 — 같은 파드라 127.0.0.1 로 서버에 연결
+        - name: ui
+          image: harbor.io:7443/mnt/mnt-workflow/temporalio/ui:2.55.0
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: 127.0.0.1:7233
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 256Mi }
+      volumes:
+        - name: dynamicconfig
+          configMap:
+            name: mnt-workflow-dynamicconfig
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mnt-workflow
+  namespace: openkcloud-mnt
+  labels:
+    app: mnt-workflow
+spec:
+  selector:
+    app: mnt-workflow
+  ports:
+    - name: grpc-frontend    # CORE·IAAS 워커와 CORE API 가 연결 (TEMPORAL_API_BASE)
+      port: 7233
+      targetPort: 7233
+    - name: http-ui          # 웹 화면
+      port: 8080
+      targetPort: 8080
+---
+# 워크플로 네임스페이스 준비(멱등) — 서버가 응답할 때까지 기다린 뒤 없을 때만 생성
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mnt-workflow-namespace
+  namespace: openkcloud-mnt
+  labels:
+    app: mnt-workflow-namespace
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: mnt-workflow-namespace
+      annotations:
+        sidecar.istio.io/inject: "false"   # 사이드카가 붙으면 Job 이 끝나지 않는다
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets:
+        - name: harbor-pull   # Harbor pull 자격증명(차트 global.imagePullSecrets 와 같음)
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+      containers:
+        - name: namespace
+          image: harbor.io:7443/mnt/mnt-workflow/temporalio/admin-tools:1.31.3
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: mnt-workflow.openkcloud-mnt.svc.cluster.local:7233
+            - name: TEMPORAL_NAMESPACE_NAME
+              value: "default"
+            - name: TEMPORAL_NAMESPACE_RETENTION
+              value: "720h"                  # 끝난 워크플로 기록 보관 기간(30일)
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              until temporal operator cluster health >/dev/null 2>&1; do echo "Temporal 서버 대기 중…"; sleep 3; done
+              if temporal operator namespace describe --namespace "$TEMPORAL_NAMESPACE_NAME" >/dev/null 2>&1; then
+                echo "네임스페이스 $TEMPORAL_NAMESPACE_NAME 이미 있음"
+              else
+                temporal operator namespace create --namespace "$TEMPORAL_NAMESPACE_NAME" --retention "$TEMPORAL_NAMESPACE_RETENTION"
+              fi
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+# 웹 화면 — portal-gateway(*.kcloud.etri 와일드카드 TLS)에 호스트로 연결. 로그인 없음 → 사내망 전용
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: openkcloud-portal-temporal-ui
+  namespace: openkcloud-mnt
+spec:
+  hosts:
+    - "temporal.kcloud.etri"
+  gateways:
+    - istio-system/portal-gateway
+  http:
+    - route:
+        - destination:
+            host: mnt-workflow.openkcloud-mnt.svc.cluster.local
+            port:
+              number: 8080
+      headers:
+        request:
+          set:
+            X-Forwarded-Proto: https
+            X-Forwarded-Port: "25443"

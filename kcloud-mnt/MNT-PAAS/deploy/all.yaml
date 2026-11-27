@@ -1,0 +1,69 @@
+# mnt-paas 배포 — ConfigMap + Deployment + Service (스캐폴드)
+# 이미지: harbor.io:7443/mnt/mnt-paas:<TAG>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mnt-paas-config
+  namespace: openkcloud-mnt
+data:
+  SERVICE_NAME: "mnt-paas"
+  API_PREFIX: "/api/paas"
+  CORS_ORIGINS: ""
+  CORE_API_BASE: "http://mnt-core.openkcloud-mnt.svc.cluster.local"
+  TEMPORAL_API_BASE: "mnt-workflow.openkcloud-mnt.svc.cluster.local:7233"   # 클러스터 프로비저닝 작업 워커
+  OS_AUTH_URL: "https://keystone-api.kcloud.cluster.local/v3"
+  OS_PROJECT_NAME: "admin"
+  KUBECONFIG_PATH: "/etc/mnt/kubeconfig"   # Secret 볼륨 마운트 경로
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mnt-paas
+  namespace: openkcloud-mnt
+  labels: { app: mnt-paas }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mnt-paas }
+  template:
+    metadata:
+      labels: { app: mnt-paas }
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+      containers:
+        - name: mnt-paas
+          image: harbor.io:7443/mnt/mnt-paas:TAG
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: mnt-paas-config }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mnt-paas
+  namespace: openkcloud-mnt
+  labels: { app: mnt-paas }
+spec:
+  selector: { app: mnt-paas }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+# 게이트웨이(Istio VirtualService): prefix /api/paas → mnt-paas:80

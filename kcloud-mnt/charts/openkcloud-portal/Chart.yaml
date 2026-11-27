@@ -1,0 +1,6 @@
+apiVersion: v2
+name: openkcloud-portal
+description: openKcloud 통합관리 포털(MNT-*) 엄브렐러 차트 — 관리 K8s(ns openkcloud-mnt) 배포
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

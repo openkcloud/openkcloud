@@ -1,0 +1,74 @@
+# AI 노트북 ETRI 포팅 — 이미지 목록 (2026-09-29, 이 PC 클러스터 44개 + 우리 이미지 2개)
+# 형식: 이미지<TAB>압축 크기(containerd 또는 Docker Hub). 2026-09-29 보강: 기능 실행 때만 내려받는 이미지 9개 추가. 주석(#)과 [불필요] 구역은 반입 스크립트가 건너뛴다.
+
+# [필수] Kubeflow·KServe·cert-manager 스택
+docker.io/kubeflowkatib/katib-controller:v0.17.0	33.4MB
+docker.io/kubeflowkatib/katib-db-manager:v0.17.0	11.2MB
+docker.io/kubeflowkatib/katib-ui:v0.17.0	51.1MB
+docker.io/minio/minio:RELEASE.2019-08-14T20-37-41Z	24MB	# ⚠ 인터넷 저장소에서 삭제됨 — etri-bundle/images/ 의 tar로 반드시 반입
+gcr.io/ml-pipeline/mysql:8.0.26	151MB
+gcr.io/ml-pipeline/workflow-controller:v3.4.17-license-compliance	36.2MB
+gcr.io/tfx-oss-public/ml_metadata_store_server:1.14.0	70.7MB
+ghcr.io/kubeflow/kfp-api-server:2.4.0	120MB
+ghcr.io/kubeflow/kfp-cache-deployer:2.4.0	397MB
+ghcr.io/kubeflow/kfp-cache-server:2.4.0	37.7MB
+ghcr.io/kubeflow/kfp-driver:2.4.0	42.8MB
+ghcr.io/kubeflow/kfp-frontend:2.4.0	170MB
+ghcr.io/kubeflow/kfp-metadata-envoy:2.4.0	113MB
+ghcr.io/kubeflow/kfp-metadata-writer:2.4.0	419MB
+ghcr.io/kubeflow/kfp-persistence-agent:2.4.0	37MB
+ghcr.io/kubeflow/kfp-scheduled-workflow-controller:2.4.0	40MB
+ghcr.io/kubeflow/kfp-viewer-crd-controller:2.4.0	27.9MB
+ghcr.io/kubeflow/kubeflow/kfam:v1.10.0	14.3MB
+ghcr.io/kubeflow/kubeflow/notebook-controller:v1.10.0	21.8MB
+ghcr.io/kubeflow/kubeflow/profile-controller:v1.10.0	25.2MB
+kserve/agent:v0.14.1	32MB
+kserve/kserve-controller:v0.14.1	32.6MB
+kserve/kserve-localmodel-controller:v0.14.1	31.6MB
+kserve/storage-initializer:v0.14.1	138MB
+mysql:8.0.29	132MB
+quay.io/argoproj/argoexec:v3.4.17	47.9MB
+quay.io/brancz/kube-rbac-proxy:v0.18.0	31.1MB
+quay.io/jetstack/cert-manager-cainjector:v1.16.2	15.4MB
+quay.io/jetstack/cert-manager-controller:v1.16.2	21.2MB
+quay.io/jetstack/cert-manager-webhook:v1.16.2	18.2MB
+
+# [필수] AI 노트북 (WSL 도커에서 빌드, 클러스터에는 없음)
+okc-ai-backend:0.1	434MB
+okc-ai-portal:0.1	1.74GB
+
+# [필수] 기능을 실행할 때 내려받는 이미지 (평소엔 파드가 없어 목록 조사에서 빠짐)
+ghcr.io/kubeflow/kfp-launcher:2.4.0	42.8MB
+docker.io/kubeflowkatib/suggestion-hyperopt:v0.17.0	166MB
+docker.io/kubeflowkatib/suggestion-optuna:v0.17.0	90.1MB
+docker.io/kubeflowkatib/suggestion-skopt:v0.17.0	146MB
+docker.io/kubeflowkatib/file-metrics-collector:v0.17.0	15.5MB
+python:3.11-slim	45.5MB
+kserve/sklearnserver:v0.14.1	176MB
+kserve/xgbserver:v0.14.1	487MB
+tensorflow/serving:2.6.2	108MB
+
+# [필수] 노트북 CPU용·서빙 런타임
+kubeflownotebookswg/jupyter-pytorch-cuda-full:v1.9.2	3.8GB	# 데모 학습 파이프라인·실측 HPO가 사용 (CPU에서도 동작)
+kubeflownotebookswg/codeserver-python:v1.9.2	426MB
+kubeflownotebookswg/jupyter-scipy:v1.9.2	1.32GB
+pytorch/torchserve-kfs:0.9.0	1.09GB
+
+# [GPU 노드를 쓸 때만] NPU는 SDK 이미지·vllm-rbln·furiosa-llm 별도
+pytorch/torchserve-kfs:0.9.0-gpu	3.27GB
+docker.io/vllm/vllm-openai:v0.6.3	5.44GB
+
+# [선택]
+ghcr.io/kubeflow/kfp-visualization-server:2.4.0	1.59GB
+
+# [불필요] k3s 시스템 — ETRI 클러스터 것 사용
+# rancher/klipper-helm:v0.11.1-build20260615	63.7MB
+# rancher/klipper-lb:v0.4.17	5.28MB
+# rancher/local-path-provisioner:v0.0.36	89.4MB
+# rancher/mirrored-coredns-coredns:1.14.4	23.7MB
+# rancher/mirrored-library-traefik:3.7.4	53MB
+# rancher/mirrored-metrics-server:v0.8.1	22.6MB
+
+# [불필요] NVIDIA — ETRI는 kcloud-operator가 관리
+# nvcr.io/nvidia/k8s-device-plugin:v0.17.0	188MB
+# nvidia/cuda:12.4.1-base-ubuntu22.04	91.8MB
