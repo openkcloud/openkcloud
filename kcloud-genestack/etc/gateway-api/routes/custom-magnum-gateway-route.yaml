@@ -1,0 +1,17 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: custom-magnum-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - magnum.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: magnum-https
+  rules:
+    - backendRefs:
+        - name: magnum-api
+          port: 9511

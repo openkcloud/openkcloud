@@ -1,0 +1,18 @@
+[Manager]
+{% set envList = ["REQUESTS_CA_BUNDLE=" ~ ca_bundle_path] %}
+{% for key, value in global_environment_variables.items() %}
+{%   if value %}
+{%     if key.upper() not in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY') %}
+{% set _ = envList.append(key ~ "=" ~ value) %}
+{%     elif force_proxy_settings |default(True) %}
+{% set _ = envList.append(key ~ "=" ~ value) %}
+{%     endif %}
+{%   endif %}
+{% endfor %}
+DefaultEnvironment = {{ envList | join(' ') }}
+DefaultLimitNOFILE = 65536:524288
+CPUAffinity = {{ (systemd_NUMAMask == "all") | ternary("", systemd_CPUAffinity) }}
+{% if (systemd_version | int) >= 243 %}
+NUMAPolicy = {{ systemd_NUMAPolicy }}
+NUMAMask = {{ systemd_NUMAMask }}
+{% endif %}

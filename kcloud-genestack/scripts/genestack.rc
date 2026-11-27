@@ -1,0 +1,31 @@
+BASEDIR=${BASEDIR:-/opt/genestack}
+
+# Automation variables
+export GENESTACK_CONFIG="${GENESTACK_CONFIG:-/etc/genestack}"
+export SKIP_PROMPTS="${SKIP_PROMPTS:-false}"
+export ANSIBLE_FORKS="${ANSIBLE_FORKS:-24}"
+export ANSIBLE_FILTER_PLUGINS="${ANSIBLE_FILTER_PLUGINS:-$(readlink -f ${BASEDIR}/ansible/filter_plugins)}"
+export ANSIBLE_INVENTORY="${ANSIBLE_INVENTORY:-${GENESTACK_CONFIG}/inventory}"
+export ANSIBLE_INVENTORY_IGNORE_REGEX="${ANSIBLE_INVENTORY_IGNORE_REGEX:-'patches|group_vars|artifacts|credentials|.*\.example'}"
+export ANSIBLE_COLLECTION_FILE=${ANSIBLE_COLLECTION_FILE:-"$(readlink -f ${BASEDIR}/ansible-collection-requirements.yml)"}
+export USER_COLLECTION_FILE=${USER_COLLECTION_FILE:-"$(readlink -f ${BASEDIR}/user-collection-requirements.yml)"}
+
+test -f "${GENESTACK_CONFIG}/provider" 2>/dev/null && export K8S_PROVIDER=$(head -n1 ${GENESTACK_CONFIG}/provider)
+export K8S_PROVIDER="${K8S_PROVIDER:-kubespray}"
+
+# Export OSH variables
+export CONTAINER_DISTRO_NAME=ubuntu
+export CONTAINER_DISTRO_VERSION=noble
+export OSH_DEPLOY_MULTINODE=True
+
+export OPENSTACK_RELEASE=2025.1
+export ANSIBLE_KEEP_REMOTE_FILES=False
+export ANSIBLE_PIPELINING=True
+export ANSIBLE_HOST_KEY_CHECKING=False
+
+# need to use $HOME instead of ~ because ~ was not dereferencing when source command was used
+if [ -f "${HOME}/.venvs/genestack/bin/activate" ]; then
+    source ${HOME}/.venvs/genestack/bin/activate
+else
+    echo "WARNING: genestack virtual environment not defined"
+fi

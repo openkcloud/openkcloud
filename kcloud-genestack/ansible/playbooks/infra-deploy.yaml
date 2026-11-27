@@ -1,0 +1,613 @@
+---
+
+- name: Create lab environment
+  connection: local
+  hosts: localhost
+  gather_facts: false
+  vars:
+    ansible_python_interpreter: '{{ ansible_playbook_python }}'
+    deploy_bastion: true
+    cluster_name: cluster.local
+    os_bastion_user: ubuntu
+    os_image_id: Ubuntu-22.04
+    os_cloud_name: "rxt-mvp"
+    os_network_name: openstack-flex
+    os_keypair_name: "{{ os_network_name }}-keypair"
+    os_launcher_flavor: m1.medium
+    os_node_flavor: m1.large
+    os_node_count: 7
+    # Not used when using MetalLB
+    # os_security_groups:
+    #   - ether_type: IPv6
+    #     direction: egress
+    #   - ether_type: IPv4
+    #     direction: egress
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: icmp
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 22
+    #     port_range_max: 22
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 22
+    #     port_range_max: 22
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 53
+    #     port_range_max: 53
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 53
+    #     port_range_max: 53
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 80
+    #     port_range_max: 80
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 80
+    #     port_range_max: 80
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 443
+    #     port_range_max: 443
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 443
+    #     port_range_max: 443
+    #   # Kubernetes
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 6443
+    #     port_range_max: 6443
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 6443
+    #     port_range_max: 6443
+    #   # MetalLB
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 7472
+    #     port_range_max: 7472
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 7472
+    #     port_range_max: 7472
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 7946
+    #     port_range_max: 7946
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 7946
+    #     port_range_max: 7946
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 9443
+    #     port_range_max: 9443
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 9443
+    #     port_range_max: 9443
+    #   # Kubernetes
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 2379
+    #     port_range_max: 2380
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 2379
+    #     port_range_max: 2380
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 10250
+    #     port_range_max: 10250
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 10250
+    #     port_range_max: 10250
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 10257
+    #     port_range_max: 10257
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 10257
+    #     port_range_max: 10257
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 10259
+    #     port_range_max: 10259
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 10259
+    #     port_range_max: 10259
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: tcp
+    #     port_range_min: 30000
+    #     port_range_max: 32767
+    #   - ether_type: IPv4
+    #     direction: ingress
+    #     protocol: udp
+    #     port_range_min: 30000
+    #     port_range_max: 32767
+  tasks:
+    - name: Create network
+      openstack.cloud.network:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        name: "{{ os_network_name }}"
+        external: false
+        port_security_enabled: false
+      register: _result_network_create
+    - name: Create subnet
+      openstack.cloud.subnet:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        network_name: "{{ os_network_name }}"
+        name: "{{ os_network_name }}-subnet"
+        cidr: 172.31.0.0/22
+        dns_nameservers:
+          - 8.8.8.8
+    - name: Create network internal
+      openstack.cloud.network:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        name: "{{ os_network_name }}-internal"
+        external: false
+        port_security_enabled: false
+      register: _result_network_internal_create
+    - name: Create subnet internal
+      openstack.cloud.subnet:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        network_name: "{{ os_network_name }}-internal"
+        name: "{{ os_network_name }}-subnet-internal"
+        cidr: 192.168.0.0/22
+    # The disable_gateway_ip setting only works
+    # on an update and not a create
+    - name: Update subnet internal
+      openstack.cloud.subnet:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        network_name: "{{ os_network_name }}-internal"
+        name: "{{ os_network_name }}-subnet-internal"
+        cidr: 192.168.0.0/22
+        disable_gateway_ip: true
+    - name: Create network compute
+      openstack.cloud.network:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        name: "{{ os_network_name }}-compute"
+        external: false
+        port_security_enabled: false
+      register: _result_network_compute_create
+    - name: Create subnet internal
+      openstack.cloud.subnet:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        network_name: "{{ os_network_name }}-compute"
+        name: "{{ os_network_name }}-subnet-compute"
+        cidr: 192.168.100.0/22
+        is_dhcp_enabled: false
+    - name: Update subnet internal
+      openstack.cloud.subnet:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        network_name: "{{ os_network_name }}-compute"
+        name: "{{ os_network_name }}-subnet-compute"
+        cidr: 192.168.100.0/22
+        disable_gateway_ip: true
+        is_dhcp_enabled: false
+    - name: Gather information about previously created networks
+      openstack.cloud.networks_info:
+        cloud: "{{ os_cloud_name }}"
+        filters:
+          is_router_external: true
+      register: _result_network_external
+    - name: Create a router
+      openstack.cloud.router:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        name: "{{ os_network_name }}-router"
+        network: "{{ (_result_network_external.networks | first).id }}"
+        interfaces:
+          - "{{ os_network_name }}-subnet"
+          - net: "{{ os_network_name }}-internal"
+            subnet: "{{ os_network_name }}-subnet-internal"
+            portip: 192.168.0.1
+    # NOTE: When using MetalLB, we can not use a security group due to port security blocking address advertisements.
+    #       See https://metallb.org/installation/clouds/#metallb-on-openstack for more.
+    # - name: Create (or update) a security group with security group rules
+    #   openstack.cloud.security_group:
+    #     cloud: "{{ os_cloud_name }}"
+    #     state: present
+    #     name: "{{ os_network_name }}-security-group"
+    #     security_group_rules: "{{ os_security_groups }}"
+    - name: Generate keypair
+      openstack.cloud.keypair:
+        cloud: "{{ os_cloud_name }}"
+        state: present
+        name: "{{ os_keypair_name }}"
+      register: _result_keypair
+    - name: Check keypair results
+      ansible.builtin.assert:
+        that:
+          - _result_keypair.keypair.private_key is not none
+          - _result_keypair.keypair.private_key | length > 0
+        msg: Keypair already exists, nothing created.
+      failed_when: false
+      register: _result_keypair_check
+    - name: Create keypair
+      ansible.builtin.copy:
+        content: "{{ _result_keypair.keypair.private_key }}"
+        dest: "{{ lookup('env', 'HOME') }}/.ssh/{{ os_keypair_name }}.key"
+        mode: "0600"
+      when:
+        - _result_keypair_check is success
+    - name: Create worker nodes
+      openstack.cloud.server:
+        state: present
+        cloud: "{{ os_cloud_name }}"
+        name: "{{ os_network_name }}-node-{{ item }}"
+        image: "{{ os_image_id }}"
+        key_name: "{{ os_keypair_name }}"
+        flavor: "{{ os_node_flavor }}"
+        auto_ip: "{{ (not (deploy_bastion | bool)) and ((item | int) == 0) }}"
+        security_groups: []
+        nics:
+          - net-id: "{{ _result_network_create.id }}"
+          - net-id: "{{ _result_network_internal_create.id }}"
+          - net-id: "{{ _result_network_compute_create.id }}"
+        meta:
+          hostname: "{{ os_network_name }}-node-{{ item }}"
+          group: "{{ os_network_name }}"
+      loop: "{{ range(os_node_count | int) | list }}"
+      async: 1000
+      poll: 0
+      register: _node_create
+      changed_when: false
+    - name: Create bastion node
+      when:
+        - deploy_bastion | bool
+      openstack.cloud.server:
+        state: present
+        cloud: "{{ os_cloud_name }}"
+        name: "{{ os_network_name }}-launcher"
+        image: "{{ os_image_id }}"
+        key_name: "{{ os_keypair_name }}"
+        flavor: "{{ os_launcher_flavor }}"
+        security_groups: []
+        nics:
+          - net-id: "{{ _result_network_create.id }}"
+        meta:
+          hostname: "{{ os_network_name }}-launcher"
+          group: "{{ os_network_name }}"
+    - name: Check on async server task
+      ansible.builtin.async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 100
+      delay: 10
+      failed_when:
+        - job_result.failed != 0
+      changed_when:
+        - job_result.changed | bool
+      loop: "{{ _node_create.results }}"
+    - name: Bastion block
+      when:
+        - deploy_bastion | bool
+      block:
+        - name: Get info from the bastion
+          openstack.cloud.server_info:
+            cloud: "{{ os_cloud_name }}"
+            name: "{{ os_network_name }}-launcher"
+          register: _bastion_create
+        - name: Set fact for node ips
+          ansible.builtin.set_fact:
+            bastion_ip: "{{ _bastion_create.servers.0.addresses[os_network_name] |
+                            selectattr('OS-EXT-IPS:type', 'equalto', 'floating') |
+                            map(attribute='addr') |
+                            list |
+                            first }}"
+          loop: "{{ _node_create.results }}"
+        - name: Add new interactive host
+          ansible.builtin.add_host:
+            name: "{{ bastion_ip }}"
+            groups: bastion_node
+            ansible_user: "{{ os_bastion_user }}"
+          changed_when: false
+        - name: Create ssh-config
+          ansible.builtin.copy:
+            content: |
+              Host 172.31.*
+                ProxyJump {{ bastion_ip }}
+                User {{ os_bastion_user }}
+                IdentityFile {{ lookup('env', 'HOME') }}/.ssh/{{ os_keypair_name }}.key
+                StrictHostKeyChecking no
+                UserKnownHostsFile /dev/null
+
+              Host {{ bastion_ip }}
+                User {{ os_bastion_user }}
+                IdentityFile {{ lookup('env', 'HOME') }}/.ssh/{{ os_keypair_name }}.key
+                ControlMaster auto
+                ControlPath ~/.ssh/ansible-{{ os_network_name }}-%r@%h:%p
+                ControlPersist 5m
+                StrictHostKeyChecking no
+                UserKnownHostsFile /dev/null
+                StrictHostKeyChecking no
+                ServerAliveInterval 60
+                ServerAliveCountMax 30
+            dest: "{{ lookup('env', 'HOME') }}/.ssh/{{ os_keypair_name }}.config"
+            mode: "0640"
+        - name: Check SSH connection to bastion
+          ansible.builtin.ping:
+          delegate_to: "{{ bastion_ip }}"
+          register: ping_result
+          until: ping_result is succeeded
+          retries: 60
+          delay: 5
+    - name: Get server info from the cluster
+      openstack.cloud.server_info:
+        cloud: "{{ os_cloud_name }}"
+        name: "{{ os_network_name }}*"
+      register: _cluster_create
+    - name: Add all hosts the the lab_nodes group
+      ansible.builtin.add_host:
+        name: >-
+          {{ item.addresses[os_network_name] |
+             selectattr('OS-EXT-IPS:type', 'equalto', 'fixed') |
+             map(attribute='addr') |
+             list |
+             first }}
+        groups: lab_nodes
+        ansible_user: "{{ os_bastion_user }}"
+      changed_when: false
+      loop: "{{ _cluster_create.servers | sort(attribute='name') }}"
+      loop_control:
+        label: "{{ item.name }}"
+    - name: Set volume product fact
+      ansible.builtin.set_fact:
+        _volumes_product: "{{ (_cluster_create.servers | map(attribute='name') | sort)[-3:] |
+                              product(range(3)) |
+                              list }}"
+    - name: Create 20g volumes for ceph
+      openstack.cloud.volume:
+        state: present
+        cloud: "{{ os_cloud_name }}"
+        size: 20
+        name: "{{ item.0 }}-volume-{{ item.1 }}"
+      loop: "{{ _volumes_product }}"
+      async: 1000
+      poll: 0
+      register: _volume_create
+      changed_when: false
+    - name: Check on async volume task
+      ansible.builtin.async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 100
+      delay: 10
+      failed_when:
+        - job_result.failed != 0
+      changed_when:
+        - job_result.changed | bool
+      loop: "{{ _volume_create.results }}"
+    - name: Attaches a volume to a compute host
+      openstack.cloud.server_volume:
+        state: present
+        cloud: "{{ os_cloud_name }}"
+        server: "{{ item.0 }}"
+        volume: "{{ item.0 }}-volume-{{ item.1 }}"
+      loop: "{{ _volumes_product }}"
+      async: 1000
+      poll: 0
+      register: _volume_attach
+      changed_when: false
+    - name: Check on async volume attach task
+      ansible.builtin.async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 100
+      delay: 10
+      failed_when:
+        - job_result.failed != 0
+      changed_when:
+        - job_result.changed | bool
+      loop: "{{ _volume_attach.results }}"
+    - name: Create inventory
+      ansible.builtin.copy:
+        content: |
+          {% set nodes = [] %}
+          {% set bastion_nodes = [] %}
+          [all]
+          {% for node in _cluster_create.servers | sort(attribute='name') %}
+          {{ node.name }}.{{ cluster_name }} ansible_host={{ node.addresses[os_network_name] |
+                                                             selectattr('OS-EXT-IPS:type', 'equalto', 'fixed') |
+                                                             map(attribute='addr') |
+                                                             list |
+                                                             first }}
+          {%   if not node.name.endswith('-launcher') %}
+          {%     set _ = nodes.append(node.name ~ '.' ~ cluster_name) %}
+          {%   else %}
+          {%     set _ = bastion_nodes.append(node.name ~ '.' ~ cluster_name) %}
+          {%   endif %}
+          {% endfor %}
+
+          [all:vars]
+          ansible_ssh_common_args='-F {% raw %}{{ lookup('env', 'HOME') }}{% endraw %}/.ssh/{{ os_keypair_name }}.config'
+          cluster_name={{ cluster_name }}
+          kube_ovn_iface=enp4s0
+          kube_ovn_default_interface_name=enp4s0
+
+          {% if (bastion_nodes | length) > 0 %}
+          [bastion]
+          {%   for node in bastion_nodes %}
+          {{ node }}
+          {%   endfor %}
+          {% endif %}
+
+          [kube_control_plane]
+          {% for node in nodes[:3] %}
+          {{ node }}
+          {% endfor %}
+
+          [etcd]
+          {% for node in nodes[:3] %}
+          {{ node }}
+          {% endfor %}
+
+          [kube_node]
+          {% for node in nodes[3:] %}
+          {{ node }}
+          {% endfor %}
+
+          [k8s_cluster:children]
+          kube_control_plane
+          kube_node
+        dest: "{{ lookup('env', 'HOME') }}/{{ os_network_name }}-inventory.ini"
+        mode: "0644"
+
+- name: Create lab environment
+  hosts: bastion_node
+  become: true
+  vars:
+    os_bastion_user: ubuntu
+    os_network_name: openstack-flex
+    os_keypair_name: "{{ os_network_name }}-keypair"
+    # ansible_ssh_common_args: "-F {{ lookup('env', 'HOME') }}/.ssh/{{ os_keypair_name }}.config"
+    ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/.ssh/{{ os_keypair_name }}.key"
+  tasks:
+    - name: Create ssh directory on jump host
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0700"
+      loop:
+        - "/home/{{ os_bastion_user }}/.ssh"
+        - /root/.ssh
+    - name: Copy ssh-key to jump host
+      ansible.builtin.copy:
+        src: "{{ ansible_ssh_private_key_file }}"
+        dest: "{{ item }}"
+        mode: "0600"
+      loop:
+        - "/home/{{ os_bastion_user }}/.ssh/{{ ansible_ssh_private_key_file | basename }}"
+        - "/root/.ssh/{{ ansible_ssh_private_key_file | basename }}"
+    - name: Copy ssh-config to jump host
+      ansible.builtin.copy:
+        content: |
+          Host 172.31.* {{os_network_name}}*
+            User {{ os_bastion_user }}
+          Host *
+            IdentityFile /home/{{ os_bastion_user }}/.ssh/{{ ansible_ssh_private_key_file | basename }}
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+        dest: "{{ item }}"
+        mode: "0640"
+      loop:
+        - "/home/{{ os_bastion_user }}/.ssh/config"
+        - "/root/.ssh/config"
+    - name: Fix bastion user ssh perms
+      ansible.builtin.file:
+        path: "/home/{{ os_bastion_user }}/.ssh"
+        owner: "{{ os_bastion_user }}"
+        group: "{{ os_bastion_user }}"
+        recurse: true
+    - name: Install basic packages
+      ansible.builtin.package:
+        name:
+          - rsync
+          - git
+        update_cache: true
+        state: present
+    - name: syncronize the local directory
+      ansible.builtin.synchronize:
+        src: "{{ playbook_dir }}/../../"
+        dest: "/opt/genestack"
+        delete: false
+        recursive: true
+    - name: Create the genestack etc directory
+      ansible.builtin.file:
+        path: "/etc/genestack/inventory"
+        state: directory
+        mode: "0755"
+    - name: Copy the genestack inventory
+      ansible.builtin.copy:
+        src: "{{ lookup('env', 'HOME') }}/{{ os_network_name }}-inventory.ini"
+        dest: "/etc/genestack/inventory/{{ os_network_name }}-inventory.ini"
+        mode: "0644"
+    - name: Tweak the ansible inventory for local use
+      ansible.builtin.lineinfile:
+        path: "/etc/genestack/inventory/{{ os_network_name }}-inventory.ini"
+        regexp: "^ansible_ssh_common_args.*"
+        state: absent
+    - name: Remove the bastion section
+      community.general.ini_file:
+        path: "/etc/genestack/inventory/{{ os_network_name }}-inventory.ini"
+        section: bastion
+        state: absent
+    - name: Check if hosts file has anything for 172.31.
+      command: grep -q 172.31. /etc/hosts
+      register: hosts_updated
+      failed_when: hosts_updated.rc not in [0, 1]
+    - name: Add inventory to hosts file iff no 172.31. IPs exist
+      shell: cat /etc/genestack/inventory/{{ os_network_name }}-inventory.ini | awk '/ansible/ { print $2, $1 }' | cut -f2 -d"=" >> /etc/hosts
+      when:
+        - hosts_updated.rc == 1
+      tags:
+        - skip_ansible_lint
+    - name: Check if kubectl exists
+      command: test -f /usr/local/bin/kubectl
+      register: kubectl_exists
+      failed_when: kubectl_exists.rc not in [0, 1]
+    - name: Download kubectl
+      shell: curl -L "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+      when:
+        - kubectl_exists.rc == 1
+      tags:
+        - skip_ansible_lint
+    - name: Make kubectl executable
+      command: chmod +x /usr/local/bin/kubectl
+      when:
+        - kubectl_exists.rc == 1
+    - name: Execute bootstrap script
+      ansible.builtin.debug:
+        msg: "This will install ansible, collections, etc."
+    - name: Genestack bootstrap
+      command: /opt/genestack/bootstrap.sh
+    - name: Source Genestack venv via .bashrc
+      ansible.builtin.lineinfile:
+        path: /root/.bashrc
+        line: "source /root/.venvs/genestack/bin/activate"
+        insertafter: EOF

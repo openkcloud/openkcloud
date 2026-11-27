@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: novnc
+    service: HTTPRoute
+  name: custom-novnc-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - novnc.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: novnc-https
+  rules:
+    - backendRefs:
+        - name: nova-novncproxy
+          port: 6080

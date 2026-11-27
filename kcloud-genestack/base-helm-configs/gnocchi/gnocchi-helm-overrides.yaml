@@ -1,0 +1,168 @@
+---
+images:
+  tags:
+    db_init: "quay.io/rackspace/rackerlabs-gnocchi:2024.1-ubuntu_jammy"
+    db_init_indexer: "quay.io/rackspace/rackerlabs-postgres:14.5"
+    db_sync: "quay.io/rackspace/rackerlabs-gnocchi:2024.1-ubuntu_jammy"
+    dep_check: "quay.io/rackspace/rackerlabs-kubernetes-entrypoint:latest-ubuntu_jammy"
+    gnocchi_api: "quay.io/rackspace/rackerlabs-gnocchi:2024.1-ubuntu_jammy"
+    gnocchi_metricd: "quay.io/rackspace/rackerlabs-gnocchi:2024.1-ubuntu_jammy"
+    gnocchi_resources_cleaner: "quay.io/rackspace/rackerlabs-gnocchi:2024.1-ubuntu_jammy"
+    gnocchi_statsd: "quay.io/rackspace/rackerlabs-gnocchi:2024.1-ubuntu_jammy"
+    gnocchi_storage_init: "quay.io/rackspace/rackerlabs-ceph-config-helper:latest-ubuntu_jammy"
+    image_repo_sync: "quay.io/rackspace/rackerlabs-docker:17.07.0"
+    ks_endpoints: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_service: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_user: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+
+ceph_client:
+  user_secret_name: gnocchi-temp-keyring
+
+conf:
+  apache: |
+    Listen 0.0.0.0:{{ tuple "metric" "internal" "api" . | include
+    "helm-toolkit.endpoints.endpoint_port_lookup" }}
+    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+    CustomLog /dev/stdout combined env=!forwarded
+    CustomLog /dev/stdout proxy env=forwarded
+    <VirtualHost *:{{ tuple "metric" "internal" "api" . | include
+    "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+        WSGIDaemonProcess gnocchi processes={{ .Values.conf.gnocchi_api_wsgi.wsgi.processes }} threads={{ .Values.conf.gnocchi_api_wsgi.wsgi.threads }} user=gnocchi group=gnocchi display-name=%{GROUP}
+        WSGIProcessGroup gnocchi
+        WSGIScriptAlias / "/usr/local/lib/python3.10/dist-packages/gnocchi/rest/wsgi.py"
+        WSGIApplicationGroup %{GLOBAL}
+        ErrorLog /dev/stderr
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+        <Directory "/usr/local/lib/python3.10/dist-packages/gnocchi/rest">
+              Require all granted
+        </Directory>
+    </VirtualHost>
+  gnocchi:
+    metricd:
+      workers: 2
+  gnocchi_api_wsgi:
+    wsgi:
+      processes: 2
+      threads: 1
+  paste:
+    "app:gnocchiv1":
+      paste.app_factory: "gnocchi.rest.app:app_factory"
+      root: gnocchi.rest.api.V1Controller
+    "app:gnocchiversions":
+      paste.app_factory: "gnocchi.rest.app:app_factory"
+      root: gnocchi.rest.api.VersionsController
+    "app:healthcheck":
+      oslo_config_project: gnocchi
+      use: "egg:oslo.middleware#healthcheck"
+    "composite:gnocchi+basic":
+      /: gnocchiversions_pipeline
+      /healthcheck: healthcheck
+      /v1: gnocchiv1+noauth
+      use: "egg:Paste#urlmap"
+    "composite:gnocchi+keystone":
+      /: gnocchiversions_pipeline
+      /healthcheck: healthcheck
+      /v1: gnocchiv1+keystone
+      use: "egg:Paste#urlmap"
+    "composite:gnocchi+remoteuser":
+      /: gnocchiversions_pipeline
+      /healthcheck: healthcheck
+      /v1: gnocchiv1+noauth
+      use: "egg:Paste#urlmap"
+    "filter:keystone_authtoken":
+      oslo_config_project: gnocchi
+      use: "egg:keystonemiddleware#auth_token"
+    "pipeline:gnocchiv1+keystone":
+      pipeline: keystone_authtoken gnocchiv1
+    "pipeline:gnocchiv1+noauth":
+      pipeline: gnocchiv1
+    "pipeline:gnocchiversions_pipeline":
+      pipeline: gnocchiversions
+    "pipeline:main":
+      pipeline: gnocchi+keystone
+  policy:
+    admin_or_creator: "role:admin or project_id:%(created_by_project_id)s"
+    context_is_admin: "role:admin"
+    update archive policy rule: "role:admin"
+
+# NOTE: (brew) requests cpu/mem values based on a three node
+# hyperconverged lab (/scripts/hyperconverged-lab.sh).
+# limit values based on defaults from the openstack-helm charts unless defined
+pod:
+  resources:
+    enabled: true
+    api:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits: {}
+  lifecycle:
+    upgrades:
+      deployments:
+        revision_history: 3
+        pod_replacement_strategy: RollingUpdate
+        rolling_update:
+          max_unavailable: 20%
+          max_surge: 3
+      daemonsets:
+        pod_replacement_strategy: RollingUpdate
+        metricd:
+          enabled: false
+          min_ready_seconds: 0
+          max_unavailable: 20%
+        statsd:
+          enabled: false
+          min_ready_seconds: 0
+          max_unavailable: 20%
+    disruption_budget:
+      api:
+        min_available: 0
+    termination_grace_period:
+      api:
+        timeout: 60
+
+endpoints:
+  fluentd:
+    namespace: fluentbit
+    port:
+      metrics:
+        default: 24220
+      service:
+        default: 24224
+  identity:
+    port:
+      api:
+        default: 5000
+        internal: 5000
+        public: 80
+        service: 5000
+  metric:
+    port:
+      api:
+        default: 8041
+        internal: 8041
+        public: 80
+        service: 8041
+  # TODO: (cbreu) do we still need to define maraidb when we are
+  # using postreg?  What breaks if we remove it
+  oslo_db:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_db_postgresql:
+    hosts:
+      default: postgres-cluster
+  oslo_cache:
+    host_fqdn_override:
+      default: memcached.openstack.svc.cluster.local
+    hosts:
+      default: memcached
+
+manifests:
+  ingress_api: false
+  pod_gnocchi_test: false
+  secret_ingress_tls: false
+  service_ingress_api: false

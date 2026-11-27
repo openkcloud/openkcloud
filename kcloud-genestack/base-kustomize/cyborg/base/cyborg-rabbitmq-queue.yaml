@@ -1,0 +1,83 @@
+---
+apiVersion: rabbitmq.com/v1beta1
+kind: User
+metadata:
+  name: cyborg
+  namespace: openstack
+  labels:
+    app.kubernetes.io/managed-by: "Helm"
+  annotations:
+    helm.sh/resource-policy: keep
+    meta.helm.sh/release-name: "cyborg"
+    meta.helm.sh/release-namespace: "openstack"
+spec:
+  tags:
+    - management
+    - policymaker
+  rabbitmqClusterReference:
+    name: rabbitmq
+    namespace: openstack
+  importCredentialsSecret:
+    name: cyborg-rabbitmq-password
+---
+apiVersion: rabbitmq.com/v1beta1
+kind: Vhost
+metadata:
+  name: cyborg-vhost
+  namespace: openstack
+  labels:
+    app.kubernetes.io/managed-by: "Helm"
+  annotations:
+    helm.sh/resource-policy: keep
+    meta.helm.sh/release-name: "cyborg"
+    meta.helm.sh/release-namespace: "openstack"
+spec:
+  name: "cyborg"
+  defaultQueueType: quorum
+  rabbitmqClusterReference:
+    name: rabbitmq
+    namespace: openstack
+---
+apiVersion: rabbitmq.com/v1beta1
+kind: Queue
+metadata:
+  name: cyborg-queue
+  namespace: openstack
+  labels:
+    app.kubernetes.io/managed-by: "Helm"
+  annotations:
+    helm.sh/resource-policy: keep
+    meta.helm.sh/release-name: "cyborg"
+    meta.helm.sh/release-namespace: "openstack"
+spec:
+  name: cyborg-qq
+  vhost: "cyborg"
+  type: quorum
+  autoDelete: false
+  durable: true
+  rabbitmqClusterReference:
+    name: rabbitmq
+    namespace: openstack
+---
+apiVersion: rabbitmq.com/v1beta1
+kind: Permission
+metadata:
+  name: cyborg-permission
+  namespace: openstack
+  labels:
+    app.kubernetes.io/managed-by: "Helm"
+  annotations:
+    helm.sh/resource-policy: keep
+    meta.helm.sh/release-name: "cyborg"
+    meta.helm.sh/release-namespace: "openstack"
+spec:
+  vhost: "cyborg"
+  userReference:
+    name: "cyborg"
+  permissions:
+    write: ".*"
+    configure: ".*"
+    read: ".*"
+  rabbitmqClusterReference:
+    name: rabbitmq
+    namespace: openstack

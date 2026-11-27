@@ -1,0 +1,290 @@
+---
+# radosgw, rbd, swift or pvc
+storage: pvc
+
+images:
+  tags:
+    test: "quay.io/rackspace/rackerlabs-xrally-openstack:2.0.0"
+    glance_storage_init: "quay.io/rackspace/rackerlabs-ceph-config-helper:latest-ubuntu_jammy"
+    glance_metadefs_load: "quay.io/rackspace/rackerlabs-glance:2024.1-ubuntu_jammy"
+    db_init: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    glance_db_sync: "quay.io/rackspace/rackerlabs-glance:2024.1-ubuntu_jammy"
+    db_drop: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_user: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_service: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_endpoints: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    rabbit_init: "quay.io/rackspace/rackerlabs-rabbitmq:3.13-management"
+    glance_api: "quay.io/rackspace/rackerlabs-glance:2024.1-ubuntu_jammy"
+    # Bootstrap image requires curl
+    bootstrap: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    dep_check: "quay.io/rackspace/rackerlabs-kubernetes-entrypoint:latest-ubuntu_jammy"
+    image_repo_sync: "quay.io/rackspace/rackerlabs-docker:17.07.0"
+
+bootstrap:
+  enabled: true
+  ks_user: admin
+  script: null
+  structured:
+    images:
+      cirros:
+        id: null
+        name: "Cirros 0.6.2 64-bit"
+        source_url: "http://download.cirros-cloud.net/0.6.2/"
+        image_file: "cirros-0.6.2-x86_64-disk.img"
+        min_disk: 1
+        image_type: qcow2
+        container_format: bare
+        private: true
+        properties:
+          # NOTE: If you want to restrict hypervisor type for this image,
+          # uncomment this and write specific hypervisor type.
+          # hypervisor_type: "qemu"
+          os_distro: "cirros"
+
+ceph_client:
+  configmap: ceph-etc
+  user_secret_name: pvc-ceph-client-key
+
+network_policy:
+  glance:
+    ingress:
+      - {}
+    egress:
+      - {}
+
+conf:
+  glance:
+    DEFAULT:
+      workers: 2
+      # NOTE(cloudnull): This option is required when using the new glance multi-backend feature.
+      #                  The example below is for the rxt_swift backend, but could easily be used
+      #                  for other backends.
+      # enabled_backends: rxt_swift:swift
+      cinder_use_multipath: true
+      cinder_enforce_multipath: false
+    oslo_middleware:
+      enable_proxy_headers_parsing: true
+    keystone_authtoken:
+      auth_type: password
+      auth_version: v3
+      memcache_security_strategy: ENCRYPT
+      service_token_roles: service
+      service_token_roles_required: true
+      service_type: image
+    glance_store:
+      # NOTE(cloudnull): When using the glance multi-backend feature, the default_backend
+      #                  option should be set to the name of the default backend section.
+      # default_backend: rxt_swift
+      filesystem_store_datadir: /var/lib/glance/images
+      swift_auth_address: https://swift.cluster.local
+      swift_auth_version: 3
+      swift_user: glance:glance-store
+      swift_password: override_from_your_secrets_files
+    rxt_swift:
+      swift_store_auth_address: http://keystone-api.openstack.svc.cluster.local:5000/v3
+      swift_store_create_container_on_put: true
+      swift_store_multi_tenant: true
+      swift_store_container: glance
+      swift_store_admin_tenants: admin,image-services
+    database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    oslo_messaging_rabbit:
+      amqp_durable_queues: false
+      rabbit_ha_queues: false
+      rabbit_quorum_queue: true
+      rabbit_transient_quorum_queue: false
+      use_queue_manager: false
+      rabbit_interval_max: 10
+      # Send more frequent heartbeats and fail unhealthy nodes faster
+      # heartbeat_timeout / heartbeat_rate / 2.0 = 30 / 3 / 2.0 = 5
+      # https://opendev.org/openstack/oslo.messaging/commit/36fb5bceabe08a982ebd52e4a8f005cd26fdf6b8
+      heartbeat_rate: 3
+      heartbeat_timeout_threshold: 60
+      # DEPRECIATION:  (warning) heartbeat_in_pthread will be deprecated in 2024.2
+      heartbeat_in_pthread: true
+      # Setting lower kombu_reconnect_delay should resolve issue with HA failing when one node is down
+      # https://lists.openstack.org/pipermail/openstack-discuss/2023-April/033314.html
+      # https://review.opendev.org/c/openstack/oslo.messaging/+/866617
+      kombu_reconnect_delay: 0.5
+  glance_api_uwsgi:
+    uwsgi:
+      processes: 2
+      threads: 1
+  policy:
+    "admin_required": "role:admin or role:glance_admin"
+    "default": "role:admin or role:glance_admin"
+    "context_is_admin": "role:admin or role:glance_admin"
+    "publicize_image": "role:glance_admin"
+  logging:
+    logger_root:
+      level: INFO
+      handlers:
+        - stdout
+  api_audit_map:
+    DEFAULT:
+      target_endpoint_type: None
+    path_keywords:
+      detail: None
+      file: None
+      images: image
+      members: member
+      tags: tag
+    service_endpoints:
+      image: "service/storage/image"
+  swift_store: |
+    [{{ .Values.conf.glance.glance_store.default_swift_reference }}]
+    {{- if eq .Values.storage "radosgw" }}
+    auth_version = 1
+    auth_address = {{ tuple "ceph_object_store" "public" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
+    user = {{ .Values.endpoints.ceph_object_store.auth.glance.username }}:swift
+    key = {{ .Values.endpoints.ceph_object_store.auth.glance.password }}
+    {{- else if eq .Values.storage "swift" }}
+    auth_version = {{ .Values.conf.glance.glance_store.swift_auth_version }}
+    auth_address = {{ .Values.conf.glance.glance_store.swift_auth_address }}
+    user = {{ .Values.conf.glance.glance_store.swift_user }}
+    key = {{ .Values.conf.glance.glance_store.swift_password }}
+    {{- else }}
+    user = {{ .Values.endpoints.identity.auth.glance.project_name }}:{{ .Values.endpoints.identity.auth.glance.username }}
+    key = {{ .Values.endpoints.identity.auth.glance.password }}
+    auth_address = {{ tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
+    user_domain_name = {{ .Values.endpoints.identity.auth.glance.user_domain_name }}
+    project_domain_name = {{ .Values.endpoints.identity.auth.glance.project_domain_name }}
+    auth_version = 3
+    # NOTE(portdirect): https://bugs.launchpad.net/glance-store/+bug/1620999
+    project_domain_id =
+    user_domain_id =
+    {{- end -}}
+  rabbitmq:
+    policies: []
+
+volume:
+  class_name: general-multi-attach # This can be changed as needed
+  size: 10Gi # This should be set to 100Gi in production
+  accessModes:
+    - ReadWriteMany # Required to allow multi-replica glance-api with PVC backend
+
+dependencies:
+  static:
+    api:
+      jobs:
+        - glance-db-sync
+        - glance-ks-user
+        - glance-ks-endpoints
+    bootstrap:
+      jobs: null
+    clean:
+      jobs: null
+    db_sync:
+      jobs: null
+
+endpoints:
+  identity:
+    port:
+      api:
+        default: 5000
+        public: 80
+        internal: 5000
+        service: 5000
+  image:
+    port:
+      api:
+        default: 9292
+        public: 80
+        internal: 9292
+        service: 9292
+  oslo_db:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_cache:
+    host_fqdn_override:
+      default: memcached.openstack.svc.cluster.local
+    hosts:
+      default: memcached
+  oslo_messaging:
+    host_fqdn_override:
+      default: rabbitmq.openstack.svc.cluster.local
+    hosts:
+      default: rabbitmq-nodes
+  object_store:
+    port:
+      api:
+        default: 8088
+        public: 80
+        internal: 8088
+        service: 8088
+  ceph_object_store:
+    port:
+      api:
+        default: 8088
+        public: 80
+        internal: 8088
+        service: 8088
+  fluentd:
+    namespace: fluentbit
+  dashboard:
+    port:
+      web:
+        default: 80
+        public: 443
+        internal: 80
+        service: 80
+
+# NOTE: (brew) requests cpu/mem values based on a three node
+# hyperconverged lab (/scripts/hyperconverged-lab.sh).
+# limit values based on defaults from the openstack-helm charts unless defined
+pod:
+  resources:
+    enabled: true
+    api:
+      requests:
+        memory: "384Mi"
+        cpu: "100m"
+      limits: {}
+  replicas:
+    api: 1
+  lifecycle:
+    upgrades:
+      deployments:
+        revision_history: 3
+        pod_replacement_strategy: RollingUpdate
+        rolling_update:
+          max_unavailable: 20%
+          max_surge: 3
+    disruption_budget:
+      api:
+        min_available: 0
+    termination_grace_period:
+      api:
+        timeout: 60
+  probes:
+    api:
+      glance-api:
+        readiness:
+          enabled: true
+          params:
+            periodSeconds: 15
+            timeoutSeconds: 10
+        liveness:
+          enabled: true
+          params:
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+
+manifests:
+  ingress_api: false
+  job_db_init: false
+  job_storage_init: false
+  job_rabbit_init: false
+  pod_rally_test: false
+  secret_ingress_tls: false
+  service_ingress_api: false

@@ -1,0 +1,99 @@
+---
+# Copyright 2024, Rackspace Technology, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Check Kernel Version
+  ansible.builtin.fail:
+    msg: >
+      Wrong kernel Version found
+      [ {{ ansible_facts['kernel'] }} < {{ host_required_kernel }} ]
+      Resolve this issue before continuing.
+  when:
+    - ansible_facts['kernel'] is version(host_required_kernel, '<')
+
+- name: Check how kernel modules are implemented (statically builtin, dynamic, not set)
+  ansible.builtin.slurp:
+    src: "/boot/config-{{ ansible_facts['kernel'] }}"
+  register: modules
+  when:
+    - host_specific_kernel_modules | length > 0
+
+- name: Fail fast if we can't load a module
+  ansible.builtin.fail:
+    msg: "{{ item.pattern }} is not set"
+  loop: "{{ host_specific_kernel_modules }}"
+  when:
+    - item.pattern is defined
+    - (modules.content | b64decode).find(item.pattern + ' is not set') != -1
+
+- name: "Load kernel module(s)"
+  community.general.modprobe:
+    name: "{{ item.name }}"
+  loop: "{{ host_kernel_modules + host_specific_kernel_modules }}"
+  when:
+    - item.name | length > 0
+    - item.pattern is undefined or (item.pattern is defined and (modules.content | b64decode).find(item.pattern + '=m') != -1)
+
+- name: Write list of modules to load at boot
+  ansible.builtin.template:
+    src: modprobe.conf.j2
+    dest: "{{ host_module_file }}"
+    mode: "0644"
+
+- name: Adding new system tuning
+  ansible.builtin.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: "{{ item.set | default('yes') }}"
+    state: "{{ item.state | default('present') }}"
+    reload: no
+  loop: "{{ kernel_options + user_kernel_options }}"
+  failed_when: false
+
+- name: Configure sysstat
+  ansible.builtin.include_tasks: sysstat.yml
+  when:
+    - host_sysstat_enabled | bool
+
+- name: Create queue max script
+  ansible.builtin.copy:
+    src: queue_max.sh
+    dest: /usr/local/bin/queue_max.sh
+    mode: "0755"
+
+- name: Create queue max service
+  ansible.builtin.copy:
+    src: queue_max.service
+    dest: /etc/systemd/system/queue_max.service
+    mode: "0644"
+  notify: Load and start queue_max service
+
+- name: KVM Host Specific Setup
+  when:
+    - ('openstack_compute_nodes' in group_names)
+  block:
+    - name: Ensure kvm group has correct GID
+      ansible.builtin.group:
+        name: kvm
+        gid: 929292
+        state: present
+
+    - name: Ensure udev rule for kvm device
+      ansible.builtin.copy:
+        content: |
+          KERNEL=="kvm", GROUP="929292", MODE="0660"
+        dest: /etc/udev/rules.d/99-genestack-kvm.rules
+        mode: "0644"
+      notify:
+        - Reload udev rules

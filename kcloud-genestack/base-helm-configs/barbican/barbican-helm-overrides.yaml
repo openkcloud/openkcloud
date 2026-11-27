@@ -1,0 +1,131 @@
+---
+images:
+  tags:
+    barbican_api: "quay.io/rackspace/rackerlabs-barbican:2024.1-ubuntu_jammy"
+    barbican_db_sync: "quay.io/rackspace/rackerlabs-barbican:2024.1-ubuntu_jammy"
+    bootstrap: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_drop: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_init: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    dep_check: "quay.io/rackspace/rackerlabs-kubernetes-entrypoint:latest-ubuntu_jammy"
+    image_repo_sync: "quay.io/rackspace/rackerlabs-docker:17.07.0"
+    ks_endpoints: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_service: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_user: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    rabbit_init: "quay.io/rackspace/rackerlabs-rabbitmq:3.13-management"
+    scripted_test: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+
+# NOTE: (brew) CPU requests values based on a three node
+# hyperconverged lab (/scripts/hyperconverged-lab.sh).
+# limits based on defaults from the openstack-helm charts unless defined
+pod:
+  resources:
+    enabled: true
+    api:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits: {}
+  lifecycle:
+    upgrades:
+      deployments:
+        revision_history: 3
+        pod_replacement_strategy: RollingUpdate
+        rolling_update:
+          max_unavailable: 20%
+          max_surge: 3
+
+dependencies:
+  static:
+    db_sync:
+      jobs: null
+    api:
+      jobs:
+        - barbican-db-sync
+        - barbican-ks-user
+        - barbican-ks-endpoints
+
+conf:
+  barbican:
+    DEFAULT:
+      host_href: "http://barbican-api.openstack.svc.cluster.local:9311"
+    database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    keystone_authtoken:
+      service_token_roles: service
+      service_token_roles_required: true
+      auth_type: password
+      auth_version: v3
+      memcache_security_strategy: ENCRYPT
+      service_type: key-manager
+    oslo_concurrency:
+      lock_path: /tmp/barbican
+    oslo_messaging_notifications:
+      driver: messagingv2
+    oslo_messaging_rabbit:
+      amqp_durable_queues: false
+      rabbit_ha_queues: false
+      rabbit_quorum_queue: true
+      rabbit_transient_quorum_queue: false
+      use_queue_manager: false
+      rabbit_interval_max: 10
+      # Send more frequent heartbeats and fail unhealthy nodes faster
+      # heartbeat_timeout / heartbeat_rate / 2.0 = 30 / 3 / 2.0 = 5
+      # https://opendev.org/openstack/oslo.messaging/commit/36fb5bceabe08a982ebd52e4a8f005cd26fdf6b8
+      heartbeat_rate: 3
+      heartbeat_timeout_threshold: 60
+      # DEPRECIATION:  (warning) heartbeat_in_pthread will be deprecated in 2024.2
+      heartbeat_in_pthread: true
+      # Setting lower kombu_reconnect_delay should resolve issue with HA failing when one node is down
+      # https://lists.openstack.org/pipermail/openstack-discuss/2023-April/033314.html
+      # https://review.opendev.org/c/openstack/oslo.messaging/+/866617
+      kombu_reconnect_delay: 0.5
+    oslo_middleware:
+      enable_proxy_headers_parsing: true
+  barbican_api_uwsgi:
+    uwsgi:
+      processes: 2
+      threads: 1
+  logging:
+    logger_root:
+      handlers:
+        - stdout
+      level: INFO
+
+endpoints:
+  fluentd:
+    namespace: fluentbit
+  key_manager:
+    hosts:
+      public: barbican-api
+    port:
+      api:
+        public: 9311
+  oslo_db:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_cache:
+    host_fqdn_override:
+      default: memcached.openstack.svc.cluster.local
+    hosts:
+      default: memcached
+  oslo_messaging:
+    host_fqdn_override:
+      default: rabbitmq.openstack.svc.cluster.local
+    hosts:
+      default: rabbitmq-nodes
+
+manifests:
+  ingress_api: false
+  job_db_init: false
+  job_rabbit_init: false
+  secret_ingress_tls: false
+  service_ingress_api: false

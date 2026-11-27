@@ -1,0 +1,10 @@
+sortOptions:
+  order: fifo
+resources:
+  - './local_sc.yaml'
+  - './vault-dwpp.yaml'
+  - './vault-fezz.yaml'
+  - './vault-hprr.yaml'
+  - './vault-jyff.yaml'
+  - './vault-ktpw.yaml'
+  - './vault-uqhy.yaml'

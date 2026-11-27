@@ -1,0 +1,17 @@
+---
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/worker
+              operator: In
+              values:
+                - worker
+
+configKubernetes:
+  infrastructure_roles_secrets:
+    - secretname: postgres-system/postgres-monitoring
+      userkey: username
+      passwordkey: password
+      rolekey: memberof

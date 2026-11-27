@@ -1,0 +1,45 @@
+---
+sortOptions:
+  order: fifo
+resources:
+  - heat-mariadb-database.yaml
+  - heat-rabbitmq-queue.yaml
+  - all.yaml
+  - hpa-heat-api.yaml
+  - hpa-heat-cfn.yaml
+  - hpa-heat-engine.yaml
+  - policies.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: heat-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe
+        value:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 1717
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 120
+  - target:
+      kind: Deployment
+      name: heat-cfn
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe
+        value:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 1717
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 120

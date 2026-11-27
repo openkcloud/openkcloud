@@ -1,0 +1,193 @@
+---
+images:
+  tags:
+    bootstrap: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_drop: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_init: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    dep_check: "quay.io/rackspace/rackerlabs-kubernetes-entrypoint:latest-ubuntu_jammy"
+    image_repo_sync: "quay.io/rackspace/rackerlabs-docker:17.07.0"
+    keystone_api: "quay.io/rackspace/rackerlabs-keystone-rxt:2024.1-ubuntu_jammy-1747958291"
+    keystone_credential_cleanup: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    keystone_credential_rotate: "quay.io/rackspace/rackerlabs-keystone-rxt:2024.1-ubuntu_jammy-1747958291"
+    keystone_credential_setup: "quay.io/rackspace/rackerlabs-keystone-rxt:2024.1-ubuntu_jammy-1747958291"
+    keystone_db_sync: "quay.io/rackspace/rackerlabs-keystone-rxt:2024.1-ubuntu_jammy-1747958291"
+    keystone_domain_manage: "quay.io/rackspace/rackerlabs-keystone-rxt:2024.1-ubuntu_jammy-1747958291"
+    keystone_fernet_rotate: "quay.io/rackspace/rackerlabs-keystone-rxt:2024.1-ubuntu_jammy-1747958291"
+    keystone_fernet_setup: "quay.io/rackspace/rackerlabs-keystone-rxt:2024.1-ubuntu_jammy-1747958291"
+    ks_user: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    rabbit_init: "quay.io/rackspace/rackerlabs-rabbitmq:3.13-management"
+    test: "quay.io/rackspace/rackerlabs-xrally-openstack:2.0.0"
+
+# NOTE: (brew) requests cpu/mem values based on a three node
+# hyperconverged lab (/scripts/hyperconverged-lab.sh).
+# limit values based on defaults from the openstack-helm charts unless defined
+pod:
+  lifecycle:
+    upgrades:
+      deployments:
+        revision_history: 3
+        pod_replacement_strategy: RollingUpdate
+        rolling_update:
+          max_unavailable: 20%
+          max_surge: 3
+    disruption_budget:
+      api:
+        min_available: 0
+    termination_grace_period:
+      api:
+        timeout: 60
+  resources:
+    enabled: true
+    api:
+      requests:
+        memory: "512Mi"
+        cpu: "2"
+      limits:
+        memory: 2Gi
+        cpu: "4"
+
+dependencies:
+  static:
+    db_sync:
+      jobs:
+        - keystone-credential-setup
+        - keystone-fernet-setup
+
+conf:
+  keystone_api_wsgi:
+    wsgi:
+      processes: 2
+      threads: 1
+  keystone:
+    DEFAULT:
+      max_token_size: 300
+    auth:
+      methods: "password,token,application_credential,totp"
+      password: rxt
+      totp: rxt
+    database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    fernet_tokens:
+      max_active_keys: 7
+    oslo_concurrency:
+      lock_path: /tmp/keystone
+    oslo_messaging_rabbit:
+      amqp_durable_queues: false
+      rabbit_ha_queues: false
+      rabbit_quorum_queue: true
+      rabbit_transient_quorum_queue: false
+      use_queue_manager: false
+      rabbit_interval_max: 10
+      # Send more frequent heartbeats and fail unhealthy nodes faster
+      # heartbeat_timeout / heartbeat_rate / 2.0 = 30 / 3 / 2.0 = 5
+      # https://opendev.org/openstack/oslo.messaging/commit/36fb5bceabe08a982ebd52e4a8f005cd26fdf6b8
+      heartbeat_rate: 3
+      heartbeat_timeout_threshold: 60
+      # DEPRECIATION:  (warning) heartbeat_in_pthread will be deprecated in 2024.2
+      heartbeat_in_pthread: true
+      # Setting lower kombu_reconnect_delay should resolve issue with HA failing when one node is down
+      # https://lists.openstack.org/pipermail/openstack-discuss/2023-April/033314.html
+      # https://review.opendev.org/c/openstack/oslo.messaging/+/866617
+      kombu_reconnect_delay: 0.5
+    rackspace:
+      role_attribute: os_flex
+      role_attribute_enforcement: false
+  logging:
+    logger_root:
+      handlers:
+        - stdout
+      level: INFO
+  mpm_event: |
+    <IfModule mpm_event_module>
+      ServerLimit         16
+      StartServers        32
+      MinSpareThreads     32
+      MaxSpareThreads     128
+      ThreadLimit         64
+      ThreadsPerChild     16
+      MaxRequestWorkers   256
+      MaxMemFree          256
+      MaxConnectionsPerChild 0
+    </IfModule>
+  policy:
+    "identity:list_system_grants_for_user": "rule:admin_required or (role:reader and system_scope:all) or rule:owner"
+  rabbitmq:
+    policies: []
+  wsgi_keystone: |
+    {{- $portInt := tuple "identity" "service" "api" $ | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+    Listen 0.0.0.0:{{ $portInt }}
+
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+
+    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+    CustomLog /dev/stdout combined env=!forwarded
+    CustomLog /dev/stdout proxy env=forwarded
+
+    <VirtualHost *:{{ $portInt }}>
+        WSGIDaemonProcess keystone-public processes={{ .Values.conf.keystone_api_wsgi.wsgi.processes }} threads={{ .Values.conf.keystone_api_wsgi.wsgi.threads }} user=keystone group=keystone display-name=%{GROUP}
+        WSGIProcessGroup keystone-public
+        WSGIScriptAlias / /var/www/cgi-bin/keystone/keystone-wsgi-public
+        WSGIApplicationGroup %{GLOBAL}
+        WSGIPassAuthorization On
+        LimitRequestBody 114688
+
+        <IfVersion >= 2.4>
+          ErrorLogFormat "%{cu}t %M"
+        </IfVersion>
+        ErrorLog /dev/stdout
+
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+    </VirtualHost>
+
+secrets:
+  tls:
+    identity:
+      api:
+        internal: keystone-tls-public
+
+endpoints:
+  fluentd:
+    namespace: fluentbit
+  identity:
+    port:
+      api:
+        admin: 5000
+        default: 80
+        internal: 5000
+        service: 5000
+  oslo_db:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_cache:
+    host_fqdn_override:
+      default: memcached.openstack.svc.cluster.local
+    hosts:
+      default: memcached
+  oslo_messaging:
+    host_fqdn_override:
+      default: rabbitmq.openstack.svc.cluster.local
+    hosts:
+      default: rabbitmq-nodes
+
+manifests:
+  ingress_api: false
+  job_credential_cleanup: false
+  job_credential_setup: true
+  job_db_init: false
+  job_rabbit_init: false
+  pod_rally_test: false
+  secret_ingress_tls: false
+  service_ingress_api: false

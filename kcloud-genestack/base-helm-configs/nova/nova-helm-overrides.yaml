@@ -1,0 +1,394 @@
+---
+images:
+  tags:
+    bootstrap: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_drop: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    db_init: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    dep_check: "quay.io/rackspace/rackerlabs-kubernetes-entrypoint:latest-ubuntu_jammy"
+    image_repo_sync: "quay.io/rackspace/rackerlabs-docker:17.07.0"
+    ks_endpoints: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_service: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    ks_user: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    nova_api: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_archive_deleted_rows: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_cell_setup: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_cell_setup_init: "quay.io/rackspace/rackerlabs-heat:2024.1-ubuntu_jammy"
+    nova_compute: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_compute_ironic: "docker.io/kolla/ubuntu-source-nova-compute-ironic:wallaby"
+    nova_compute_ssh: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_conductor: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_db_sync: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_novncproxy: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_novncproxy_assets: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_scheduler: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_service_cleaner: "quay.io/rackspace/rackerlabs-ceph-config-helper:latest-ubuntu_jammy"
+    nova_spiceproxy: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_spiceproxy_assets: "quay.io/rackspace/rackerlabs-nova-efi:2024.1-ubuntu_jammy-1737928811"
+    nova_storage_init: "quay.io/rackspace/rackerlabs-ceph-config-helper:latest-ubuntu_jammy"
+    nova_wait_for_computes_init: "quay.io/rackspace/rackerlabs-hyperkube-amd64:v1.11.6"
+    rabbit_init: "quay.io/rackspace/rackerlabs-rabbitmq:3.13-management"
+    test: "quay.io/rackspace/rackerlabs-xrally-openstack:2.0.0"
+
+network:
+  backend:
+    - ovn
+  ssh:
+    enabled: true
+
+dependencies:
+  dynamic:
+    targeted:
+      ovn:
+        compute:
+          pod: []
+  static:
+    api:
+      jobs:
+        - nova-db-sync
+        - nova-ks-user
+        - nova-ks-endpoints
+    api_metadata:
+      jobs:
+        - nova-db-sync
+        - nova-ks-user
+        - nova-ks-endpoints
+    archive_deleted_rows:
+      jobs:
+        - nova-db-sync
+    cell_setup:
+      jobs:
+        - nova-db-sync
+    compute:
+      jobs:
+        - nova-db-sync
+    compute_ironic:
+      jobs:
+        - nova-db-sync
+    conductor:
+      jobs:
+        - nova-db-sync
+    db_sync:
+      jobs: []
+    scheduler:
+      jobs:
+        - nova-db-sync
+    service_cleaner:
+      jobs:
+        - nova-db-sync
+
+conf:
+  ceph:
+    enabled: false
+  logging:
+    logger_root:
+      handlers:
+        - stdout
+      level: INFO
+  nova:
+    DEFAULT:
+      block_device_allocate_retries: 180
+      block_device_allocate_retries_interval: 5
+      cpu_allocation_ratio: 8
+      default_availability_zone: az1
+      default_schedule_zone: az1
+      instance_build_timeout: 900
+      metadata_workers: 2
+      osapi_compute_workers: 2
+      preallocate_images: space
+      service_down_time: 120
+      vif_plugging_is_fatal: true
+      vif_plugging_timeout: 300
+      cross_az_attach: true
+      network_allocate_retries: 3
+    api:
+      vendordata_providers: ['StaticJSON']
+      vendordata_jsonfile_path: /etc/nova/vendor_data.json
+    api_database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    cell0_database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    compute:
+      max_disk_devices_to_attach: 8
+    conductor:
+      workers: 2
+    database:
+      connection_debug: 0
+      connection_recycle_time: 600
+      connection_trace: true
+      idle_timeout: 3600
+      mysql_sql_mode: {}
+      use_db_reconnect: true
+      pool_timeout: 60
+      max_retries: -1
+    glance:
+      num_retries: 8
+    key_manager:
+      backend: barbican
+    keystone_authtoken:
+      auth_type: password
+      auth_version: v3
+      memcache_security_strategy: ENCRYPT
+      service_token_roles: service
+      service_token_roles_required: true
+      service_type: compute
+    libvirt:
+      cpu_mode: host-model
+      max_queues: 8
+      num_pcie_ports: 16
+      volume_use_multipath: false
+    os_vif_ovs:
+      ovsdb_connection: "tcp:127.0.0.1:6640"
+    oslo_messaging_rabbit:
+      amqp_durable_queues: false
+      rabbit_ha_queues: false
+      rabbit_quorum_queue: true
+      rabbit_transient_quorum_queue: false
+      use_queue_manager: false
+      rabbit_interval_max: 10
+      # Send more frequent heartbeats and fail unhealthy nodes faster
+      # heartbeat_timeout / heartbeat_rate / 2.0 = 30 / 3 / 2.0 = 5
+      # https://opendev.org/openstack/oslo.messaging/commit/36fb5bceabe08a982ebd52e4a8f005cd26fdf6b8
+      heartbeat_rate: 3
+      heartbeat_timeout_threshold: 60
+      # NOTE (deprecation warning) heartbeat_in_pthread will be deprecated in 2024.2
+      heartbeat_in_pthread: true
+      # Setting lower kombu_reconnect_delay should resolve issue with HA failing when one node is down
+      # https://lists.openstack.org/pipermail/openstack-discuss/2023-April/033314.html
+      # https://review.opendev.org/c/openstack/oslo.messaging/+/866617
+      kombu_reconnect_delay: 0.5
+    scheduler:
+      workers: 2
+    workarounds:
+      skip_cpu_compare_at_startup: false
+      skip_cpu_compare_on_dest: false
+  nova_api_uwsgi:
+    uwsgi:
+      processes: 2
+      threads: 1
+  nova_metadata_uwsgi:
+    uwsgi:
+      processes: 2
+      threads: 1
+  rabbitmq:
+    policies: []
+
+endpoints:
+  baremetal:
+    port:
+      api:
+        default: 6385
+        internal: 6385
+        public: 80
+        service: 6385
+  compute:
+    port:
+      api:
+        default: 8774
+        internal: 8774
+        public: 80
+        service: 8774
+  compute_metadata:
+    port:
+      metadata:
+        default: 8775
+        internal: 8775
+        public: 80
+        service: 8775
+  compute_novnc_proxy:
+    port:
+      novnc_proxy:
+        default: 6080
+        internal: 6080
+        public: 80
+        service: 6080
+  compute_spice_proxy:
+    port:
+      spice_proxy:
+        default: 6082
+        public: 6082
+  fluentd:
+    namespace: fluentbit
+  identity:
+    port:
+      api:
+        default: 5000
+        internal: 5000
+        public: 80
+        service: 5000
+  image:
+    port:
+      api:
+        default: 9292
+        internal: 9292
+        public: 80
+        service: 9292
+  network:
+    port:
+      api:
+        default: 9696
+        internal: 9696
+        public: 80
+        service: 9696
+  oslo_db:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_db_api:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_db_cell0:
+    host_fqdn_override:
+      default: mariadb-cluster-primary.openstack.svc.cluster.local
+    hosts:
+      default: mariadb-cluster-primary
+  oslo_cache:
+    host_fqdn_override:
+      default: memcached.openstack.svc.cluster.local
+    hosts:
+      default: memcached
+  oslo_messaging:
+    host_fqdn_override:
+      default: rabbitmq.openstack.svc.cluster.local
+    hosts:
+      default: rabbitmq-nodes
+  placement:
+    port:
+      api:
+        default: 8778
+        internal: 8778
+        public: 80
+        service: 8778
+
+# NOTE: (brew) requests cpu/mem values based on a three node
+# hyperconverged lab (/scripts/hyperconverged-lab.sh).
+# limit values based on defaults from the openstack-helm charts unless defined
+pod:
+  lifecycle:
+    upgrades:
+      deployments:
+        revision_history: 3
+        pod_replacement_strategy: RollingUpdate
+        rolling_update:
+          max_unavailable: 20%
+          max_surge: 3
+      daemonsets:
+        pod_replacement_strategy: RollingUpdate
+        compute:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 20%
+    disruption_budget:
+      metadata:
+        min_available: 0
+      osapi:
+        min_available: 0
+    termination_grace_period:
+      metadata:
+        timeout: 60
+      osapi:
+        timeout: 60
+  resources:
+    enabled: true
+    compute:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "4096Mi"
+        cpu: "4000m"
+    api_metadata:
+      requests:
+        memory: "384Mi"
+        cpu: "300m"
+      limits: {}
+    ssh:
+      requests: {}
+      limits: {}
+    api:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits: {}
+    conductor:
+      requests:
+        memory: "384Mi"
+        cpu: "500m"
+      limits: {}
+    scheduler:
+      requests:
+        memory: "256Mi"
+        cpu: "500m"
+      limits: {}
+    novncproxy:
+      requests:
+        memory: "256Mi"
+        cpu: "200m"
+      limits: {}
+  probes:
+    rpc_retries: 3
+  security_context:
+    nova:
+      container:
+        nova_compute:
+          readOnlyRootFilesystem: false
+  use_fqdn:
+    compute: false
+  mounts:
+    nova_compute:
+      init_container: null
+      nova_compute:
+        volumeMounts:
+          - name: metadata-api-static-vendordata
+            mountPath: /etc/nova/vendor_data.json
+            subPath: vendor_data.json
+            readOnly: true
+        volumes:
+          - name: metadata-api-static-vendordata
+            configMap:
+              name: static-vendor-data
+    nova_api_metadata:
+      init_container: null
+      nova_api_metadata:
+        volumeMounts:
+          - name: metadata-api-static-vendordata
+            mountPath: /etc/nova/vendor_data.json
+            subPath: vendor_data.json
+            readOnly: true
+        volumes:
+          - name: metadata-api-static-vendordata
+            configMap:
+              name: static-vendor-data
+
+manifests:
+  deployment_spiceproxy: false
+  ingress_metadata: false
+  ingress_novncproxy: false
+  ingress_osapi: false
+  ingress_spiceproxy: false
+  job_db_init: false
+  job_rabbit_init: false
+  job_storage_init: false
+  pod_rally_test: false
+  secret_ingress_tls: false
+  service_ingress_metadata: false
+  service_ingress_novncproxy: false
+  service_ingress_osapi: false
+  service_ingress_spiceproxy: false
+  service_spiceproxy: false

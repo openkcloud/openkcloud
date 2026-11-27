@@ -1,0 +1,21 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    application: gateway-api
+    route: cloudformation
+    service: HTTPRoute
+  name: custom-cloudformation-gateway-route
+  namespace: openstack
+spec:
+  hostnames:
+    - cloudformation.your.domain.tld
+  parentRefs:
+    - name: flex-gateway
+      namespace: envoy-gateway
+      sectionName: cloudformation-https
+  rules:
+    - backendRefs:
+        - name: heat-cfn
+          port: 8000

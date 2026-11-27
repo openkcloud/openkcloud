@@ -1,0 +1,139 @@
+---
+conf:
+  memcached:
+    # Default value in openstack-helm memcached chart is 8192 for max_connections
+    # Setting 4096 to make identical with previously used bitnami memcached chart
+    max_connections: 4096
+    # NOTE(pordirect): this should match the value in
+    # `pod.resources.memcached.memory`
+    # Memory was set to 9216 Mi in previously used bitnami memcached chart https://github.com/rackerlabs/genestack/blob/065150e2efad717681f43afee527ada523af3356/base-helm-configs/memcached/memcached-helm-overrides.yaml#L131-L132
+    # Setting to 3072 Mi as the limit in resources is set to 3072 Mi
+    memory: 3072
+    # If we set stats_cachedump to false then we will have to add one additional argument "-X"
+    # in https://github.com/rackerlabs/genestack/tree/main/base-kustomize/memcached/base/memcached-bin-configmap-patch.yaml
+    # This is because openstack-helm memcached chart doesn't have some variables as compared to previously used bitnami memcached chart
+    # so we are using kustomize post renderer to add additional variable and this dynamic value of stats_cachedump will not set automatically
+    # currently we are not passing "-X" as stats_cachedump is enabled, if we disable then need to pass "-X"
+    stats_cachedump:
+      enabled: true
+
+endpoints:
+  oslo_cache:
+    port:
+      memcache:
+        default: 11211
+      metrics:
+        default: 9150
+
+monitoring:
+  prometheus:
+    enabled: false
+    memcached_exporter:
+      scrape: true
+
+images:
+  pull_policy: IfNotPresent
+  tags:
+    dep_check: 'quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_jammy'
+    memcached: 'quay.io/airshipit/memcached:1.6.32'
+    prometheus_memcached_exporter: docker.io/prom/memcached-exporter:v0.15.5
+    image_repo_sync: quay.io/airshipit/docker:27.5.0
+
+labels:
+  server:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+
+manifests:
+  configmap_bin: true
+  statefulset: true
+  job_image_repo_sync: true
+  network_policy: false
+  service: true
+  secret_registry: true
+
+pod:
+  security_context:
+    server:
+      pod:
+        runAsUser: 65534
+        runAsNonRoot: true
+        fsGroup: 65534
+      container:
+        memcached:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        memcached_exporter:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+  probes:
+    memcached:
+      memcached:
+        readiness:
+          enabled: true
+          params:
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 5
+        liveness:
+          enabled: true
+          params:
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 10
+      memcached_exporter:
+        liveness:
+          enabled: true
+          params:
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            timeoutSeconds: 10
+        readiness:
+          enabled: true
+          params:
+            initialDelaySeconds: 5
+            periodSeconds: 60
+            timeoutSeconds: 10
+  affinity:
+    anti:
+      topologyKey:
+        default: kubernetes.io/hostname
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+      weight:
+        default: 10
+  lifecycle:
+    upgrades:
+      deployments:
+        pod_replacement_strategy: RollingUpdate
+        revision_history: 3
+        rolling_update:
+          max_unavailable: 1
+    termination_grace_period:
+      memcached:
+        timeout: 30
+  replicas:
+    server: 2
+  resources:
+    enabled: true
+    # Changing the keyword from "memcached" to "server" because the template in upstream statefulset uses "server" keyword https://github.com/openstack/openstack-helm/blob/1c37f29e399c27401af12cd702e93c2e99de618e/memcached/templates/statefulset.yaml#L81
+    server:
+      limits:
+        cpu: "2"
+        memory: "3072Mi"
+      requests:
+        cpu: 200m
+        memory: 2048Mi
+    prometheus_memcached_exporter:
+      limits:
+        memory: "1024Mi"
+        cpu: "2000m"
+      requests:
+        cpu: 500m
+        memory: 128Mi
