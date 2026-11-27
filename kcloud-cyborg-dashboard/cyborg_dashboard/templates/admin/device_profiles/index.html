@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}{% trans "Device Profiles" %}{% endblock %}
+
+{% block main %}
+  <div id="device-profiles">
+    {{ table.render }}
+  </div>
+{% endblock %}

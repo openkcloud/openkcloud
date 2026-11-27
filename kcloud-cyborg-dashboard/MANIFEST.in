@@ -1,0 +1,6 @@
+include LICENSE
+include README.rst
+include requirements.txt
+include babel-django.cfg
+include babel-djangojs.cfg
+recursive-include cyborg_dashboard *.html *.py *.po *.pot

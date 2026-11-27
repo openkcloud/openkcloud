@@ -1,0 +1,6 @@
+# Bounds track the OpenStack 2024.1 (Caracal) release.
+# CI pins exact versions via upper-constraints; see tox.ini.
+pbr>=6.0.0
+Django>=4.2,<4.3
+horizon>=24.0.0,<25.0.0
+keystoneauth1>=5.6.1

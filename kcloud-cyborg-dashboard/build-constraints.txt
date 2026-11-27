@@ -1,0 +1,8 @@
+# Constraints for pip's isolated build environments.
+#
+# The 2024.1 upper-constraints pin XStatic-Angular-Schema-Form===0.8.13.0,
+# which is sdist-only and whose setup.py still calls
+# pkg_resources.declare_namespace(). setuptools 81 dropped pkg_resources, so
+# a modern build overlay cannot build that (or any other legacy namespace)
+# package. setuptools is absent from upper-constraints, so pin it here.
+setuptools<81

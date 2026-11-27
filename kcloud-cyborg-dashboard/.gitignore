@@ -1,0 +1,13 @@
+*.py[co]
+__pycache__/
+*.egg-info/
+.eggs/
+build/
+dist/
+.tox/
+.venv/
+.coverage
+htmlcov/
+.stestr/
+
+.omc/
