@@ -1,9 +1,0 @@
-# consumes: KCLOUD_NAMESPACE RELEASE MANAGED_BY PART_OF
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ${KCLOUD_NAMESPACE}
-  labels:
-    app.kubernetes.io/managed-by: ${MANAGED_BY}
-    app.kubernetes.io/part-of: ${PART_OF}
-    app.kubernetes.io/name: ${RELEASE}
