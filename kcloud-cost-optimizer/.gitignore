@@ -59,6 +59,8 @@ tmp/
 temp/
 *.bak
 *.cache
+.tools/
+.cache/
 
 # Database files
 *.db
@@ -72,3 +74,5 @@ docker-compose.override.yml
 # Kubernetes
 kubeconfig*
 *.kubeconfig
+__pycache__/
+*.pyc
