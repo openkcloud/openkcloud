@@ -1,0 +1,115 @@
+{
+  "description": "Offline fixtures for cost-selection requirements. Go tests load this file as the sole input source.",
+  "same_workload": {
+    "input_tokens": 256,
+    "output_tokens": 128,
+    "concurrency": 5
+  },
+  "cases": [
+    {
+      "id": "C1_slo_pass_cheaper_wins",
+      "requirement": "Among SLO-pass candidates with same workload, select lower predicted energy",
+      "baseline_scores": {"gpu-node": 10, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "energy_j": 900, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"},
+        {"node": "npu-node", "energy_j": 300, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "npu-node"
+    },
+    {
+      "id": "C2_cheap_slo_fail_excluded",
+      "requirement": "Cheaper candidate that violates SLO must not be selected",
+      "baseline_scores": {"gpu-node": 10, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "energy_j": 900, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"},
+        {"node": "npu-node", "energy_j": 100, "sla_pass": false, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "gpu-node"
+    },
+    {
+      "id": "C3_lookup_failure",
+      "requirement": "Catalog lookup failure must not be SLA PASS; failed node score 0; other valid wins",
+      "baseline_scores": {"gpu-node": 10, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "lookup_error": true},
+        {"node": "npu-node", "energy_j": 300000, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "npu-node",
+      "want_failed_node": "gpu-node",
+      "want_failed_sla_pass_not_true": true,
+      "want_failed_plugin_score_zero": true
+    },
+    {
+      "id": "C4_unevaluated_non_exact",
+      "requirement": "Non-exact predictions clear SlaPass",
+      "baseline_scores": {"gpu-node": 10, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "energy_j": 100000, "sla_pass": true, "confidence": "MEASURED", "match_type": "similar"},
+        {"node": "npu-node", "energy_j": 300000, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "npu-node",
+      "want_gpu_sla_pass_cleared": true
+    },
+    {
+      "id": "C5_no_valid_candidates",
+      "requirement": "No valid cost candidate → empty selected_enforced and Bind hold",
+      "baseline_scores": {"gpu-node": 40, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "lookup_error": true},
+        {"node": "npu-node", "lookup_error": true}
+      ],
+      "want_selected_enforced_empty": true,
+      "want_select_error": true
+    },
+    {
+      "id": "C6_large_j_integer_resolution",
+      "requirement": "Hundreds-of-kJ energies remain ordered by cost-first energy compare",
+      "baseline_scores": {"gpu-node": 10, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "energy_j": 500000, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"},
+        {"node": "npu-node", "energy_j": 450000, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "npu-node"
+    },
+    {
+      "id": "C6b_tens_of_thousands_j",
+      "requirement": "Tens-of-thousands J scale also preserves cheaper winner",
+      "baseline_scores": {"gpu-node": 10, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "energy_j": 80000, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"},
+        {"node": "npu-node", "energy_j": 75000, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "npu-node"
+    },
+    {
+      "id": "C7_total_score_matches_enforced",
+      "requirement": "Cost-first overturns GPU-favoring baseline; selected_enforced == SelectPreferredNode",
+      "baseline_scores": {"gpu-node": 40, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "energy_j": 900, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"},
+        {"node": "npu-node", "energy_j": 300, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "npu-node"
+    },
+    {
+      "id": "C7b_equal_energy_uses_total_score",
+      "requirement": "Equal energy → higher TotalNodeScore wins (stable name tie-break if still equal)",
+      "baseline_scores": {"gpu-node": 40, "npu-node": 10},
+      "candidates": [
+        {"node": "gpu-node", "energy_j": 300, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"},
+        {"node": "npu-node", "energy_j": 300, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "gpu-node"
+    },
+    {
+      "id": "C7c_equal_energy_npu_total_wins",
+      "requirement": "Equal energy → NPU higher TotalNodeScore; selected_enforced must match SelectPreferredNode (not name-order)",
+      "baseline_scores": {"gpu-node": 10, "npu-node": 40},
+      "candidates": [
+        {"node": "gpu-node", "energy_j": 300, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"},
+        {"node": "npu-node", "energy_j": 300, "sla_pass": true, "confidence": "MEASURED", "match_type": "exact"}
+      ],
+      "want_selected_node": "npu-node"
+    }
+  ]
+}

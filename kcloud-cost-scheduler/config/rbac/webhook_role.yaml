@@ -23,6 +23,13 @@ rules:
   resources: ["workloadoptimizers/status", "costpolicies/status", "powerpolicies/status"]
   verbs: ["get", "list", "watch"]
 
+# Kueue Workloads are read by PodMutator to propagate sched.ai/* prediction
+# annotations. Mutation itself is returned as an admission patch, so update/patch
+# permission is not required here.
+- apiGroups: ["kueue.x-k8s.io"]
+  resources: ["workloads"]
+  verbs: ["get", "list", "watch"]
+
 # Resource quotas for validation
 - apiGroups: [""]
   resources: ["resourcequotas", "limitranges"]

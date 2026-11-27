@@ -11,6 +11,8 @@ import (
 	"math"
 	"strings"
 
+	"github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/placementchecks"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
@@ -27,6 +29,37 @@ type PluginResult struct {
 	TotalGPUScore     int
 	FinalScore        int
 	BestGPU           string
+	// CostSelectionActive is set explicitly when Enforce cost-first policy is on
+	// for this cycle. SelectPreferredNode must not infer cost mode from the
+	// count of CostEligible nodes (zero eligible must not fall back to totals).
+	CostSelectionActive bool
+	// CostEligible / PredictedNetEnergyJ are set by CatalogAwareScore in
+	// Enforce cost-first mode so SelectPreferredNode can rank by energy
+	// without relying on additive score weight.
+	CostEligible        bool
+	// PredictedNetEnergyJ keeps device net energy for records/diagnostics.
+	PredictedNetEnergyJ *float64
+	// PredictedServerEnergyJ is server total energy when Catalog provides it.
+	// SelectPreferredNode ranks by server energy when set, else device net.
+	PredictedServerEnergyJ *float64
+
+	// RequiredChecks holds the full 7-check report for this node (P6).
+	// Populated even when IsFiltered is true so filtered candidates keep evidence.
+	RequiredChecks *placementchecks.CandidateReport `json:"required_checks,omitempty"`
+	// RejectionReasons aggregates legacy + required-check + HAMi reasons.
+	RejectionReasons []placementchecks.RejectionReason `json:"rejection_reasons,omitempty"`
+}
+
+// CostCompareEnergyJ is the cost-first ranking key: server total if present
+// and positive, otherwise device net (PredictedNetEnergyJ).
+func (pr PluginResult) CostCompareEnergyJ() *float64 {
+	if pr.PredictedServerEnergyJ != nil && *pr.PredictedServerEnergyJ > 0 {
+		return pr.PredictedServerEnergyJ
+	}
+	if pr.PredictedNetEnergyJ != nil && *pr.PredictedNetEnergyJ > 0 {
+		return pr.PredictedNetEnergyJ
+	}
+	return nil
 }
 
 type GPUScore struct {

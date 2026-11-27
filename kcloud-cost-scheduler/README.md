@@ -7,6 +7,40 @@
 
 Kubernetes Scheduler for AI Semiconductor Workload Optimization
 
+## 저장소 구성
+
+| 경로 | 내용 |
+|---|---|
+| [`cost-based-scheduler/`](cost-based-scheduler/) | **keti-cost-scheduler**: GPU/NPU 비용·전력 기반 커스텀 스케줄러(현재 개발 중인 본체) |
+| [`containers/`](containers/) | Llama 3.1 8B Serving 이미지(RTX PRO 6000, Furiosa RNGD) |
+| [`scripts/`](scripts/) | Catalog API, 측정·검증 도구 ([scripts/README.md](scripts/README.md)) |
+| `api/`, `pkg/`, `config/`, `cmd/` | Workload Optimizer Operator(CRD·Controller·Webhook) |
+
+이 README의 아래 내용은 Workload Optimizer Operator 설명입니다. 스케줄러 구조와 설정은 [cost-based-scheduler/docs/architecture.md](cost-based-scheduler/docs/architecture.md)를 참고하십시오.
+
+### keti-cost-scheduler 빠른 시작
+
+```bash
+cd cost-based-scheduler
+
+# 단위 테스트
+go test ./...
+
+# 이미지 빌드와 push (인자: 버전)
+./scripts/1.build-image.sh 0.4.2
+
+# 배포 / 삭제 (deployments/cost-based-scheduler.yaml 사용)
+./scripts/2.deploy.sh create
+./scripts/2.deploy.sh delete
+
+# 로그 확인
+./scripts/3.trace-log.sh
+```
+
+Pod에서 `spec.schedulerName: keti-cost-scheduler`를 지정하면 이 스케줄러가 배치합니다. 이전 이름 `cost-based-scheduler`도 마이그레이션 기간 동안 받습니다.
+
+Catalog 연동은 기본값이 `off`입니다. `SCHED_CATALOG_MODE=shadow`로 켜면 실측 Profile 조회 결과를 기록만 하고 점수에는 반영하지 않습니다(`SCHED_SHADOW_SCORE_WEIGHT=0`).
+
 ## 개요
 
 KCloud Workload Optimizer Scheduler는 Kubernetes 환경에서 AI 반도체 워크로드의 비용 및 전력 최적화를 자동화하는 Kubernetes Scheduler입니다. Custom Resource Definitions(CRD)를 통해 워크로드 최적화 정책을 선언적으로 관리하고, Controller 패턴으로 실제 최적화를 실행합니다.
@@ -96,10 +130,9 @@ status:
 ### 빠른 시작
 
 ```bash
-# Helm을 사용한 설치 (권장)
-helm install kcloud-operator ./charts/kcloud-operator \
-  --namespace kcloud-operator-system \
-  --create-namespace
+# CRD 설치 및 Operator 배포
+make install
+make deploy IMG=<registry>/kcloud-operator:<tag>
 
 # 설치 확인
 kubectl get pods -n kcloud-operator-system
@@ -110,7 +143,7 @@ kubectl get crd | grep kcloud.io
 
 ```bash
 # 의존성 다운로드
-make deps
+go mod download
 
 # CRD 생성
 make generate
@@ -361,7 +394,6 @@ make test-e2e
 - **[사용 예시](docs/EXAMPLES.md)**: 다양한 워크로드 최적화 예시
 - **[개발자 가이드](docs/DEVELOPER_GUIDE.md)**: 개발 환경 설정 및 기여 가이드
 - **[배포 가이드](docs/DEPLOYMENT_GUIDE.md)**: 프로덕션 배포 및 운영 가이드
-- **[Helm 차트](charts/kcloud-operator/README.md)**: Helm 차트 사용법
 
 ## 기여하기
 

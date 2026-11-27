@@ -2,33 +2,29 @@
 
 dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-# $1 is create/a or delete/d
+# $1 is create/c or delete/d ("a" is still accepted)
 
 if [ "$1" == "delete" ] || [ "$1" == "d" ]; then
     echo "================================"
-    echo "Deleting Cost Based Scheduler deployment..."
+    echo "Deleting keti-cost-scheduler deployment..."
     echo "================================"
-    kubectl delete -f "$dir/../deployments/cost-based-scheduler.yaml"
-
-    if [ $? -eq 0 ]; then
+    if kubectl delete -f "$dir/../deployments/cost-based-scheduler.yaml"; then
         echo "Deployment deleted successfully"
     else
         echo "Error: Deployment deletion failed"
         exit 1
     fi
 
-elif [ "$1" == "create" ] || [ "$1" == "a" ]; then
+elif [ "$1" == "create" ] || [ "$1" == "c" ] || [ "$1" == "a" ]; then
     echo "================================"
-    echo "Createing Cost Based Scheduler deployment..."
+    echo "Creating keti-cost-scheduler deployment..."
     echo "================================"
-    kubectl create -f "$dir/../deployments/cost-based-scheduler.yaml"
-
-    if [ $? -eq 0 ]; then
+    if kubectl create -f "$dir/../deployments/cost-based-scheduler.yaml"; then
         echo "Deployment created successfully"
         echo ""
         echo "Checking pod status..."
         sleep 3
-        kubectl get pods -n kcp-control-plane -l app=cost-based-scheduler
+        kubectl get pods -n kcp-control-plane -l app=keti-cost-scheduler
     else
         echo "Error: Deployment create failed"
         exit 1

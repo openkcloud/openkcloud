@@ -1,0 +1,81 @@
+# G0 offline fixtures — NOT MEASURED
+#
+# provider=fixture, model-version=virtual-v1
+# 실측·청구액이 아니다. Scheduler Score 입력과 Energy/SLA 경로 검증용
+# 절대값이다. 서버 측정 후 같은 키의 숫자만 교체한다.
+#
+# 모델×수량 표: Annotation predicted-power/cost-by-model 의 유일한
+# 오프라인 소스. 08.25 점수 정규화 시험과 동일.
+#
+# SLA·요금 단가: Hard Filter / Energy 비용 분해용. Score 플러그인은
+# 당분간 모델×수량 Cost/Power fixture만 읽는다.
+
+provider: fixture
+model_version: virtual-v1
+measured: false
+cost_unit: USD/work
+power_unit: W
+notes: >
+  Cost 기간은 통화/work로 해석한다. maxCostUSD=0.05 정규화와 같은 전제다.
+  electricity_price_per_kwh와 device_price_per_hour는 모델 fixture Cost와
+  별개이며 G6 분해 검증용이다.
+
+model_power_cost:
+  - model: a100
+    resource: nvidia.com/gpu
+    quantity: 1
+    predicted_power_w: 250
+    predicted_cost: 0.032
+  - model: l4
+    resource: nvidia.com/gpu
+    quantity: 1
+    predicted_power_w: 75
+    predicted_cost: 0.010
+  - model: h100
+    resource: nvidia.com/gpu
+    quantity: 1
+    predicted_power_w: 350
+    predicted_cost: 0.048
+  - model: warboy
+    resource: furiosa.ai/warboy
+    quantity: 1
+    predicted_power_w: 60
+    predicted_cost: 0.0072
+  - model: warboy
+    resource: furiosa.ai/warboy
+    quantity: 2
+    predicted_power_w: 105
+    predicted_cost: 0.0130
+  - model: warboy
+    resource: furiosa.ai/warboy
+    quantity: 4
+    predicted_power_w: 195
+    predicted_cost: 0.0240
+  - model: rngd
+    resource: furiosa.ai/rngd
+    quantity: 1
+    predicted_power_w: 110
+    predicted_cost: 0.0140
+
+# 임의 절대값 — NOT MEASURED. 상대 순위·pass/fail 검증용.
+tariff:
+  currency: USD
+  electricity_price_per_kwh: 0.12
+  device_price_per_hour:
+    a100: 2.00
+    l4: 0.80
+    h100: 4.00
+    warboy: 0.50
+    rngd: 1.00
+
+sla:
+  batch_inference:
+    max_completion_s: 600
+    min_qps: 50
+  serving:
+    p95_latency_ms: 50
+    min_qps: 100
+    max_error_rate: 0.01
+  training:
+    max_completion_s: 3600
+    min_steps_per_s: 1.0

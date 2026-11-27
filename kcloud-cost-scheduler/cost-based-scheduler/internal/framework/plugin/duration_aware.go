@@ -92,7 +92,7 @@ func (d *DurationAwareScheduling) Score(ctx context.Context, pod *v1.Pod, nodeNa
 }
 
 func (d *DurationAwareScheduling) ScoreExtensions() framework.ScoreExtensions { return d }
-func (d *DurationAwareScheduling) NormalizeScore(_ context.Context, _ *v1.Pod, _ utils.PluginResult) *utils.Status {
+func (d *DurationAwareScheduling) NormalizeScore(_ context.Context, _ *v1.Pod, _ utils.PluginResultMap) *utils.Status {
 	return utils.NewStatus(utils.Success, "")
 }
 

@@ -1,0 +1,39 @@
+# Required placement checks (workshop 7) — defaults for local/dev.
+# Path: SCHED_REQUIRED_CHECKS_CONFIG
+# Per-check mode override: SCHED_REQUIRED_CHECK_{1-7}_MODE=off|record|enforce
+#
+# Null thresholds stay null (do not coerce to 0). memory_safety_margin_mib
+# unset → memory check UNEVALUATED until explicitly configured.
+
+version: required-checks-v1
+
+checks:
+  accelerator:
+    mode: record
+  memory-headroom:
+    mode: record
+    # Set explicitly in tests/deploy when memory enforce/record PASS/REJECT is required.
+    memory_safety_margin_mib: 1024
+  runtime:
+    mode: record
+    # Check 3: Pod sched.ai/min-cuda-driver|min-cuda-runtime vs node GFD cuda.(driver|runtime)-version.*
+    # (legacy cuda.driver.* / cuda.runtime.* fallback). Compare: gte_numeric_dotted.
+    # Scope: node driver + driver-supported CUDA only — not container Toolkit/RuntimeClass.
+    # Empty annotation / incomplete component labels / missing labels → UNEVALUATED.
+  topology:
+    mode: record
+    # Check 4: sched.ai/topology-require zone=|hostname= ; sched.ai/gang-size feasibility.
+    # Unsupported keys → UNEVALUATED. PASS ≠ Permit atomic gang bind.
+  thermal-power:
+    mode: record
+    # Check 5: null limits → UNEVALUATED. GPU power and server (NETIO) power never mixed.
+    max_gpu_temp_c: null
+    max_gpu_power_w: null
+    max_server_power_w: null
+  data-freshness:
+    mode: record
+    max_age_seconds: 60
+    earliest_valid_unix: 946684800  # 2000-01-01T00:00:00Z
+    max_future_skew_seconds: 300
+  policy:
+    mode: record

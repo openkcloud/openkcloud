@@ -21,11 +21,11 @@ import (
 )
 
 type SchedulerConfig struct {
-	HostKubeClient   *kubernetes.Clientset
-	InformerFactory  informers.SharedInformerFactory
-	Framework        framework.Framework
-	Cache            *utils.Cache
-	MetricsProvider  utils.AcceleratorMetricsProvider
+	HostKubeClient  *kubernetes.Clientset
+	InformerFactory informers.SharedInformerFactory
+	Framework       framework.Framework
+	Cache           *utils.Cache
+	MetricsProvider utils.AcceleratorMetricsProvider
 }
 
 func CreateDefaultConfig(ctx context.Context) *SchedulerConfig {
@@ -52,19 +52,21 @@ func CreateDefaultConfig(ctx context.Context) *SchedulerConfig {
 	}
 
 	filterPlugins := []framework.FilterPlugin{
-		plugin.NewTaintToleration(), // NoSchedule/NoExecute taint 노드 필터
-		plugin.NewNodeSelector(),    // nodeSelector / nodeName 필터
-		plugin.NewNodeResourcesFit(), // CPU/Memory/GPU/NPU 리소스 필터
+		plugin.NewTaintToleration(),     // NoSchedule/NoExecute taint 노드 필터
+		plugin.NewNodeSelector(),        // nodeSelector / nodeName 필터
+		plugin.NewNodeResourcesFit(),    // CPU/Memory/GPU/NPU 리소스 필터
+		plugin.NewAcceleratorModelFit(), // sched.ai GPU/NPU 모델과 Node 모델 일치 확인
 	}
 
 	scorePlugins := []framework.ScorePlugin{
-		plugin.NewCostEfficiency(cache, metricsProvider),   // 0- 50 pts
-		plugin.NewPowerEfficiency(cache, metricsProvider),  // 0- 30 pts
-		plugin.NewPodAffinity(cache),                       // 0- 20 pts
-		plugin.NewBinPacking(cache),                        // 0-100 pts: 노드 집적률 극대화
-		plugin.NewDurationAwareScheduling(cache),           // 0- 20 pts: 장기/단기 클래스 매칭
-		plugin.NewWorkloadAwareCost(cache),                 // 0- 25 pts: 예측 비용 보완
-		plugin.NewWorkloadAwarePower(cache),                // 0- 15 pts: 예측 전력 보완
+		plugin.NewCostEfficiency(cache, metricsProvider),  // 0- 50 pts
+		plugin.NewPowerEfficiency(cache, metricsProvider), // 0- 30 pts
+		plugin.NewPodAffinity(cache),                      // 0- 20 pts
+		plugin.NewBinPacking(cache),                       // 0-100 pts: 노드 집적률 극대화
+		plugin.NewDurationAwareScheduling(cache),          // 0- 20 pts: 장기/단기 클래스 매칭
+		plugin.NewWorkloadAwareCost(cache),                // 0- 25 pts: 예측 비용 보완
+		plugin.NewWorkloadAwarePower(cache),               // 0- 15 pts: 예측 전력 보완
+		plugin.NewCatalogAwareScore(cache),                // shadow weight=0 by default; Catalog HTTP lookup
 	}
 
 	permitPlugins := []framework.PermitPlugin{
@@ -76,10 +78,10 @@ func CreateDefaultConfig(ctx context.Context) *SchedulerConfig {
 	fwk := framework.NewFramework(preFilterPlugins, filterPlugins, scorePlugins, permitPlugins, bindPlugin)
 
 	return &SchedulerConfig{
-		InformerFactory:  informerFactory,
-		HostKubeClient:   hostKubeClient,
-		Framework:        fwk,
-		Cache:            cache,
-		MetricsProvider:  metricsProvider,
+		InformerFactory: informerFactory,
+		HostKubeClient:  hostKubeClient,
+		Framework:       fwk,
+		Cache:           cache,
+		MetricsProvider: metricsProvider,
 	}
 }

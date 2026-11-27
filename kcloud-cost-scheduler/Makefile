@@ -266,6 +266,10 @@ test-e2e: ## Run E2E tests.
 test-integration: ## Run integration tests.
 	go test ./test/integration/... -v
 
+.PHONY: test-npu-admission-e2e
+test-npu-admission-e2e: ## Verify Kueue Workload -> Pod NPU annotations through API Server admission.
+	./scripts/test-npu-admission-e2e.sh
+
 .PHONY: test-all
 test-all: test-unit test-e2e ## Run all tests (unit + e2e).
 

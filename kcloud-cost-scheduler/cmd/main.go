@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	kcloudv1alpha1 "github.com/KETI-Cloud-Platform/k8s-workload-operator/api/v1alpha1"
 	"github.com/KETI-Cloud-Platform/k8s-workload-operator/internal/controller"
@@ -207,11 +208,34 @@ func main() {
 	}
 
 	// Setup webhooks
+	decoder := admission.NewDecoder(mgr.GetScheme())
+	workloadOptimizerValidator := kcloudwebhook.NewWorkloadOptimizerValidator(mgr.GetClient())
+	if err = workloadOptimizerValidator.InjectDecoder(decoder); err != nil {
+		setupLog.Error(err, "unable to inject decoder", "webhook", "WorkloadOptimizerValidator")
+		os.Exit(1)
+	}
+	podMutator := kcloudwebhook.NewPodMutator(mgr.GetClient())
+	if err = podMutator.InjectDecoder(decoder); err != nil {
+		setupLog.Error(err, "unable to inject decoder", "webhook", "PodMutator")
+		os.Exit(1)
+	}
+	workloadMutator := kcloudwebhook.NewWorkloadMutator(mgr.GetClient())
+	if err = workloadMutator.InjectDecoder(decoder); err != nil {
+		setupLog.Error(err, "unable to inject decoder", "webhook", "WorkloadMutator")
+		os.Exit(1)
+	}
+
 	mgr.GetWebhookServer().Register("/validate-kcloud-io-v1alpha1-workloadoptimizer",
-		&webhook.Admission{Handler: kcloudwebhook.NewWorkloadOptimizerValidator(mgr.GetClient())})
+		&webhook.Admission{Handler: workloadOptimizerValidator})
 
 	mgr.GetWebhookServer().Register("/mutate-v1-pod",
-		&webhook.Admission{Handler: kcloudwebhook.NewPodMutator(mgr.GetClient())})
+		&webhook.Admission{Handler: podMutator})
+
+	// Kueue Workload mutation is separated from Pod mutation. It records the
+	// workload-wide accelerator inventory; PodMutator later copies sched.ai/*
+	// prediction hints and re-derives the per-Pod physical resource counts.
+	mgr.GetWebhookServer().Register("/mutate-kueue-x-k8s-io-v1beta1-workload",
+		&webhook.Admission{Handler: workloadMutator})
 
 	// +kubebuilder:scaffold:builder
 

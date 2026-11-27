@@ -1,14 +1,15 @@
 /*
 NodeSelector Filter Plugin
 
-This plugin filters nodes based on the Pod's node selector and node affinity terms.
+This plugin filters nodes based on the Pod's nodeName and nodeSelector.
+Affinity is not evaluated here (comment historically mentioned it).
 */
 package plugin
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/acceleratorfit"
 	framework "github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/framework"
 	utils "github.com/KETI-Cloud-Platform/kcloud-cost-scheduler/cost-based-scheduler/internal/framework/utils"
 
@@ -33,21 +34,27 @@ func (n *NodeSelector) Filter(ctx context.Context, pod *v1.Pod, nodeInfo *utils.
 	if nodeInfo == nil || nodeInfo.Node() == nil {
 		return utils.NewStatus(utils.Error, "node not found")
 	}
-
 	node := nodeInfo.Node()
 
-	if pod.Spec.NodeName != "" && pod.Spec.NodeName != node.Name {
-		return utils.NewStatus(utils.Unschedulable,
-			fmt.Sprintf("pod requires node %s but got %s", pod.Spec.NodeName, node.Name))
-	}
-
-	for key, val := range pod.Spec.NodeSelector {
-		nodeVal, ok := node.Labels[key]
-		if !ok || nodeVal != val {
-			return utils.NewStatus(utils.Unschedulable,
-				fmt.Sprintf("node %s does not match nodeSelector %s=%s", node.Name, key, val))
+	if parts, ok := utils.CachedPolicyParts(ctx, node.Name); ok {
+		if r, found := utils.FindPolicyPart(parts, "node_name"); found && !r.OK {
+			return utils.NewStatus(utils.Unschedulable, r.Detail)
+		}
+		if r, found := utils.FindPolicyPart(parts, "node_selector"); found && !r.OK {
+			return utils.NewStatus(utils.Unschedulable, r.Detail)
+		}
+		if _, foundName := utils.FindPolicyPart(parts, "node_name"); foundName {
+			if _, foundSel := utils.FindPolicyPart(parts, "node_selector"); foundSel {
+				return utils.NewStatus(utils.Success, "")
+			}
 		}
 	}
 
+	if r := acceleratorfit.EvaluateNodeName(pod, node); !r.OK {
+		return utils.NewStatus(utils.Unschedulable, r.Detail)
+	}
+	if r := acceleratorfit.EvaluateNodeSelector(pod, node); !r.OK {
+		return utils.NewStatus(utils.Unschedulable, r.Detail)
+	}
 	return utils.NewStatus(utils.Success, "")
 }

@@ -1,3 +1,6 @@
 # Documentation files
 ARCHITECTURE.md
 FLOW.md
+build/_output/
+build/cost-based-scheduler
+build/keti-cost-scheduler

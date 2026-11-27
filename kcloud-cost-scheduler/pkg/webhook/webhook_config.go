@@ -64,6 +64,16 @@ func (wc *WebhookConfig) SetupWebhooks(mgr webhook.Server) error {
 
 	log.Info("Registered Pod mutating webhook")
 
+	// Setup Kueue Workload Mutating Webhook
+	workloadMutator := NewWorkloadMutator(wc.Client)
+	if err := workloadMutator.InjectDecoder(wc.decoder); err != nil {
+		return fmt.Errorf("failed to inject decoder into Kueue Workload mutator: %w", err)
+	}
+	mgr.Register("/mutate-kueue-x-k8s-io-v1beta1-workload", &webhook.Admission{
+		Handler: workloadMutator,
+	})
+	log.Info("Registered Kueue Workload mutating webhook")
+
 	// Setup WorkloadOptimizer Validating Webhook
 	woValidator := NewWorkloadOptimizerValidator(wc.Client)
 	if err := woValidator.InjectDecoder(wc.decoder); err != nil {
@@ -373,6 +383,14 @@ func (wc *WebhookConfig) GetWebhookEndpoints(ctx context.Context, namespace stri
 			Resource:    "workloadoptimizers",
 			APIVersion:  "kcloud.io/v1alpha1",
 			Description: "Validates WorkloadOptimizer resources",
+		},
+		{
+			Name:        "kueue-workload-mutator",
+			Path:        "/mutate-kueue-x-k8s-io-v1beta1-workload",
+			Type:        "mutating",
+			Resource:    "workloads",
+			APIVersion:  "kueue.x-k8s.io/v1beta1",
+			Description: "Adds generic accelerator and mixed-composition scheduling annotations",
 		},
 	}
 

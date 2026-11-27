@@ -1,0 +1,105 @@
+# Shadow E2E overlay — test scope only. shadow / weight=0 / enforce_enabled=0.
+# Apply order: ns+rbac (from cost-based-scheduler.yaml truncated) → this overlay pieces.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kcp-control-plane
+  labels:
+    experiment.kcloud.io/id: "2026-09-17-shadow-e2e"
+---
+# Catalog API Service + Deployment (uses preserved e2e DB copy)
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api
+  namespace: kcp-control-plane
+  labels:
+    app: catalog-api
+    experiment.kcloud.io/id: "2026-09-17-shadow-e2e"
+spec:
+  selector:
+    app: catalog-api
+  ports:
+    - name: http
+      port: 8099
+      targetPort: 8099
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  namespace: kcp-control-plane
+  labels:
+    app: catalog-api
+    experiment.kcloud.io/id: "2026-09-17-shadow-e2e"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: catalog-api
+  template:
+    metadata:
+      labels:
+        app: catalog-api
+        experiment.kcloud.io/id: "2026-09-17-shadow-e2e"
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: gpu-node-01
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+        - name: catalog-api
+          image: python:3.11-slim
+          imagePullPolicy: IfNotPresent
+          command: ["python3"]
+          args:
+            - /opt/kcloud/scripts/catalog/catalog_api.py
+            - --db
+            - /var/lib/kcloud/catalog/2026-09-17-r1-measured-envs.db
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8099"
+          ports:
+            - name: http
+              containerPort: 8099
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8099
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8099
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: scripts
+              mountPath: /opt/kcloud/scripts
+              readOnly: true
+            - name: catalog-db
+              mountPath: /var/lib/kcloud/catalog
+              # SQLite needs write for WAL/-shm even on read-mostly Catalog API.
+              # Volume is the preserved e2e-shadow copy, not the original results DB.
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+      volumes:
+        - name: scripts
+          hostPath:
+            path: /opt/kcloud/scripts
+            type: Directory
+        - name: catalog-db
+          hostPath:
+            path: /var/lib/kcloud/catalog/e2e-shadow
+            type: Directory

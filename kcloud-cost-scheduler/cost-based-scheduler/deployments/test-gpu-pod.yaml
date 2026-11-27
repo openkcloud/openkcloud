@@ -6,7 +6,7 @@ metadata:
   labels:
     cost-based-scheduling: "true"
 spec:
-  schedulerName: cost-based-scheduler
+  schedulerName: keti-cost-scheduler
   containers:
     resources:
       requests:

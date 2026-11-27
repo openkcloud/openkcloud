@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 registry="ketidevit2"
-image_name="cost-based-scheduler"
+image_name="keti-cost-scheduler"
 version="${1:-0.4.0}"
 dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
@@ -19,7 +19,7 @@ echo "Building Go binary..."
 cd "$dir/.." || exit 1
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
-    -o "$dir/../build/_output/bin/cost-based-scheduler" \
+    -o "$dir/../build/_output/bin/keti-cost-scheduler" \
     "$dir/../cmd/main.go"
 
 if [ $? -ne 0 ]; then

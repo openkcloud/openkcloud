@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook-service
+  namespace: system
+  labels:
+    app.kubernetes.io/name: k8s-workload-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: webhook
+spec:
+  ports:
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: webhook-server
+  selector:
+    app.kubernetes.io/name: k8s-workload-operator
+    control-plane: controller-manager

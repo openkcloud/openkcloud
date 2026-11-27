@@ -84,7 +84,7 @@ func (p *PowerEfficiency) ScoreExtensions() framework.ScoreExtensions {
 	return p
 }
 
-func (p *PowerEfficiency) NormalizeScore(ctx context.Context, pod *v1.Pod, scores utils.PluginResult) *utils.Status {
+func (p *PowerEfficiency) NormalizeScore(ctx context.Context, pod *v1.Pod, scores utils.PluginResultMap) *utils.Status {
 	return utils.NewStatus(utils.Success, "")
 }
 

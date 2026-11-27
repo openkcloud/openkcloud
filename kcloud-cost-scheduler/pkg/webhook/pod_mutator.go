@@ -25,6 +25,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -36,6 +39,15 @@ import (
 type PodMutator struct {
 	Client  client.Client
 	decoder admission.Decoder
+}
+
+const (
+	kueueWorkloadAnnotation = "kueue.x-k8s.io/workload"
+	kueuePodGroupLabel      = "kueue.x-k8s.io/pod-group-name"
+)
+
+var kueueWorkloadGVK = schema.GroupVersionKind{
+	Group: "kueue.x-k8s.io", Version: "v1beta1", Kind: "Workload",
 }
 
 // NewPodMutator creates a new pod mutator
@@ -65,8 +77,14 @@ func (m *PodMutator) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Allowed("No optimization needed")
 	}
 
-	// Always ensure the pod is routed to our cost-based-scheduler and tagged with basic intents
+	// Always ensure the pod is routed to our keti-cost-scheduler and tagged with basic intents
 	originalPod := pod.DeepCopy()
+	if err := m.propagateKueueWorkloadAnnotations(ctx, pod); err != nil {
+		// Prediction propagation is best-effort at admission time. Actual resource
+		// requests are still re-derived below, so a temporary lookup failure must
+		// not make an otherwise schedulable Pod fail admission.
+		logger.Error(err, "Failed to propagate Kueue Workload annotations", "pod", pod.Name)
+	}
 	m.applyCostSchedulerAnnotations(pod)
 
 	// Find applicable WorkloadOptimizer
@@ -109,6 +127,45 @@ func (m *PodMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 
 	return admission.PatchResponseFromRaw(req.Object.Raw, patch)
+}
+
+// propagateKueueWorkloadAnnotations copies sched.ai/* hints from the admitted
+// Kueue Workload to its Pod. Kueue places kueue.x-k8s.io/workload on a Job's
+// PodTemplate; direct Pod groups use kueue.x-k8s.io/pod-group-name.
+func (m *PodMutator) propagateKueueWorkloadAnnotations(ctx context.Context, pod *corev1.Pod) error {
+	if m.Client == nil || pod == nil {
+		return nil
+	}
+
+	workloadName := ""
+	if pod.Annotations != nil {
+		workloadName = pod.Annotations[kueueWorkloadAnnotation]
+	}
+	if workloadName == "" && pod.Labels != nil {
+		workloadName = pod.Labels[kueuePodGroupLabel]
+	}
+	if workloadName == "" {
+		return nil
+	}
+
+	workload := &unstructured.Unstructured{}
+	workload.SetGroupVersionKind(kueueWorkloadGVK)
+	if err := m.Client.Get(ctx, types.NamespacedName{
+		Namespace: pod.Namespace,
+		Name:      workloadName,
+	}, workload); err != nil {
+		return err
+	}
+
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
+	}
+	for key, value := range workload.GetAnnotations() {
+		if strings.HasPrefix(key, "sched.ai/") {
+			pod.Annotations[key] = value
+		}
+	}
+	return nil
 }
 
 // createPatch creates a JSON patch between two pods
@@ -546,8 +603,7 @@ func (m *PodMutator) InjectDecoder(d admission.Decoder) error {
 	return nil
 }
 
-
-// applyCostSchedulerAnnotations injects necessary annotations for the cost-based-scheduler
+// applyCostSchedulerAnnotations injects necessary annotations for the keti-cost-scheduler
 // including intent, accelerator types, scale, and preferences.
 func (m *PodMutator) applyCostSchedulerAnnotations(pod *corev1.Pod) {
 	if pod.Annotations == nil {
@@ -555,48 +611,41 @@ func (m *PodMutator) applyCostSchedulerAnnotations(pod *corev1.Pod) {
 	}
 
 	// 1. Force route to our scheduler engine
-	pod.Spec.SchedulerName = "cost-based-scheduler"
+	pod.Spec.SchedulerName = "keti-cost-scheduler"
 
-	// 2. Extract Accelerator Info (GPU/NPU count)
-	var gpuCount, npuCount int64
-	for _, container := range pod.Spec.Containers {
-		if container.Resources.Requests != nil {
-			if gpu, exists := container.Resources.Requests["nvidia.com/gpu"]; exists {
-				val, _ := strconv.ParseInt(gpu.String(), 10, 64)
-				gpuCount += val
-			}
-			if npu, exists := container.Resources.Requests["npu.com/npu"]; exists {
-				val, _ := strconv.ParseInt(npu.String(), 10, 64)
-				npuCount += val
-			}
-			if npu, exists := container.Resources.Requests["furiosa.ai/warboy"]; exists {
-				val, _ := strconv.ParseInt(npu.String(), 10, 64)
-				npuCount += val
-			}
-		}
+	// 2. Extract the actual Pod resource composition. Workload-level hints are
+	// copied first, but these physical resource fields are re-derived per Pod so
+	// aggregate Workload scale cannot overwrite the Pod's own request.
+	summary := summarizeContainerResources(pod.Spec.Containers)
+	pod.Annotations[annotationSchemaVersion] = "v1alpha1"
+	pod.Annotations[annotationAccType] = summary.acceleratorType()
+	pod.Annotations[annotationAccScale] = strconv.FormatInt(summary.acceleratorCount(), 10)
+	pod.Annotations[annotationComposition] = summary.composition()
+	resourceNames, vendor, model := summary.identity()
+	if resourceNames != "" {
+		pod.Annotations[annotationAccResource] = resourceNames
+		pod.Annotations[annotationAccResourceCounts] = summary.resourceCountString()
+		pod.Annotations[annotationAccVendor] = vendor
+		pod.Annotations[annotationAccModel] = model
 	}
-
-	accType := "cpu"
-	accCount := int64(0)
-	if gpuCount > 0 {
-		accType = "gpu"
-		accCount = gpuCount
-	} else if npuCount > 0 {
-		accType = "npu"
-		accCount = npuCount
+	pod.Annotations[annotationGPUCount] = strconv.FormatInt(summary.GPUCount, 10)
+	pod.Annotations[annotationNPUCount] = strconv.FormatInt(summary.NPUCount, 10)
+	setTypedAcceleratorAnnotations(pod.Annotations, summary)
+	if summary.acceleratorType() == "mixed" {
+		// TODO(mixed-scheduling): GPU+NPU 동시 요청은 현재 정보만 전달한다.
+		// 실제 장비 데이터가 확보되면 장치간 전송비용, 단계별 실행비율,
+		// GPU/NPU 개별 예측값을 결합하는 점수 정책을 추가해야 한다.
+		pod.Annotations[annotationAccProfile] = "mixed-untuned"
 	}
-
-	pod.Annotations["sched.ai/acc-type"] = accType
-	pod.Annotations["sched.ai/acc-scale"] = strconv.FormatInt(accCount, 10)
 
 	// 3. Infer workload intent and preference
 	intent := pod.Annotations["sched.ai/intent"]
 	preference := pod.Annotations["sched.ai/preference"]
-	
+
 	if intent == "" {
 		podName := strings.ToLower(pod.Name)
 		ns := strings.ToLower(pod.Namespace)
-		
+
 		if strings.Contains(podName, "training") || strings.Contains(podName, "train") || strings.Contains(ns, "kubeflow") {
 			intent = "training"
 		} else if strings.Contains(podName, "batch") || strings.Contains(podName, "job") {

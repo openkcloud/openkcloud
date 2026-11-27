@@ -12,5 +12,7 @@ roleRef:
   name: webhook-role
 subjects:
 - kind: ServiceAccount
-  name: webhook-manager
+  # Webhooks are registered in the same manager process as the controller.
+  # Bind their read permissions to the ServiceAccount used by that Deployment.
+  name: controller-manager
   namespace: system

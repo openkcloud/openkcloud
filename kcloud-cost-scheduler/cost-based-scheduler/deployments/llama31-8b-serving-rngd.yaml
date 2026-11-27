@@ -1,0 +1,142 @@
+# Llama 3.1 8B Serving smoke test for one Furiosa RNGD.
+#
+# The cpu/memory requests are initial values. Adjust them to the target node's
+# allocatable resources after a standalone container boot.
+# Apply only when the node advertises furiosa.ai/rngd.
+#
+# Prerequisites:
+# 1. furiosa-smi info reports RNGD.
+# 2. Furiosa Device Plugin exposes furiosa.ai/rngd in Node allocatable.
+# 3. Create the gated-model token Secret without storing it in this file:
+#      kubectl -n kcp-workload create secret generic hf-token \
+#        --from-literal=HF_TOKEN='<token>'
+# 4. Confirm a default StorageClass or set storageClassName below.
+#
+# The official furiosa-ai/Llama-3.1-8B-Instruct repository includes a
+# pre-compiled FXB for RNGD. Do not run the Warboy ENF conversion scripts.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: llama31-8b-rngd-hf-cache
+  namespace: kcp-workload
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 80Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama31-8b-serving-rngd
+  namespace: kcp-workload
+  labels:
+    app.kubernetes.io/name: llama31-8b-serving-rngd
+    app.kubernetes.io/component: inference-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llama31-8b-serving-rngd
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: llama31-8b-serving-rngd
+        workload.sched.ai/optimization-enabled: "true"
+      annotations:
+        sched.ai/intent: serving
+        sched.ai/preference: latency
+        sched.ai/acc-type: npu
+        sched.ai/acc-vendor: furiosa
+        sched.ai/npu-model: rngd
+        sched.ai/acc-scale: "1"
+        profile.ai/model: llama3.1-8b
+        profile.ai/precision: bf16
+        profile.ai/batch: "1"
+        profile.ai/context: "4096"
+    spec:
+      schedulerName: keti-cost-scheduler
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: furiosa-llm
+          # Build from containers/llama31-8b-serving-rngd and pin the official
+          # Base Image digest before repeat measurements.
+          image: kcloud/llama31-8b-serving-rngd:0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - serve
+            - furiosa-ai/Llama-3.1-8B-Instruct
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: HF_TOKEN
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "4"
+              memory: 48Gi
+              furiosa.ai/rngd: "1"
+            limits:
+              furiosa.ai/rngd: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: Unconfined
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 180
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 12
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: llama31-8b-rngd-hf-cache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama31-8b-serving-rngd
+  namespace: kcp-workload
+spec:
+  selector:
+    app.kubernetes.io/name: llama31-8b-serving-rngd
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP

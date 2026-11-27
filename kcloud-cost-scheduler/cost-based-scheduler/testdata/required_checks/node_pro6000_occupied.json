@@ -1,0 +1,35 @@
+{
+  "node_name": "gpu-node-01",
+  "devices": [
+    {
+      "uuid": "GPU-00000000-fixture",
+      "node_name": "gpu-node-01",
+      "kind": "gpu",
+      "model": "rtx-pro-6000",
+      "memory_total_mib": {
+        "present": true,
+        "value": 98304,
+        "unit": "MiB",
+        "source": "fixture",
+        "collected_at": "2026-10-26T02:15:00Z",
+        "received_at": "2026-10-26T02:15:01Z"
+      },
+      "memory_used_mib": {
+        "present": true,
+        "value": 36047,
+        "unit": "MiB",
+        "source": "fixture",
+        "collected_at": "2026-10-26T02:15:00Z",
+        "received_at": "2026-10-26T02:15:01Z"
+      },
+      "utilization_pct": {
+        "present": true,
+        "value": 100,
+        "unit": "pct",
+        "source": "fixture",
+        "collected_at": "2026-10-26T02:15:00Z",
+        "received_at": "2026-10-26T02:15:01Z"
+      }
+    }
+  ]
+}
