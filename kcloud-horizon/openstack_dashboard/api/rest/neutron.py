@@ -1,0 +1,486 @@
+#
+#    (c) Copyright 2015 Hewlett-Packard Development Company, L.P.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""API over the neutron service."""
+
+from django.utils.translation import gettext_lazy as _
+from django.views import generic
+
+from openstack_dashboard import api
+from openstack_dashboard.api.rest import urls
+from openstack_dashboard.api.rest import utils as rest_utils
+from openstack_dashboard.usage import quotas
+
+
+@urls.register
+class Networks(generic.View):
+    """API for Neutron Networks
+
+    https://docs.openstack.org/api-ref/network/v2/index.html
+    """
+    url_regex = r'neutron/networks/$'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        """Get a list of networks for a project
+
+        The listing result is an object with property "items".  Each item is
+        a network.
+        """
+        tenant_id = request.user.tenant_id
+        # NOTE(amotoki): At now, this method is only for server create,
+        # so it is no problem to pass include_pre_auto_allocate=True always.
+        # We need to revisit the logic if we use this method for
+        # other operations other than server create.
+        result = api.neutron.network_list_for_tenant(
+            request, tenant_id,
+            include_pre_auto_allocate=True)
+        return{'items': [n.to_dict() for n in result]}
+
+    @rest_utils.ajax(data_required=True)
+    def post(self, request):
+        """Create a network
+
+        :param  admin_state_up (optional): The administrative state of the
+                network, which is up (true) or down (false).
+        :param name (optional): The network name. A request body is optional:
+                If you include it, it can specify this optional attribute.
+        :param shared (optional): Indicates whether this network is shared
+                across all tenants. By default, only administrative users can
+                change this value.
+        :param tenant_id (optional): Admin-only. The UUID of the tenant that
+                will own the network. This tenant can be different from the
+                tenant that makes the create network request. However, only
+                administrative users can specify a tenant ID other than their
+                own. You cannot change this value through authorization
+                policies.
+
+         :return: JSON representation of a Network
+         """
+        new_network = api.neutron.network_create(request, **request.DATA)
+        return rest_utils.CreatedResponse(
+            '/api/neutron/networks/%s' % new_network.id,
+            new_network.to_dict()
+        )
+
+
+@urls.register
+class Subnets(generic.View):
+    """API for Neutron Subnets
+
+    https://docs.openstack.org/api-ref/network/v2/index.html#subnets
+    """
+    url_regex = r'neutron/subnets/$'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        """Get a list of subnets for a project
+
+        The listing result is an object with property "items".  Each item is
+        a subnet.
+
+        """
+        result = api.neutron.subnet_list(request, **request.GET.dict())
+        return{'items': [n.to_dict() for n in result]}
+
+    @rest_utils.ajax(data_required=True)
+    def post(self, request):
+        """Create a Subnet for a given Network
+
+        :param name (optional):  The subnet name.
+        :param network_id: The ID of the attached network.
+        :param tenant_id (optional): The ID of the tenant who owns the network.
+                Only administrative users can specify a tenant ID other than
+                their own.
+        :param allocation_pools (optional): The start and end addresses for the
+                allocation pools.
+        :param gateway_ip (optional): The gateway IP address.
+        :param ip_version: The IP version, which is 4 or 6.
+        :param cidr: The CIDR.
+        :param id (optional): The ID of the subnet.
+        :param enable_dhcp (optional): Set to true if DHCP is enabled and false
+                if DHCP is disabled.
+
+        :return: JSON representation of a Subnet
+
+        """
+        new_subnet = api.neutron.subnet_create(request, **request.DATA)
+        return rest_utils.CreatedResponse(
+            '/api/neutron/subnets/%s' % new_subnet.id,
+            new_subnet.to_dict()
+        )
+
+
+@urls.register
+class Ports(generic.View):
+    """API for Neutron Ports
+
+    https://docs.openstack.org/api-ref/network/v2/index.html#ports
+    """
+    url_regex = r'neutron/ports/$'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        """Get a list of ports for a network
+
+        The listing result is an object with property "items".  Each item is
+        a port.
+        """
+        # see
+        # https://github.com/openstack/neutron/blob/master/neutron/api/v2/attributes.py
+        result = api.neutron.port_list_with_trunk_types(request,
+                                                        **request.GET.dict())
+        return {'items': [n.to_dict() for n in result]}
+
+
+@urls.register
+class Trunk(generic.View):
+    """API for a single neutron Trunk"""
+    url_regex = r'neutron/trunks/(?P<trunk_id>[^/]+)/$'
+
+    @rest_utils.ajax()
+    def delete(self, request, trunk_id):
+        api.neutron.trunk_delete(request, trunk_id)
+
+    @rest_utils.ajax()
+    def get(self, request, trunk_id):
+        """Get a specific trunk"""
+        trunk = api.neutron.trunk_show(request, trunk_id)
+        return trunk.to_dict()
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, request, trunk_id):
+        """Update a specific trunk"""
+        old_trunk = request.DATA[0]
+        new_trunk = request.DATA[1]
+
+        return api.neutron.trunk_update(
+            request, trunk_id, old_trunk, new_trunk)
+
+
+@urls.register
+class Trunks(generic.View):
+    """API for neutron Trunks"""
+    url_regex = r'neutron/trunks/$'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        """Get a list of trunks
+
+        The listing result is an object with property "items".
+        Each item is a trunk.
+        """
+        result = api.neutron.trunk_list(request, **request.GET.dict())
+        return {'items': [n.to_dict() for n in result]}
+
+    @rest_utils.ajax(data_required=True)
+    def post(self, request):
+        new_trunk = api.neutron.trunk_create(request, **request.DATA)
+        return rest_utils.CreatedResponse(
+            '/api/neutron/trunks/%s' % new_trunk.id,
+            new_trunk.to_dict()
+        )
+
+
+@urls.register
+class Services(generic.View):
+    """API for Neutron agents"""
+    url_regex = r'neutron/agents/$'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        """Get a list of agents"""
+        if (api.base.is_service_enabled(request, 'network') and
+                api.neutron.is_extension_supported(request, 'agent')):
+            result = api.neutron.agent_list(request, **request.GET.dict())
+            return {'items': [n.to_dict() for n in result]}
+        raise rest_utils.AjaxError(501, '')
+
+
+@urls.register
+class Extensions(generic.View):
+    """API for neutron extensions."""
+    url_regex = r'neutron/extensions/$'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        """Get a list of extensions.
+
+        The listing result is an object with property "items". Each item is
+        an extension.
+
+        Example:
+        http://localhost/api/neutron/extensions
+        """
+        result = api.neutron.list_extensions(request)
+        # list_extensions can return a tuple, so list() is required.
+        return {'items': list(result)}
+
+
+class DefaultQuotaSets(generic.View):
+    """API for getting default quotas for neutron"""
+    url_regex = r'neutron/quota-sets/defaults/$'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        if not api.base.is_service_enabled(request, 'network'):
+            raise rest_utils.AjaxError(501, _('Service Neutron is disabled.'))
+
+        quota_set = api.neutron.tenant_quota_get(
+            request, request.user.tenant_id)
+
+        result = [{
+            'display_name': quotas.QUOTA_NAMES.get(
+                quota.name,
+                quota.name.replace('_', ' ').title()
+            ) + '',
+            'name': quota.name,
+            'limit': quota.limit
+        } for quota in quota_set]
+
+        return {'items': result}
+
+
+@urls.register
+class QuotasSets(generic.View):
+    """API for setting quotas of a given project."""
+    url_regex = r'neutron/quotas-sets/(?P<project_id>[0-9a-f]+)$'
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, request, project_id):
+        """Update a single project quota data.
+
+        The PATCH data should be an application/json object with the
+        attributes to set to new quota values.
+
+        This method returns HTTP 204 (no content) on success.
+        """
+        # Filters only neutron quota fields
+        disabled_quotas = quotas.get_disabled_quotas(request)
+
+        if api.base.is_service_enabled(request, 'network') and \
+                api.neutron.is_extension_supported(request, 'quotas'):
+            neutron_data = {
+                key: request.DATA[key] for key in quotas.NEUTRON_QUOTA_FIELDS
+                if key not in disabled_quotas
+            }
+
+            api.neutron.tenant_quota_update(request,
+                                            project_id,
+                                            **neutron_data)
+        else:
+            message = _('Service Neutron is disabled or quotas extension not '
+                        'available.')
+            raise rest_utils.AjaxError(501, message)
+
+
+@urls.register
+class QoSPolicies(generic.View):
+    """API for QoS Policy."""
+    url_regex = r'neutron/qos_policies/$'
+
+    @rest_utils.ajax()
+    def get(self, request):
+        """Get a list of QoS policies.
+
+        The listing result is an object with property "items".
+        Each item is a qos policy.
+        """
+        result = api.neutron.policy_list(request,
+                                         tenant_id=request.user.project_id)
+        return {'items': [p.to_dict() for p in result]}
+
+    @rest_utils.ajax(data_required=True)
+    def post(self, request):
+        """Create a Network QoS policy.
+
+        Create a qos policy using parameters supplied in the POST
+        application/json object. The "name" (string) parameter is required.
+        This method returns the new qos policy object on success.
+        """
+        qospolicy = api.neutron.policy_create(request, **request.DATA)
+        return rest_utils.CreatedResponse(
+            '/api/neutron/qos_policies/%s' % qospolicy.id,
+            qospolicy.to_dict()
+        )
+
+
+@urls.register
+class QoSPolicy(generic.View):
+    """API for a single QoS Policy."""
+    url_regex = r'neutron/qos_policies/(?P<policy_id>[^/]+)/$'
+
+    @rest_utils.ajax()
+    def delete(self, request, policy_id):
+        api.neutron.policy_delete(request, policy_id)
+
+    @rest_utils.ajax()
+    def get(self, request, policy_id):
+        """Get a specific policy"""
+        policy = api.neutron.policy_get(request, policy_id)
+        return policy.to_dict()
+
+
+@urls.register
+class MinimumBandwidthRules(generic.View):
+    """API for Minimum Bandwidth Rule create."""
+    url_regex = (
+        r'neutron/qos/policies/' +
+        r'(?P<policy_id>[^/]+)/minimum_bandwidth_rules/$')
+
+    @rest_utils.ajax(data_required=True)
+    def post(self, req, policy_id):
+        minimum_bandwidth_rule = api.neutron.minimum_bandwidth_rule_create(
+            req, policy_id, **req.DATA)
+        return rest_utils.CreatedResponse(
+            '/api/neutron/qospolicies/minimumbandwidthrules/%s'
+            % minimum_bandwidth_rule.id,
+            minimum_bandwidth_rule.to_dict()
+        )
+
+
+@urls.register
+class MinimumBandwidthRule(generic.View):
+    """API for Minimum Bandwidth Rule update and delete."""
+    url_regex = (
+        r'neutron/qos/policies/' +
+        r'(?P<policy_id>[^/]+)/minimum_bandwidth_rules/(?P<rule_id>[^/]+)$'
+    )
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, req, policy_id, rule_id):
+        """Update a QoS Minimum Bandwidth rule."""
+        return api.neutron.minimum_bandwidth_rule_update(
+            req, policy_id, rule_id, **req.DATA)
+
+    @rest_utils.ajax()
+    def delete(self, req, policy_id, rule_id):
+        """Delete a QoS Minimum Badwidth rule"""
+        api.neutron.minimum_bandwidth_rule_delete(req, policy_id, rule_id)
+
+
+@urls.register
+class DSCPMarkingRules(generic.View):
+    """API for DSCP Marking Rule create"""
+    url_regex = (
+        r'neutron/qos/policies/(?P<policy_id>[^/]+)' +
+        r'/dscp_marking_rules/$')
+
+    @rest_utils.ajax(data_required=True)
+    def post(self, req, policy_id):
+        """Create QoS DSCP Marking rules."""
+        dscp_marking_rule = api.neutron.dscp_marking_rule_create(
+            req, policy_id, **req.DATA)
+        return rest_utils.CreatedResponse(
+            '/api/neutron/qospolicies/dscpmarkingrules/%s'
+            % dscp_marking_rule.id,
+            dscp_marking_rule.to_dict()
+        )
+
+
+@urls.register
+class DSCPMarkingRule(generic.View):
+    """API for DSCP Marking Rule Delete and Update"""
+    url_regex = (
+        r'neutron/qos/policies/(?P<policy_id>[^/]+)' +
+        r'/dscp_marking_rules/(?P<rule_id>[^/]+)$')
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, req, policy_id, rule_id):
+        """Update a qos DSCP Marking rule."""
+        return api.neutron.dscp_marking_rule_update(
+            req, policy_id, rule_id, **req.DATA)
+
+    @rest_utils.ajax()
+    def delete(self, req, policy_id, rule_id):
+        """Delete a qos DSCP Marking rule."""
+        api.neutron.dscp_marking_rule_delete(req, policy_id, rule_id)
+
+
+@urls.register
+class BandwidthLimitRules(generic.View):
+    """API for Bandwidth Limit Rule Create"""
+    url_regex = (
+        r'neutron/qos/policies/(?P<policy_id>[^/]+)' +
+        r'/bandwidth_limit_rules/$'
+    )
+
+    @rest_utils.ajax(data_required=True)
+    def post(self, req, policy_id):
+        """Create QoS Bandwidth Limit rules."""
+        bandwidth_limit_rule = api.neutron.bandwidth_limit_rule_create(
+            req, policy_id, **req.DATA)
+        return rest_utils.CreatedResponse(
+            '/api/neutron/qospolicies/bandwidthlimitrules/%s'
+            % bandwidth_limit_rule.id,
+            bandwidth_limit_rule.to_dict()
+        )
+
+
+@urls.register
+class BandwidthLimitRule(generic.View):
+    """API for Bandwidth Limit Rule Update and Delete"""
+    url_regex = (
+        r'neutron/qos/policies/(?P<policy_id>[^/]+)' +
+        r'/bandwidth_limit_rules/(?P<rule_id>[^/]+)$')
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, req, policy_id, rule_id):
+        """Update a QoS Bandwidth Limit rule."""
+        return api.neutron.bandwidth_limit_rule_update(
+            req, policy_id, rule_id, **req.DATA)
+
+    @rest_utils.ajax()
+    def delete(self, req, policy_id, rule_id):
+        """Delete a QoS Bandwidth Limit rule."""
+        api.neutron.bandwidth_limit_rule_delete(req, policy_id, rule_id)
+
+
+@urls.register
+class MinimumPacketRateRules(generic.View):
+    """API for Minimum Packet Rate Rule Create."""
+    url_regex = (
+        r'neutron/qos/policies/' +
+        r'(?P<policy_id>[^/]+)/minimum_packet_rate_rules/$')
+
+    @rest_utils.ajax(data_required=True)
+    def post(self, req, policy_id):
+        """Create QoS Minimum Packet Rate rules."""
+        minimum_packet_rate_rule = api.neutron.minimum_packet_rate_rule_create(
+            req, policy_id, **req.DATA)
+        return rest_utils.CreatedResponse(
+            '/api/neutron/qospolicies/minimumpacketraterules/%s'
+            % minimum_packet_rate_rule.id,
+            minimum_packet_rate_rule.to_dict()
+        )
+
+
+@urls.register
+class MinimumPacketRateRule(generic.View):
+    """API for Updating and Deleting Minimum Packet Rate Rule"""
+    url_regex = (
+        r'neutron/qos/policies/' +
+        r'(?P<policy_id>[^/]+)/minimum_packet_rate_rules/(?P<rule_id>[^/]+)$'
+    )
+
+    @rest_utils.ajax(data_required=True)
+    def patch(self, req, policy_id, rule_id):
+        """Update a QoS Minimum Packet Rate rule."""
+        return api.neutron.minimum_packet_rate_rule_update(
+            req, policy_id, rule_id, **req.DATA)
+
+    @rest_utils.ajax()
+    def delete(self, req, policy_id, rule_id):
+        """Delete a QoS Minimum Packet Rate rule."""
+        api.neutron.minimum_packet_rate_rule_delete(req, policy_id, rule_id)

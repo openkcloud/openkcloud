@@ -1,0 +1,35 @@
+- project:
+    queue: horizon
+    templates:
+      - check-requirements
+      - horizon-cross-jobs
+      - horizon-nodejs-jobs
+      - horizon-non-primary-django-jobs
+      - openstack-python3-jobs
+      - periodic-stable-jobs
+      - publish-openstack-docs-pti
+      - release-notes-jobs-python3
+    check:
+      jobs:
+        - horizon-selenium-headless
+        - horizon-integration-tests
+        - horizon-integration-pytest:
+            voting: false
+        - horizon-dsvm-tempest-plugin
+        - horizon-tox-bandit-baseline
+        - horizon-tempest-plugin-ipv6
+    gate:
+      jobs:
+        - horizon-dsvm-tempest-plugin
+        - horizon-selenium-headless
+        - horizon-integration-tests
+        - horizon-tempest-plugin-ipv6
+    experimental:
+      jobs:
+        - horizon-integration-tests-xstatic-master
+        - horizon-tox-py36-xstatic-master
+        - horizon-nodejs20-run-test-xstatic-master
+    periodic:
+      jobs:
+        - horizon-nodejs20-run-test
+        - horizon-integration-tests

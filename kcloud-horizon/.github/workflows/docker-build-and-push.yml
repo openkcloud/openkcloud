@@ -1,0 +1,192 @@
+name: Build and Push to GHCR
+
+on:
+  push:
+    branches: [ kcloud/2024.1 ]
+  # Fired by the kcloud Horizon plugins (kcloud-magnum-ui,
+  # kcloud-cyborg-dashboard) when they push, so their changes reach the image
+  # without a manual rebuild. repository_dispatch always runs on the default
+  # branch, which for this repo is kcloud/2024.1 -- the branch we want built.
+  repository_dispatch:
+    types: [ plugin-updated ]
+  workflow_dispatch:
+
+# Several plugins can land at once; each rebuild produces the same tag, so only
+# the last one matters.
+concurrency:
+  group: horizon-image-build
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    if: github.repository_owner == 'openkcloud'
+    
+    runs-on: ubuntu-latest
+
+    env:
+      KCLOUD_LOCI_REF: kcloud/2024.1
+      BASE_IMAGE_NAME: kcloud-base
+      BASE_IMAGE_TAG: ubuntu_jammy
+      REQUIREMENTS_REPO: https://github.com/openkcloud/kcloud-requirements
+      REQUIREMENTS_IMAGE_NAME: kcloud-requirements
+      REQUIREMENTS_IMAGE_TAG: kcloud-2024.1-ubuntu_jammy
+      REQUIREMENTS_REF: kcloud/2024.1
+      PROJECT: horizon
+      PROJECT_REPO: https://github.com/${{ github.repository }}
+      PROJECT_REF: kcloud/2024.1
+      IMAGE_NAME: ${{ github.event.repository.name }}
+      IMAGE_TAG: kcloud-2024.1
+      DIST_PACKAGES:
+      PROFILES: fluent apache
+      # Dashboards must be direct VCS references, not plain names. The image
+      # build runs with KEEP_ALL_WHEELS=yes, which makes loci pass --no-index,
+      # so named requirements resolve only against the pre-built wheelhouse --
+      # and that wheelhouse is generated from upper-constraints.txt, which does
+      # not carry Horizon plugins. Direct URLs bypass the index entirely.
+      #
+      # Each plugin tracks the release of the service it drives, not Horizon's,
+      # except magnum-ui, which tracks the kcloud fork instead:
+      #   heat    2024.1 (rackerlabs-heat:2024.1)        -> heat-dashboard 2024.1
+      #   octavia 2024.1 (rackerlabs-octavia-ovn:2024.1) -> octavia-dashboard 2024.1
+      #   magnum  2025.1 (genestack-images/magnum:2025.1)-> kcloud-magnum-ui 2024.2
+      #
+      # heat/octavia use the 2024.1-eom tag because their stable/2024.1
+      # branches were deleted at end of maintenance.
+      #
+      # magnum-ui is carried as a kcloud fork so kcloud-only changes reach the
+      # image, mirroring kcloud-cyborg-dashboard. Installing it from upstream
+      # (previously magnum-ui 16.0.0) silently dropped every kcloud commit. It
+      # is pinned to the fork's kcloud/2024.2 branch because the dashboard has
+      # to line up with Horizon, and 2024.2 is the release that does. The
+      # magnum service image stays at 2025.1 and is deliberately not tracked
+      # here: magnum changed how the feature itself behaves in 2025.1.
+      #
+      # Both fork refs are moving branches, not tags. That is the point: a push
+      # to either plugin fires repository_dispatch (plugin-updated) at this
+      # workflow, and the rebuild only picks up the new commit if the ref moves.
+      #
+      # Resolved versions: heat-dashboard 11.0.1.dev2 / octavia-dashboard 13.0.2.dev1
+      PIP_PACKAGES: >-
+        pymemcache
+        git+https://opendev.org/openstack/heat-dashboard@2024.1-eom
+        git+https://github.com/openkcloud/kcloud-magnum-ui@kcloud/2024.2
+        git+https://opendev.org/openstack/octavia-dashboard@2024.1-eom
+        git+https://github.com/openkcloud/kcloud-cyborg-dashboard@kcloud/2024.1
+      # Panel registration is done at runtime by the openstack-helm horizon
+      # chart (conf.horizon.extra_panels), not at build time. Both create the
+      # same symlinks under openstack_dashboard/local/enabled/ with a bare
+      # `ln -s` under `set -e`, so doing both makes horizon.sh fail with
+      # "File exists" before apache starts -> CrashLoopBackOff.
+      #
+      # This must be a non-empty sentinel, not empty and not removed: loci's
+      # 01_configure_horizon.sh uses ${HORIZON_EXTRA_PANELS:-<long default>},
+      # so an unset or empty value silently restores its default list (which
+      # includes octavia_dashboard, installed below) and reintroduces the
+      # collision. 'none' matches no installed package, so the loop is a no-op.
+      HORIZON_EXTRA_PANELS: none
+
+    steps:
+      - name: Checkout Horizon source
+        uses: actions/checkout@v3
+
+      - name: Clone kcloud-loci
+        run: |
+          git clone -b ${{ env.KCLOUD_LOCI_REF }} https://github.com/openkcloud/kcloud-loci
+          cd kcloud-loci
+
+      # TODO: Create a PAT with `read:packages` and `write:packages` scopes and save it as an Actions secret `CR_PAT`
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CR_PAT_RWD }}
+
+      - name: Check if Base image exists in GHCR
+        id: check-base-image
+        run: |
+          if docker manifest inspect ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Base image
+        if: steps.check-base-image.outputs.exists == 'false'
+        run: |
+          docker build \
+            -f kcloud-loci/Dockerfile.base \
+            --build-arg FROM=ubuntu:jammy \
+            --build-arg CEPH_REPO='deb https://download.ceph.com/debian-reef/ jammy main' \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }} \
+            kcloud-loci
+
+      - name: Push Base image to GHCR
+        if: steps.check-base-image.outputs.exists == 'false'
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }}
+
+      - name: Check if Requirements image exists in GHCR
+        id: check-requirements-image
+        run: |
+          if docker manifest inspect ghcr.io/${{ github.repository_owner }}/${{ env.REQUIREMENTS_IMAGE_NAME }}:${{ env.REQUIREMENTS_IMAGE_TAG }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Requirements image
+        if: steps.check-requirements-image.outputs.exists == 'false'
+        run: |
+          docker build \
+            -f kcloud-loci/Dockerfile \
+            --target requirements \
+            --build-arg FROM=ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }} \
+            --build-arg PROJECT=requirements \
+            --build-arg PROJECT_REPO=${{ env.REQUIREMENTS_REPO }} \
+            --build-arg PROJECT_REF=${{ env.REQUIREMENTS_REF }} \
+            --build-arg KEEP_ALL_WHEELS=yes \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ env.REQUIREMENTS_IMAGE_NAME }}:${{ env.REQUIREMENTS_IMAGE_TAG }} \
+            kcloud-loci
+
+      - name: Push Requirements image to GHCR
+        if: steps.check-requirements-image.outputs.exists == 'false'
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/${{ env.REQUIREMENTS_IMAGE_NAME }}:${{ env.REQUIREMENTS_IMAGE_TAG }}
+
+      - name: Build Horizon image
+        run: |
+          docker build \
+            -f kcloud-loci/Dockerfile \
+            --build-arg FROM=ghcr.io/${{ github.repository_owner }}/${{ env.BASE_IMAGE_NAME }}:${{ env.BASE_IMAGE_TAG }} \
+            --build-arg WHEELS=ghcr.io/${{ github.repository_owner }}/${{ env.REQUIREMENTS_IMAGE_NAME }}:${{ env.REQUIREMENTS_IMAGE_TAG }} \
+            --build-arg PROJECT=${{ env.PROJECT }} \
+            --build-arg PROJECT_REPO=${{ env.PROJECT_REPO }} \
+            --build-arg PROJECT_REF=${{ env.PROJECT_REF }} \
+            --build-arg PROFILES='${{ env.PROFILES }}' \
+            --build-arg PIP_PACKAGES='${{ env.PIP_PACKAGES }}' \
+            --build-arg HORIZON_EXTRA_PANELS='${{ env.HORIZON_EXTRA_PANELS }}' \
+            --build-arg KEEP_ALL_WHEELS=yes \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            kcloud-loci
+
+      - name: Push Horizon image to GHCR
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
+  cleanup-ghcr:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Delete old GHCR images
+        uses: actions/delete-package-versions@v5
+        with:
+          owner: ${{ github.repository_owner }}
+          package-name: ${{ github.event.repository.name }}
+          package-type: container
+          min-versions-to-keep: 4
+          delete-only-untagged-versions: true
+          token: ${{ secrets.CR_PAT_RWD }}
+          

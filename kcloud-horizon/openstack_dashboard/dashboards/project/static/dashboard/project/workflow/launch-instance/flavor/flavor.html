@@ -1,0 +1,31 @@
+<!--
+   (c) Copyright 2015 Hewlett-Packard Development Company, L.P.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<div ng-controller="LaunchInstanceFlavorController as ctrl">
+  <p class="step-description" translate>
+    Flavors manage the sizing for the compute, memory and storage capacity of the instance.
+  </p>
+
+  <transfer-table tr-model="ctrl.tableData"
+      limits="ctrl.tableLimits" clone-content>
+    <hz-dynamic-table
+      config="$isAvailableTable ? ctrl.availableTableConfig : ctrl.allocatedTableConfig"
+      items="$isAvailableTable ? ($sourceItems | filterAvailable:trCtrl.allocatedIds) : $sourceItems"
+      validate-number-min="1" ng-model="ctrl.allocatedFlavorFacades.length" name="allocated-flavor"
+      item-actions="trCtrl.itemActions"
+      filter-facets="$isAvailableTable && ctrl.filterFacets"
+      table="ctrl">
+    </hz-dynamic-table>
+  </transfer-table> <!-- End Flavors Transfer Table -->
+</div>

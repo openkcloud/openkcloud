@@ -1,0 +1,1769 @@
+# DEPRECATED: This rule will be removed in the Yoga release.
+# Default rule for most non-Admin APIs.
+#"admin_or_owner": "is_admin:True or (role:admin and is_admin_project:True) or project_id:%(project_id)s"
+
+# DEPRECATED: This rule will be removed in the Yoga release.
+# Default rule for admins of cloud, domain or a project.
+#"system_or_domain_or_project_admin": "(role:admin and system_scope:all) or (role:admin and domain_id:%(domain_id)s) or (role:admin and project_id:%(project_id)s)"
+
+# Decides what is required for the 'is_admin:True' check to succeed.
+#"context_is_admin": "role:admin"
+
+# Default rule for most Admin APIs.
+#"admin_api": "is_admin:True or (role:admin and is_admin_project:True)"
+
+# NOTE: this purely role-based rule recognizes only project scope
+#"xena_system_admin_or_project_reader": "(role:admin) or (role:reader and project_id:%(project_id)s)"
+
+# NOTE: this purely role-based rule recognizes only project scope
+#"xena_system_admin_or_project_member": "(role:admin) or (role:member and project_id:%(project_id)s)"
+
+# Create attachment.
+# POST  /attachments
+#"volume:attachment_create": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:attachment_create":"" has been deprecated since X in favor
+# of "volume:attachment_create":"rule:xena_system_admin_or_project_mem
+# ber".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Update attachment.
+# PUT  /attachments/{attachment_id}
+#"volume:attachment_update": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:attachment_update":"rule:admin_or_owner" has been deprecated
+# since X in favor of "volume:attachment_update":"rule:xena_system_adm
+# in_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete attachment.
+# DELETE  /attachments/{attachment_id}
+#"volume:attachment_delete": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:attachment_delete":"rule:admin_or_owner" has been deprecated
+# since X in favor of "volume:attachment_delete":"rule:xena_system_adm
+# in_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Mark a volume attachment process as completed (in-use)
+# POST  /attachments/{attachment_id}/action (os-complete)
+#"volume:attachment_complete": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:attachment_complete":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:attachment_complete":"rule:xe
+# na_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Allow multiattach of bootable volumes.
+# POST  /attachments
+#"volume:multiattach_bootable_volume": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:multiattach_bootable_volume":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:multiattach_bootable_volume":
+# "rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List messages.
+# GET  /messages
+#"message:get_all": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "message:get_all":"rule:admin_or_owner" has been deprecated since X
+# in favor of
+# "message:get_all":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Show message.
+# GET  /messages/{message_id}
+#"message:get": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "message:get":"rule:admin_or_owner" has been deprecated since X in
+# favor of "message:get":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete message.
+# DELETE  /messages/{message_id}
+#"message:delete": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "message:delete":"rule:admin_or_owner" has been deprecated since X
+# in favor of
+# "message:delete":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List clusters.
+# GET  /clusters
+# GET  /clusters/detail
+#"clusters:get_all": "rule:admin_api"
+
+# Show cluster.
+# GET  /clusters/{cluster_id}
+#"clusters:get": "rule:admin_api"
+
+# Update cluster.
+# PUT  /clusters/{cluster_id}
+#"clusters:update": "rule:admin_api"
+
+# Clean up workers.
+# POST  /workers/cleanup
+#"workers:cleanup": "rule:admin_api"
+
+# Show snapshot's metadata or one specified metadata with a given key.
+# GET  /snapshots/{snapshot_id}/metadata
+# GET  /snapshots/{snapshot_id}/metadata/{key}
+#"volume:get_snapshot_metadata": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume:get_snapshot_metadata":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:get_snapshot_metadata":"rule:
+# xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Update snapshot's metadata or one specified metadata with a given
+# key.
+# POST  /snapshots/{snapshot_id}/metadata
+# PUT  /snapshots/{snapshot_id}/metadata/{key}
+#"volume:update_snapshot_metadata": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:update_snapshot_metadata":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:update_snapshot_metadata":"ru
+# le:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete snapshot's specified metadata with a given key.
+# DELETE  /snapshots/{snapshot_id}/metadata/{key}
+#"volume:delete_snapshot_metadata": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:delete_snapshot_metadata":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:delete_snapshot_metadata":"ru
+# le:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List snapshots.
+# GET  /snapshots
+# GET  /snapshots/detail
+#"volume:get_all_snapshots": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume:get_all_snapshots":"rule:admin_or_owner" has been deprecated
+# since X in favor of "volume:get_all_snapshots":"rule:xena_system_adm
+# in_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List or show snapshots with extended attributes.
+# GET  /snapshots/{snapshot_id}
+# GET  /snapshots/detail
+#"volume_extension:extended_snapshot_attributes": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:extended_snapshot_attributes":"rule:admin_or_owner
+# " has been deprecated since X in favor of "volume_extension:extended
+# _snapshot_attributes":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Create snapshot.
+# POST  /snapshots
+#"volume:create_snapshot": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:create_snapshot":"rule:admin_or_owner" has been deprecated
+# since X in favor of
+# "volume:create_snapshot":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Show snapshot.
+# GET  /snapshots/{snapshot_id}
+#"volume:get_snapshot": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume:get_snapshot":"rule:admin_or_owner" has been deprecated
+# since X in favor of
+# "volume:get_snapshot":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Update snapshot.
+# PUT  /snapshots/{snapshot_id}
+#"volume:update_snapshot": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:update_snapshot":"rule:admin_or_owner" has been deprecated
+# since X in favor of
+# "volume:update_snapshot":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete snapshot.
+# DELETE  /snapshots/{snapshot_id}
+#"volume:delete_snapshot": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:delete_snapshot":"rule:admin_or_owner" has been deprecated
+# since X in favor of
+# "volume:delete_snapshot":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Reset status of a snapshot.
+# POST  /snapshots/{snapshot_id}/action (os-reset_status)
+#"volume_extension:snapshot_admin_actions:reset_status": "rule:admin_api"
+
+# Update database fields of snapshot.
+# POST  /snapshots/{snapshot_id}/action (update_snapshot_status)
+#"snapshot_extension:snapshot_actions:update_snapshot_status": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "snapshot_extension:snapshot_actions:update_snapshot_status":"" has
+# been deprecated since X in favor of "snapshot_extension:snapshot_act
+# ions:update_snapshot_status":"rule:xena_system_admin_or_project_memb
+# er".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Force delete a snapshot.
+# POST  /snapshots/{snapshot_id}/action (os-force_delete)
+#"volume_extension:snapshot_admin_actions:force_delete": "rule:admin_api"
+
+# List (in detail) of snapshots which are available to manage.
+# GET  /manageable_snapshots
+# GET  /manageable_snapshots/detail
+#"snapshot_extension:list_manageable": "rule:admin_api"
+
+# Manage an existing snapshot.
+# POST  /manageable_snapshots
+#"snapshot_extension:snapshot_manage": "rule:admin_api"
+
+# Stop managing a snapshot.
+# POST  /snapshots/{snapshot_id}/action (os-unmanage)
+#"snapshot_extension:snapshot_unmanage": "rule:admin_api"
+
+# List backups.
+# GET  /backups
+# GET  /backups/detail
+#"backup:get_all": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "backup:get_all":"rule:admin_or_owner" has been deprecated since X
+# in favor of
+# "backup:get_all":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List backups or show backup with project attributes.
+# GET  /backups/{backup_id}
+# GET  /backups/detail
+#"backup:backup_project_attribute": "rule:admin_api"
+
+# Create backup.
+# POST  /backups
+#"backup:create": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "backup:create":"" has been deprecated since X in favor of
+# "backup:create":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Show backup.
+# GET  /backups/{backup_id}
+#"backup:get": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "backup:get":"rule:admin_or_owner" has been deprecated since X in
+# favor of "backup:get":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Update backup.
+# PUT  /backups/{backup_id}
+#"backup:update": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "backup:update":"rule:admin_or_owner" has been deprecated since X in
+# favor of "backup:update":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete backup.
+# DELETE  /backups/{backup_id}
+#"backup:delete": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "backup:delete":"rule:admin_or_owner" has been deprecated since X in
+# favor of "backup:delete":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Restore backup.
+# POST  /backups/{backup_id}/restore
+#"backup:restore": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "backup:restore":"rule:admin_or_owner" has been deprecated since X
+# in favor of
+# "backup:restore":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Import backup.
+# POST  /backups/{backup_id}/import_record
+#"backup:backup-import": "rule:admin_api"
+
+# Export backup.
+# POST  /backups/{backup_id}/export_record
+#"backup:export-import": "rule:admin_api"
+
+# Reset status of a backup.
+# POST  /backups/{backup_id}/action (os-reset_status)
+#"volume_extension:backup_admin_actions:reset_status": "rule:admin_api"
+
+# Force delete a backup.
+# POST  /backups/{backup_id}/action (os-force_delete)
+#"volume_extension:backup_admin_actions:force_delete": "rule:admin_api"
+
+# List groups.
+# GET  /groups
+# GET  /groups/detail
+#"group:get_all": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "group:get_all":"rule:admin_or_owner" has been deprecated since X in
+# favor of "group:get_all":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Create group.
+# POST  /groups
+#"group:create": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:create":"" has been deprecated since X in favor of
+# "group:create":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Show group.
+# GET  /groups/{group_id}
+#"group:get": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "group:get":"rule:admin_or_owner" has been deprecated since X in
+# favor of "group:get":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Update group.
+# PUT  /groups/{group_id}
+#"group:update": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:update":"rule:admin_or_owner" has been deprecated since X in
+# favor of "group:update":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List groups or show group with project attributes.
+# GET  /groups/{group_id}
+# GET  /groups/detail
+#"group:group_project_attribute": "rule:admin_api"
+
+# Create a group type.
+# POST  /group_types/
+#"group:group_types:create": "rule:admin_api"
+
+# DEPRECATED
+# "group:group_types_manage":"rule:admin_api" has been deprecated
+# since X in favor of "group:group_types:create":"rule:admin_api".
+# group:group_types_manage has been replaced by more granular policies
+# that separately govern POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "group:group_types_manage": "rule:group:group_types:create"
+
+# Update a group type.
+# PUT  /group_types/{group_type_id}
+#"group:group_types:update": "rule:admin_api"
+
+# DEPRECATED
+# "group:group_types_manage":"rule:admin_api" has been deprecated
+# since X in favor of "group:group_types:update":"rule:admin_api".
+# group:group_types_manage has been replaced by more granular policies
+# that separately govern POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "group:group_types_manage": "rule:group:group_types:update"
+
+# Delete a group type.
+# DELETE  /group_types/{group_type_id}
+#"group:group_types:delete": "rule:admin_api"
+
+# DEPRECATED
+# "group:group_types_manage":"rule:admin_api" has been deprecated
+# since X in favor of "group:group_types:delete":"rule:admin_api".
+# group:group_types_manage has been replaced by more granular policies
+# that separately govern POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "group:group_types_manage": "rule:group:group_types:delete"
+
+# Show group type with type specs attributes.
+# GET  /group_types/{group_type_id}
+#"group:access_group_types_specs": "rule:admin_api"
+
+# Show a group type spec.
+# GET  /group_types/{group_type_id}/group_specs/{g_spec_id}
+#"group:group_types_specs:get": "rule:admin_api"
+
+# DEPRECATED
+# "group:group_types_specs":"rule:admin_api" has been deprecated since
+# X in favor of "group:group_types_specs:get":"rule:admin_api".
+# group:group_types_specs has been replaced by more granular policies
+# that separately govern GET, POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "group:group_types_specs": "rule:group:group_types_specs:get"
+
+# List group type specs.
+# GET  /group_types/{group_type_id}/group_specs
+#"group:group_types_specs:get_all": "rule:admin_api"
+
+# DEPRECATED
+# "group:group_types_specs":"rule:admin_api" has been deprecated since
+# X in favor of "group:group_types_specs:get_all":"rule:admin_api".
+# group:group_types_specs has been replaced by more granular policies
+# that separately govern GET, POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "group:group_types_specs": "rule:group:group_types_specs:get_all"
+
+# Create a group type spec.
+# POST  /group_types/{group_type_id}/group_specs
+#"group:group_types_specs:create": "rule:admin_api"
+
+# DEPRECATED
+# "group:group_types_specs":"rule:admin_api" has been deprecated since
+# X in favor of "group:group_types_specs:create":"rule:admin_api".
+# group:group_types_specs has been replaced by more granular policies
+# that separately govern GET, POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "group:group_types_specs": "rule:group:group_types_specs:create"
+
+# Update a group type spec.
+# PUT  /group_types/{group_type_id}/group_specs/{g_spec_id}
+#"group:group_types_specs:update": "rule:admin_api"
+
+# DEPRECATED
+# "group:group_types_specs":"rule:admin_api" has been deprecated since
+# X in favor of "group:group_types_specs:update":"rule:admin_api".
+# group:group_types_specs has been replaced by more granular policies
+# that separately govern GET, POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "group:group_types_specs": "rule:group:group_types_specs:update"
+
+# Delete a group type spec.
+# DELETE  /group_types/{group_type_id}/group_specs/{g_spec_id}
+#"group:group_types_specs:delete": "rule:admin_api"
+
+# DEPRECATED
+# "group:group_types_specs":"rule:admin_api" has been deprecated since
+# X in favor of "group:group_types_specs:delete":"rule:admin_api".
+# group:group_types_specs has been replaced by more granular policies
+# that separately govern GET, POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "group:group_types_specs": "rule:group:group_types_specs:delete"
+
+# List group snapshots.
+# GET  /group_snapshots
+# GET  /group_snapshots/detail
+#"group:get_all_group_snapshots": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "group:get_all_group_snapshots":"rule:admin_or_owner" has been
+# deprecated since X in favor of "group:get_all_group_snapshots":"rule
+# :xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Create group snapshot.
+# POST  /group_snapshots
+#"group:create_group_snapshot": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:create_group_snapshot":"" has been deprecated since X in
+# favor of "group:create_group_snapshot":"rule:xena_system_admin_or_pr
+# oject_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Show group snapshot.
+# GET  /group_snapshots/{group_snapshot_id}
+#"group:get_group_snapshot": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "group:get_group_snapshot":"rule:admin_or_owner" has been deprecated
+# since X in favor of "group:get_group_snapshot":"rule:xena_system_adm
+# in_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete group snapshot.
+# DELETE  /group_snapshots/{group_snapshot_id}
+#"group:delete_group_snapshot": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:delete_group_snapshot":"rule:admin_or_owner" has been
+# deprecated since X in favor of "group:delete_group_snapshot":"rule:x
+# ena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Update group snapshot.
+# PUT  /group_snapshots/{group_snapshot_id}
+#"group:update_group_snapshot": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:update_group_snapshot":"rule:admin_or_owner" has been
+# deprecated since X in favor of "group:update_group_snapshot":"rule:x
+# ena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List group snapshots or show group snapshot with project attributes.
+# GET  /group_snapshots/{group_snapshot_id}
+# GET  /group_snapshots/detail
+#"group:group_snapshot_project_attribute": "rule:admin_api"
+
+# Reset status of group snapshot.
+# POST  /group_snapshots/{g_snapshot_id}/action (reset_status)
+#"group:reset_group_snapshot_status": "rule:admin_api"
+
+# Delete group.
+# POST  /groups/{group_id}/action (delete)
+#"group:delete": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:delete":"rule:admin_or_owner" has been deprecated since X in
+# favor of "group:delete":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Reset status of group.
+# POST  /groups/{group_id}/action (reset_status)
+#"group:reset_status": "rule:admin_api"
+
+# Enable replication.
+# POST  /groups/{group_id}/action (enable_replication)
+#"group:enable_replication": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:enable_replication":"rule:admin_or_owner" has been deprecated
+# since X in favor of "group:enable_replication":"rule:xena_system_adm
+# in_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Disable replication.
+# POST  /groups/{group_id}/action (disable_replication)
+#"group:disable_replication": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:disable_replication":"rule:admin_or_owner" has been
+# deprecated since X in favor of "group:disable_replication":"rule:xen
+# a_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Fail over replication.
+# POST  /groups/{group_id}/action (failover_replication)
+#"group:failover_replication": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:failover_replication":"rule:admin_or_owner" has been
+# deprecated since X in favor of "group:failover_replication":"rule:xe
+# na_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List failover replication.
+# POST  /groups/{group_id}/action (list_replication_targets)
+#"group:list_replication_targets": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "group:list_replication_targets":"rule:admin_or_owner" has been
+# deprecated since X in favor of "group:list_replication_targets":"rul
+# e:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List qos specs or list all associations.
+# GET  /qos-specs
+# GET  /qos-specs/{qos_id}/associations
+#"volume_extension:qos_specs_manage:get_all": "rule:admin_api"
+
+# Show qos specs.
+# GET  /qos-specs/{qos_id}
+#"volume_extension:qos_specs_manage:get": "rule:admin_api"
+
+# Create qos specs.
+# POST  /qos-specs
+#"volume_extension:qos_specs_manage:create": "rule:admin_api"
+
+# Update qos specs (including updating association).
+# PUT  /qos-specs/{qos_id}
+# GET  /qos-specs/{qos_id}/disassociate_all
+# GET  /qos-specs/{qos_id}/associate
+# GET  /qos-specs/{qos_id}/disassociate
+#"volume_extension:qos_specs_manage:update": "rule:admin_api"
+
+# delete qos specs or unset one specified qos key.
+# DELETE  /qos-specs/{qos_id}
+# PUT  /qos-specs/{qos_id}/delete_keys
+#"volume_extension:qos_specs_manage:delete": "rule:admin_api"
+
+# Show project quota class.
+# GET  /os-quota-class-sets/{project_id}
+#"volume_extension:quota_classes:get": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:quota_classes":"rule:admin_api" has been
+# deprecated since X in favor of
+# "volume_extension:quota_classes:get":"rule:admin_api".
+# volume_extension:quota_classes has been replaced by more granular
+# policies that separately govern GET and PUT operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "volume_extension:quota_classes": "rule:volume_extension:quota_classes:get"
+
+# Update project quota class.
+# PUT  /os-quota-class-sets/{project_id}
+#"volume_extension:quota_classes:update": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:quota_classes":"rule:admin_api" has been
+# deprecated since X in favor of
+# "volume_extension:quota_classes:update":"rule:admin_api".
+# volume_extension:quota_classes has been replaced by more granular
+# policies that separately govern GET and PUT operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "volume_extension:quota_classes": "rule:volume_extension:quota_classes:update"
+
+# Show project quota (including usage and default).
+# GET  /os-quota-sets/{project_id}
+# GET  /os-quota-sets/{project_id}/default
+# GET  /os-quota-sets/{project_id}?usage=True
+#"volume_extension:quotas:show": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:quotas:show":"rule:admin_or_owner" has been
+# deprecated since None in favor of "volume_extension:quotas:show":"ru
+# le:xena_system_admin_or_project_reader".
+#
+
+# Update project quota.
+# PUT  /os-quota-sets/{project_id}
+#"volume_extension:quotas:update": "rule:admin_api"
+
+# Delete project quota.
+# DELETE  /os-quota-sets/{project_id}
+#"volume_extension:quotas:delete": "rule:admin_api"
+
+# Show backend capabilities.
+# GET  /capabilities/{host_name}
+#"volume_extension:capabilities": "rule:admin_api"
+
+# List all services.
+# GET  /os-services
+#"volume_extension:services:index": "rule:admin_api"
+
+# Update service, including failover_host, thaw, freeze, disable,
+# enable, set-log and get-log actions.
+# PUT  /os-services/{action}
+#"volume_extension:services:update": "rule:admin_api"
+
+# Freeze a backend host.
+# PUT  /os-services/freeze
+#"volume:freeze_host": "rule:admin_api"
+
+# Thaw a backend host.
+# PUT  /os-services/thaw
+#"volume:thaw_host": "rule:admin_api"
+
+# Failover a backend host.
+# PUT  /os-services/failover_host
+#"volume:failover_host": "rule:admin_api"
+
+# List all backend pools.
+# GET  /scheduler-stats/get_pools
+#"scheduler_extension:scheduler_stats:get_pools": "rule:admin_api"
+
+# List, update or show hosts for a project.
+# GET  /os-hosts
+# PUT  /os-hosts/{host_name}
+# GET  /os-hosts/{host_id}
+#"volume_extension:hosts": "rule:admin_api"
+
+# Show limits with used limit attributes.
+# GET  /limits
+#"limits_extension:used_limits": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "limits_extension:used_limits":"rule:admin_or_owner" has been
+# deprecated since X in favor of "limits_extension:used_limits":"rule:
+# xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List (in detail) of volumes which are available to manage.
+# GET  /manageable_volumes
+# GET  /manageable_volumes/detail
+#"volume_extension:list_manageable": "rule:admin_api"
+
+# Manage existing volumes.
+# POST  /manageable_volumes
+#"volume_extension:volume_manage": "rule:admin_api"
+
+# Stop managing a volume.
+# POST  /volumes/{volume_id}/action (os-unmanage)
+#"volume_extension:volume_unmanage": "rule:admin_api"
+
+# Create volume type.
+# POST  /types
+#"volume_extension:type_create": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:types_manage":"rule:admin_api" has been deprecated
+# since X in favor of "volume_extension:type_create":"rule:admin_api".
+# volume_extension:types_manage has been replaced by more granular
+# policies that separately govern POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "volume_extension:types_manage": "rule:volume_extension:type_create"
+
+# Update volume type.
+# PUT  /types
+#"volume_extension:type_update": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:types_manage":"rule:admin_api" has been deprecated
+# since X in favor of "volume_extension:type_update":"rule:admin_api".
+# volume_extension:types_manage has been replaced by more granular
+# policies that separately govern POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "volume_extension:types_manage": "rule:volume_extension:type_update"
+
+# Delete volume type.
+# DELETE  /types
+#"volume_extension:type_delete": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:types_manage":"rule:admin_api" has been deprecated
+# since X in favor of "volume_extension:type_delete":"rule:admin_api".
+# volume_extension:types_manage has been replaced by more granular
+# policies that separately govern POST, PUT, and DELETE operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "volume_extension:types_manage": "rule:volume_extension:type_delete"
+
+# Get one specific volume type.
+# GET  /types/{type_id}
+#"volume_extension:type_get": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:type_get":"" has been deprecated since X in favor
+# of "volume_extension:type_get":"rule:xena_system_admin_or_project_re
+# ader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List volume types.
+# GET  /types/
+#"volume_extension:type_get_all": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:type_get_all":"" has been deprecated since X in
+# favor of "volume_extension:type_get_all":"rule:xena_system_admin_or_
+# project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Include the volume type's extra_specs attribute in the volume type
+# list or show requests.  The ability to make these calls is governed
+# by other policies.
+# GET  /types/{type_id}
+# GET  /types
+#"volume_extension:access_types_extra_specs": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:access_types_extra_specs":"rule:admin_api" has
+# been deprecated since X in favor of "volume_extension:access_types_e
+# xtra_specs":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Include the volume type's QoS specifications ID attribute in the
+# volume type list or show requests.  The ability to make these calls
+# is governed by other policies.
+# GET  /types/{type_id}
+# GET  /types
+#"volume_extension:access_types_qos_specs_id": "rule:admin_api"
+
+# DEPRECATED: This rule will be removed in the Yoga release.
+#"volume_extension:volume_type_encryption": "rule:admin_api"
+
+# Create volume type encryption.
+# POST  /types/{type_id}/encryption
+#"volume_extension:volume_type_encryption:create": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:volume_type_encryption:create":"rule:volume_extens
+# ion:volume_type_encryption" has been deprecated since X in favor of
+# "volume_extension:volume_type_encryption:create":"rule:admin_api".
+# Reason: 'volume_extension:volume_type_encryption' was a convenience
+# policy that allowed you to set all volume encryption type policies
+# to the same value.  We are deprecating this rule to prepare for a
+# future release in which the default values for policies that read,
+# create/update, and delete encryption types will be different from
+# each other.
+
+# Show a volume type's encryption type, show an encryption specs item.
+# GET  /types/{type_id}/encryption
+# GET  /types/{type_id}/encryption/{key}
+#"volume_extension:volume_type_encryption:get": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:volume_type_encryption:get":"rule:volume_extension
+# :volume_type_encryption" has been deprecated since X in favor of
+# "volume_extension:volume_type_encryption:get":"rule:admin_api".
+# Reason: 'volume_extension:volume_type_encryption' was a convenience
+# policy that allowed you to set all volume encryption type policies
+# to the same value.  We are deprecating this rule to prepare for a
+# future release in which the default values for policies that read,
+# create/update, and delete encryption types will be different from
+# each other.
+
+# Update volume type encryption.
+# PUT  /types/{type_id}/encryption/{encryption_id}
+#"volume_extension:volume_type_encryption:update": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:volume_type_encryption:update":"rule:volume_extens
+# ion:volume_type_encryption" has been deprecated since X in favor of
+# "volume_extension:volume_type_encryption:update":"rule:admin_api".
+# Reason: 'volume_extension:volume_type_encryption' was a convenience
+# policy that allowed you to set all volume encryption type policies
+# to the same value.  We are deprecating this rule to prepare for a
+# future release in which the default values for policies that read,
+# create/update, and delete encryption types will be different from
+# each other.
+
+# Delete volume type encryption.
+# DELETE  /types/{type_id}/encryption/{encryption_id}
+#"volume_extension:volume_type_encryption:delete": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:volume_type_encryption:delete":"rule:volume_extens
+# ion:volume_type_encryption" has been deprecated since X in favor of
+# "volume_extension:volume_type_encryption:delete":"rule:admin_api".
+# Reason: 'volume_extension:volume_type_encryption' was a convenience
+# policy that allowed you to set all volume encryption type policies
+# to the same value.  We are deprecating this rule to prepare for a
+# future release in which the default values for policies that read,
+# create/update, and delete encryption types will be different from
+# each other.
+
+# Adds the boolean field 'os-volume-type-access:is_public' to the
+# responses for these API calls.  The ability to make these calls is
+# governed by other policies.
+# GET  /types
+# GET  /types/{type_id}
+# POST  /types
+#"volume_extension:volume_type_access": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_type_access":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume_extension:volume_type_access"
+# :"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Add volume type access for project.
+# POST  /types/{type_id}/action (addProjectAccess)
+#"volume_extension:volume_type_access:addProjectAccess": "rule:admin_api"
+
+# Remove volume type access for project.
+# POST  /types/{type_id}/action (removeProjectAccess)
+#"volume_extension:volume_type_access:removeProjectAccess": "rule:admin_api"
+
+# List private volume type access detail, that is, list the projects
+# that have access to this volume type.
+# GET  /types/{type_id}/os-volume-type-access
+#"volume_extension:volume_type_access:get_all_for_type": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:volume_type_access:get_all_for_type":"volume_exten
+# sion:volume_type_access" has been deprecated since X in favor of "vo
+# lume_extension:volume_type_access:get_all_for_type":"rule:admin_api"
+# .
+# Reason: 'volume_extension:volume_type_access:get_all_for_type' is a
+# new policy that protects an API call formerly governed by
+# 'volume_extension:volume_type_access', but which has been separated
+# for finer-grained policy control.
+
+# Extend a volume.
+# POST  /volumes/{volume_id}/action (os-extend)
+#"volume:extend": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:extend":"rule:admin_or_owner" has been deprecated since X in
+# favor of "volume:extend":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Extend a attached volume.
+# POST  /volumes/{volume_id}/action (os-extend)
+#"volume:extend_attached_volume": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:extend_attached_volume":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:extend_attached_volume":"rule
+# :xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Complete a volume extend operation.
+# POST  /volumes/{volume_id}/action (os-extend_volume_completion)
+#"volume_extension:volume_admin_actions:extend_volume_completion": "rule:admin_api"
+
+# Revert a volume to a snapshot.
+# POST  /volumes/{volume_id}/action (revert)
+#"volume:revert_to_snapshot": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:revert_to_snapshot":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:revert_to_snapshot":"rule:xen
+# a_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Reset status of a volume.
+# POST  /volumes/{volume_id}/action (os-reset_status)
+#"volume_extension:volume_admin_actions:reset_status": "rule:admin_api"
+
+# Retype a volume.
+# POST  /volumes/{volume_id}/action (os-retype)
+#"volume:retype": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:retype":"rule:admin_or_owner" has been deprecated since X in
+# favor of "volume:retype":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Update a volume's readonly flag.
+# POST  /volumes/{volume_id}/action (os-update_readonly_flag)
+#"volume:update_readonly_flag": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:update_readonly_flag":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:update_readonly_flag":"rule:x
+# ena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Force delete a volume.
+# POST  /volumes/{volume_id}/action (os-force_delete)
+#"volume_extension:volume_admin_actions:force_delete": "rule:admin_api"
+
+# Upload a volume to image with public visibility.
+# POST  /volumes/{volume_id}/action (os-volume_upload_image)
+#"volume_extension:volume_actions:upload_public": "rule:admin_api"
+
+# Upload a volume to image.
+# POST  /volumes/{volume_id}/action (os-volume_upload_image)
+#"volume_extension:volume_actions:upload_image": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:upload_image":"rule:admin_or_owner"
+# has been deprecated since X in favor of "volume_extension:volume_act
+# ions:upload_image":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Force detach a volume.
+# POST  /volumes/{volume_id}/action (os-force_detach)
+#"volume_extension:volume_admin_actions:force_detach": "rule:admin_api"
+
+# migrate a volume to a specified host.
+# POST  /volumes/{volume_id}/action (os-migrate_volume)
+#"volume_extension:volume_admin_actions:migrate_volume": "rule:admin_api"
+
+# Complete a volume migration.
+# POST  /volumes/{volume_id}/action (os-migrate_volume_completion)
+#"volume_extension:volume_admin_actions:migrate_volume_completion": "rule:admin_api"
+
+# Initialize volume attachment.
+# POST  /volumes/{volume_id}/action (os-initialize_connection)
+#"volume_extension:volume_actions:initialize_connection": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:initialize_connection":"rule:admin_
+# or_owner" has been deprecated since X in favor of "volume_extension:
+# volume_actions:initialize_connection":"rule:xena_system_admin_or_pro
+# ject_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Terminate volume attachment.
+# POST  /volumes/{volume_id}/action (os-terminate_connection)
+#"volume_extension:volume_actions:terminate_connection": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:terminate_connection":"rule:admin_o
+# r_owner" has been deprecated since X in favor of "volume_extension:v
+# olume_actions:terminate_connection":"rule:xena_system_admin_or_proje
+# ct_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Roll back volume status to 'in-use'.
+# POST  /volumes/{volume_id}/action (os-roll_detaching)
+#"volume_extension:volume_actions:roll_detaching": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:roll_detaching":"rule:admin_or_owne
+# r" has been deprecated since X in favor of "volume_extension:volume_
+# actions:roll_detaching":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Mark volume as reserved.
+# POST  /volumes/{volume_id}/action (os-reserve)
+#"volume_extension:volume_actions:reserve": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:reserve":"rule:admin_or_owner" has
+# been deprecated since X in favor of "volume_extension:volume_actions
+# :reserve":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Unmark volume as reserved.
+# POST  /volumes/{volume_id}/action (os-unreserve)
+#"volume_extension:volume_actions:unreserve": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:unreserve":"rule:admin_or_owner"
+# has been deprecated since X in favor of "volume_extension:volume_act
+# ions:unreserve":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Begin detach volumes.
+# POST  /volumes/{volume_id}/action (os-begin_detaching)
+#"volume_extension:volume_actions:begin_detaching": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:begin_detaching":"rule:admin_or_own
+# er" has been deprecated since X in favor of "volume_extension:volume
+# _actions:begin_detaching":"rule:xena_system_admin_or_project_member"
+# .
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Add attachment metadata.
+# POST  /volumes/{volume_id}/action (os-attach)
+#"volume_extension:volume_actions:attach": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:attach":"rule:admin_or_owner" has
+# been deprecated since X in favor of "volume_extension:volume_actions
+# :attach":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Clear attachment metadata.
+# POST  /volumes/{volume_id}/action (os-detach)
+#"volume_extension:volume_actions:detach": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_actions:detach":"rule:admin_or_owner" has
+# been deprecated since X in favor of "volume_extension:volume_actions
+# :detach":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Reimage a volume in 'available' or 'error' status.
+# POST  /volumes/{volume_id}/action (os-reimage)
+#"volume:reimage": "rule:xena_system_admin_or_project_member"
+
+# Reimage a volume in 'reserved' status.
+# POST  /volumes/{volume_id}/action (os-reimage)
+#"volume:reimage_reserved": "rule:xena_system_admin_or_project_member"
+
+# List volume transfer.
+# GET  /os-volume-transfer
+# GET  /os-volume-transfer/detail
+# GET  /volume_transfers
+# GET  /volume-transfers/detail
+#"volume:get_all_transfers": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume:get_all_transfers":"rule:admin_or_owner" has been deprecated
+# since X in favor of "volume:get_all_transfers":"rule:xena_system_adm
+# in_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Create a volume transfer.
+# POST  /os-volume-transfer
+# POST  /volume_transfers
+#"volume:create_transfer": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:create_transfer":"rule:admin_or_owner" has been deprecated
+# since X in favor of
+# "volume:create_transfer":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Show one specified volume transfer.
+# GET  /os-volume-transfer/{transfer_id}
+# GET  /volume-transfers/{transfer_id}
+#"volume:get_transfer": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume:get_transfer":"rule:admin_or_owner" has been deprecated
+# since X in favor of
+# "volume:get_transfer":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Accept a volume transfer.
+# POST  /os-volume-transfer/{transfer_id}/accept
+# POST  /volume-transfers/{transfer_id}/accept
+#"volume:accept_transfer": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:accept_transfer":"" has been deprecated since X in favor of
+# "volume:accept_transfer":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete volume transfer.
+# DELETE  /os-volume-transfer/{transfer_id}
+# DELETE  /volume-transfers/{transfer_id}
+#"volume:delete_transfer": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:delete_transfer":"rule:admin_or_owner" has been deprecated
+# since X in favor of
+# "volume:delete_transfer":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Show volume's metadata or one specified metadata with a given key.
+# GET  /volumes/{volume_id}/metadata
+# GET  /volumes/{volume_id}/metadata/{key}
+# POST  /volumes/{volume_id}/action  (os-show_image_metadata)
+#"volume:get_volume_metadata": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume:get_volume_metadata":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:get_volume_metadata":"rule:xe
+# na_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Create volume metadata.
+# POST  /volumes/{volume_id}/metadata
+#"volume:create_volume_metadata": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:create_volume_metadata":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:create_volume_metadata":"rule
+# :xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Replace a volume's metadata dictionary or update a single metadatum
+# with a given key.
+# PUT  /volumes/{volume_id}/metadata
+# PUT  /volumes/{volume_id}/metadata/{key}
+#"volume:update_volume_metadata": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:update_volume_metadata":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:update_volume_metadata":"rule
+# :xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete a volume's metadatum with the given key.
+# DELETE  /volumes/{volume_id}/metadata/{key}
+#"volume:delete_volume_metadata": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:delete_volume_metadata":"rule:admin_or_owner" has been
+# deprecated since X in favor of "volume:delete_volume_metadata":"rule
+# :xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Include a volume's image metadata in volume detail responses.  The
+# ability to make these calls is governed by other policies.
+# GET  /volumes/detail
+# GET  /volumes/{volume_id}
+#"volume_extension:volume_image_metadata:show": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:volume_image_metadata":"rule:admin_or_owner" has
+# been deprecated since X in favor of "volume_extension:volume_image_m
+# etadata:show":"rule:xena_system_admin_or_project_reader".
+# volume_extension:volume_image_metadata has been replaced by more
+# granular policies that separately govern show, set, and remove
+# operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "volume_extension:volume_image_metadata": "rule:volume_extension:volume_image_metadata:show"
+
+# Set image metadata for a volume
+# POST  /volumes/{volume_id}/action (os-set_image_metadata)
+#"volume_extension:volume_image_metadata:set": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_image_metadata":"rule:admin_or_owner" has
+# been deprecated since X in favor of "volume_extension:volume_image_m
+# etadata:set":"rule:xena_system_admin_or_project_member".
+# volume_extension:volume_image_metadata has been replaced by more
+# granular policies that separately govern show, set, and remove
+# operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "volume_extension:volume_image_metadata": "rule:volume_extension:volume_image_metadata:set"
+
+# Remove specific image metadata from a volume
+# POST  /volumes/{volume_id}/action (os-unset_image_metadata)
+#"volume_extension:volume_image_metadata:remove": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume_extension:volume_image_metadata":"rule:admin_or_owner" has
+# been deprecated since X in favor of "volume_extension:volume_image_m
+# etadata:remove":"rule:xena_system_admin_or_project_member".
+# volume_extension:volume_image_metadata has been replaced by more
+# granular policies that separately govern show, set, and remove
+# operations.
+# WARNING: A rule name change has been identified.
+#          This may be an artifact of new rules being
+#          included which require legacy fallback
+#          rules to ensure proper policy behavior.
+#          Alternatively, this may just be an alias.
+#          Please evaluate on a case by case basis
+#          keeping in mind the format for aliased
+#          rules is:
+#          "old_rule_name": "new_rule_name".
+# "volume_extension:volume_image_metadata": "rule:volume_extension:volume_image_metadata:remove"
+
+# Update volume admin metadata. This permission is required to
+# complete these API calls, though the ability to make these calls is
+# governed by other policies.
+# POST  /volumes/{volume_id}/action (os-update_readonly_flag)
+# POST  /volumes/{volume_id}/action (os-attach)
+#"volume:update_volume_admin_metadata": "rule:admin_api"
+
+# List type extra specs.
+# GET  /types/{type_id}/extra_specs
+#"volume_extension:types_extra_specs:index": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:types_extra_specs:index":"" has been deprecated
+# since X in favor of "volume_extension:types_extra_specs:index":"rule
+# :xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Create type extra specs.
+# POST  /types/{type_id}/extra_specs
+#"volume_extension:types_extra_specs:create": "rule:admin_api"
+
+# Show one specified type extra specs.
+# GET  /types/{type_id}/extra_specs/{extra_spec_key}
+#"volume_extension:types_extra_specs:show": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:types_extra_specs:show":"" has been deprecated
+# since X in favor of "volume_extension:types_extra_specs:show":"rule:
+# xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Include extra_specs fields that may reveal sensitive information
+# about the deployment that should not be exposed to end users in
+# various volume-type responses that show extra_specs. The ability to
+# make these calls is governed by other policies.
+# GET  /types
+# GET  /types/{type_id}
+# GET  /types/{type_id}/extra_specs
+# GET  /types/{type_id}/extra_specs/{extra_spec_key}
+#"volume_extension:types_extra_specs:read_sensitive": "rule:admin_api"
+
+# Update type extra specs.
+# PUT  /types/{type_id}/extra_specs/{extra_spec_key}
+#"volume_extension:types_extra_specs:update": "rule:admin_api"
+
+# Delete type extra specs.
+# DELETE  /types/{type_id}/extra_specs/{extra_spec_key}
+#"volume_extension:types_extra_specs:delete": "rule:admin_api"
+
+# Create volume.
+# POST  /volumes
+#"volume:create": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:create":"" has been deprecated since X in favor of
+# "volume:create":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Create volume from image.
+# POST  /volumes
+#"volume:create_from_image": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:create_from_image":"" has been deprecated since X in favor
+# of "volume:create_from_image":"rule:xena_system_admin_or_project_mem
+# ber".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Show volume.
+# GET  /volumes/{volume_id}
+#"volume:get": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume:get":"rule:admin_or_owner" has been deprecated since X in
+# favor of "volume:get":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List volumes or get summary of volumes.
+# GET  /volumes
+# GET  /volumes/detail
+# GET  /volumes/summary
+#"volume:get_all": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume:get_all":"rule:admin_or_owner" has been deprecated since X
+# in favor of
+# "volume:get_all":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Update volume or update a volume's bootable status.
+# PUT  /volumes
+# POST  /volumes/{volume_id}/action (os-set_bootable)
+#"volume:update": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:update":"rule:admin_or_owner" has been deprecated since X in
+# favor of "volume:update":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Delete volume.
+# DELETE  /volumes/{volume_id}
+#"volume:delete": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:delete":"rule:admin_or_owner" has been deprecated since X in
+# favor of "volume:delete":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Force Delete a volume.
+# DELETE  /volumes/{volume_id}
+#"volume:force_delete": "rule:admin_api"
+
+# List or show volume with host attribute.
+# GET  /volumes/{volume_id}
+# GET  /volumes/detail
+#"volume_extension:volume_host_attribute": "rule:admin_api"
+
+# List or show volume with tenant attribute.
+# GET  /volumes/{volume_id}
+# GET  /volumes/detail
+#"volume_extension:volume_tenant_attribute": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:volume_tenant_attribute":"rule:admin_or_owner" has
+# been deprecated since X in favor of "volume_extension:volume_tenant_
+# attribute":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# List or show volume with migration status attribute.
+# GET  /volumes/{volume_id}
+# GET  /volumes/detail
+#"volume_extension:volume_mig_status_attribute": "rule:admin_api"
+
+# Show volume's encryption metadata.
+# GET  /volumes/{volume_id}/encryption
+# GET  /volumes/{volume_id}/encryption/{encryption_key}
+#"volume_extension:volume_encryption_metadata": "rule:xena_system_admin_or_project_reader"
+
+# DEPRECATED
+# "volume_extension:volume_encryption_metadata":"rule:admin_or_owner"
+# has been deprecated since X in favor of "volume_extension:volume_enc
+# ryption_metadata":"rule:xena_system_admin_or_project_reader".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Create multiattach capable volume.
+# POST  /volumes
+#"volume:multiattach": "rule:xena_system_admin_or_project_member"
+
+# DEPRECATED
+# "volume:multiattach":"rule:admin_or_owner" has been deprecated since
+# X in favor of
+# "volume:multiattach":"rule:xena_system_admin_or_project_member".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Set or update default volume type.
+# PUT  /default-types
+#"volume_extension:default_set_or_update": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:default_set_or_update":"rule:system_or_domain_or_p
+# roject_admin" has been deprecated since X in favor of
+# "volume_extension:default_set_or_update":"rule:admin_api".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Get default types.
+# GET  /default-types/{project-id}
+#"volume_extension:default_get": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:default_get":"rule:system_or_domain_or_project_adm
+# in" has been deprecated since X in favor of
+# "volume_extension:default_get":"rule:admin_api".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Get all default types. WARNING: Changing this might open up too much
+# information regarding cloud deployment.
+# GET  /default-types/
+#"volume_extension:default_get_all": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:default_get_all":"role:admin and system_scope:all"
+# has been deprecated since X in favor of
+# "volume_extension:default_get_all":"rule:admin_api".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+
+# Unset default type.
+# DELETE  /default-types/{project-id}
+#"volume_extension:default_unset": "rule:admin_api"
+
+# DEPRECATED
+# "volume_extension:default_unset":"rule:system_or_domain_or_project_a
+# dmin" has been deprecated since X in favor of
+# "volume_extension:default_unset":"rule:admin_api".
+# Default policies now support the three Keystone default roles,
+# namely 'admin', 'member', and 'reader' to implement three Cinder
+# "personas".  See "Policy Personas and Permissions" in the "Cinder
+# Service Configuration" documentation (Xena release) for details.
+

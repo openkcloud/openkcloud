@@ -1,0 +1,28 @@
+{% load i18n %}
+
+<div class="description">
+  {% blocktrans trimmed %}
+    Resize the canvas by scrolling up/down with your mouse/trackpad on the topology.
+    Pan around the canvas by clicking and dragging the space behind the topology.
+  {% endblocktrans %}
+</div>
+<div class="topology-navi">
+  <div class="btn-group" data-toggle="buttons">
+    <label class="btn btn-default" id="toggle_labels_label">
+      <input type="checkbox" autocomplete="off" id="toggle_labels">
+      <span class="fa fa-th-large"></span> {% trans "Toggle Labels" %}
+    </label>
+    <label class="btn btn-default" id="toggle_networks_label">
+      <input type="checkbox" autocomplete="off" id="toggle_networks">
+      <span class="fa fa-th"></span>  {% trans "Toggle Network Collapse" %}
+    </label>
+  </div>
+    <button type="button" class="btn btn-default" id="center_topology">
+      <span class="fa fa-refresh"></span> {%trans "Center Topology" %}
+    </button>
+</div>
+<div id="topologyCanvasContainer" class="d3-container">
+  <div class="nodata">{% blocktrans trimmed %}
+    There are no networks, routers, or connected instances to display.
+    {% endblocktrans %}</div>
+</div>

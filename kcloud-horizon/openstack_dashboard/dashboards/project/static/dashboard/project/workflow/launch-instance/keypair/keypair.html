@@ -1,0 +1,80 @@
+<div ng-controller="LaunchInstanceKeypairController as ctrl">
+  <p class="step-description" translate>
+    A key pair allows you to SSH into your newly created instance.
+    You may select an existing key pair, import a key pair, or generate a new key pair.
+  </p>
+
+  <button type="button" class="btn btn-default"
+          ng-click="ctrl.createKeyPair()">
+    <span class="fa fa-plus"></span>
+    <translate>Create Key Pair</translate>
+  </button>
+  <button type="button" class="btn btn-default"
+          ng-click="ctrl.importKeyPair()">
+    <span class="fa fa-upload"></span>
+    <translate>Import Key Pair</translate>
+  </button>
+
+  <transfer-table tr-model="ctrl.tableData" limits="ctrl.tableLimits" clone-content>
+    <hz-dynamic-table
+        config="$isAvailableTable ? ctrl.availableTableConfig : ctrl.allocatedTableConfig"
+        items="$isAvailableTable ? ($sourceItems | filterAvailable:trCtrl.allocatedIds) : $sourceItems"
+        validate-number-min="{$ ctrl.isKeypairRequired $}" ng-model="ctrl.tableData.allocated.length"
+        item-actions="trCtrl.itemActions"
+        filter-facets="$isAvailableTable && ctrl.filterFacets"
+        table="ctrl">
+    </hz-dynamic-table>
+  </transfer-table> <!-- End Key Pairs Table -->
+
+  <settings-service hz-if-settings="[&quot;OPENSTACK_HYPERVISOR_FEATURES.can_set_password&quot;]">
+    <div class="admin-password">
+      <div class="themable-checkbox">
+        <input ng-change="ctrl.setAdminPasswordChange()"
+               ng-model="ctrl.setAdminPassword"
+               type="checkbox"
+               id="setPassword">
+        <label for="setPassword">
+          <span translate>Set admin password</span>
+        </label>
+      </div>
+
+      <div class="container">
+        <div class="row">
+
+          <div ng-if="ctrl.setAdminPassword" ng-form="adminPasswordForm">
+            <div class="col-sm-3">
+              <div class="form-group">
+                <label class="control-label" translate for="adminPassword">Password</label>
+                <input class="form-control"
+                       id="adminPassword"
+                       name="adminPassword"
+                       ng-model="model.newInstanceSpec.admin_pass"
+                       type="password">
+              </div>
+            </div>
+
+            <div class="col-sm-3">
+              <div class="form-group"
+                   ng-class="{ 'has-error':
+                                adminPasswordForm['confirmPassword'].$invalid  &&
+                                adminPasswordForm['confirmPassword'].$dirty }">
+                <label class="control-label" translate for="confirmPassword">Confirm password</label>
+                <input id="confirmPassword"
+                       name="confirmPassword"
+                       class="form-control"
+                       hz-password-match="model.newInstanceSpec.admin_pass"
+                       ng-model="ctrl.confirmedAdminPassword"
+                       type="password">
+                <span class="help-block"
+                  ng-show="adminPasswordForm['confirmPassword'].$invalid &&
+                               adminPasswordForm['confirmPassword'].$dirty">
+                  {$ ctrl.adminPassConfError $}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </settings-service> <!-- End Admin Password Form-->
+</div> <!-- End Controller -->

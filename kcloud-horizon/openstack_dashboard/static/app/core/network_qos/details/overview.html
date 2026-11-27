@@ -1,0 +1,68 @@
+<div ng-controller="NetworkQoSOverviewController as ctrl">
+  <div class="row">
+    <div class="col-md-6 detail">
+      <h3 translate>Policy Details</h3>
+      <hr>
+      <hz-resource-property-list
+        resource-type-name="OS::Neutron::QoSPolicy"
+        cls="dl-horizontal"
+        item="ctrl.policy"
+        property-groups="[['name', 'description', 'id', 'project_id']]">
+      </hz-resource-property-list>
+    </div>
+    <div class="col-md-6 detail">
+      <h3 translate>Ownership</h3>
+      <hr>
+      <hz-resource-property-list
+        resource-type-name="OS::Neutron::QoSPolicy"
+        cls="dl-horizontal"
+        item="ctrl.policy"
+        property-groups="[['created_at', 'updated_at', 'shared', 'revision_number']]">
+      </hz-resource-property-list>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-12 detail">
+      <h3 translate>Rules</h3>
+      <hr>
+      <dl class="dl-horizontal" ng-repeat="rule in ctrl.policy.rules track by $index">
+        <div ng-if="rule.type === 'dscp_marking'">
+          <h3 translate>DSCP Rules</h3>
+          <hr>
+        <hz-dynamic-table
+          config="ctrl.tableConfigDSCP"
+          items="rule"
+          table="ctrl">
+        </hz-dynamic-table>
+      </div>
+      <div ng-if="rule.type === 'bandwidth_limit'">
+        <h3 translate>Bandwidth Rules</h3>
+        <hr>
+        <hz-dynamic-table
+          config="ctrl.tableConfigBwd"
+          items="rule"
+          table="ctrl">
+        </hz-dynamic-table>
+      </div>
+      <div ng-if="rule.type === 'minimum_bandwidth'">
+        <h3 translate>Minimum Bandwidth Rules</h3>
+        <hr>
+        <hz-dynamic-table
+          config="ctrl.tableConfigMinBwd"
+          items="rule"
+          table="ctrl">
+        </hz-dynamic-table>
+      </div>
+      <div ng-if="rule.type === 'minimum_packet_rate'">
+        <h3 translate>Minimum Packet Rules</h3>
+        <hr>
+        <hz-dynamic-table
+          config="ctrl.tableConfigMinPckRt"
+          items="rule"
+          table="ctrl">
+        </hz-dynamic-table>
+      </div>
+      </dl>
+    </div>
+  </div>
+</div>

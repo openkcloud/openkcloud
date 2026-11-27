@@ -1,0 +1,28 @@
+{
+  "version": "0.0.0",
+  "private": true,
+  "name": "horizon",
+  "description": "OpenStack Horizon - Angular",
+  "repository": "none",
+  "license": "Apache 2.0",
+  "devDependencies": {
+    "eslint": "3.0.0",
+    "eslint-config-openstack": "4.0.1",
+    "eslint-plugin-angular": "4.0.1",
+    "jasmine-core": "3.6.0",
+    "karma": "5.2.3",
+    "karma-cli": "2.0.0",
+    "karma-coverage": "2.0.3",
+    "karma-firefox-launcher": "2.1.0",
+    "karma-jasmine": "4.0.1",
+    "karma-ng-html2js-preprocessor": "1.0.0",
+    "karma-threshold-reporter": "0.1.15"
+  },
+  "scripts": {
+    "postinstall": "if [ ! -d .tox/npm ]; then tox -e npm --notest; fi",
+    "test": "karma start horizon/karma.conf.js --single-run && karma start openstack_dashboard/karma.conf.js --single-run",
+    "lint": "eslint --no-color openstack_dashboard/static horizon/static openstack_dashboard/dashboards/*/static",
+    "lintq": "eslint --quiet openstack_dashboard/static horizon/static openstack_dashboard/dashboards/*/static"
+  },
+  "dependencies": {}
+}

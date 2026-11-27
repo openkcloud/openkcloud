@@ -1,0 +1,18 @@
+<div ng-controller="LaunchInstanceServerGroupsController as ctrl">
+  <p class="step-description" translate>
+    Select the server group to launch the instance in.
+  </p>
+
+
+
+  <transfer-table tr-model="ctrl.tableData" limits="ctrl.tableLimits" clone-content>
+    <hz-dynamic-table
+        config="$isAvailableTable ? ctrl.availableTableConfig : ctrl.allocatedTableConfig"
+        items="$isAvailableTable ? ($sourceItems | filterAvailable:trCtrl.allocatedIds) : $sourceItems"
+        item-actions="trCtrl.itemActions"
+        filter-facets="$isAvailableTable && ctrl.filterFacets"
+        table="ctrl">
+    </hz-dynamic-table>
+  </transfer-table> <!-- End Server Groups Transfer Table -->
+
+</div> <!-- End Controller -->

@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    [`blueprint ng-keypairs <https://blueprints.launchpad.net/horizon/+spec/ng-keypairs>`_]
+    AngularJS-based Key Pairs panel is added. The features in the legacy
+    panel are fully implemented. The Key Pairs panel now may be configured
+    to use either the legacy or AngularJS-based codes.
+    The ANGULAR_FEATURES setting now allows for a `key_pairs_panel`.
+    If set to True, then the AngularJS-Based Key Pairs panel will be used,
+    while the Django version will be used if set to False. Default value
+    for key_pairs_panel is True.

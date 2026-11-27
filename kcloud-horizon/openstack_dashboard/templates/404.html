@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %} {% trans "Page Not Found" %}{% endblock %}
+
+{% block content %}
+<body id="splash" class="ng-scope" ng-app="horizon.app" ng-strict-di="">
+  <div class="container login">
+    <div class="row">
+      <div class="col-xs-11 col-sm-8 col-md-6 col-lg-5 horizontal-center">
+        <div class="panel-heading">
+          <div class="text-center">
+            <img class="splash-logo" src="/static/dashboard/img/logo-splash.svg">
+          </div>
+          <div id="right_content">
+            <div id="page_head">
+              <h2 id="page_heading">{% trans "Sorry, the page you were looking for does not exist" %}</h2>
+              <p id="page_description">{% trans "You may have mistyped the address or the page may have moved." %}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+{% endblock %}
+
+{% block sidebar %}
+  <div id="sidebar">
+    <ul id="navigation">
+      {% block nav_home %}
+      <li><h3><a href="{% url 'index' %}">{% trans "Home" %}</a></h3></li>
+      {% endblock %}
+
+      {% block nav_projects %}
+      <li><h3><a href="{% url 'index' %}">{% trans "Projects" %}</a></h3></li>
+      {% endblock %}
+    </ul>
+  </div> <!-- end sidebar -->
+{% endblock %}

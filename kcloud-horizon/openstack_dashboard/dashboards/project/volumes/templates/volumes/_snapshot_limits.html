@@ -1,0 +1,48 @@
+{% extends "project/volumes/_limits.html" %}
+{% load i18n horizon humanize bootstrap %}
+
+{% block title %}
+  {% trans "From here you can create a snapshot of a volume." %}
+{% endblock %}
+
+{% block head %}
+  {% trans "Snapshot Limits" %}
+{% endblock %}
+
+{% block gigabytes_used %}
+  {{ usages.gigabytes.used|intcomma }}
+{% endblock %}
+
+{% block gigabytes_used_progress %}
+  "{{ usages.gigabytes.used }}"
+{% endblock %}
+
+{% block type_title %}
+  {% trans "Number of Snapshots" %}
+{% endblock %}
+
+{% block used_of_quota %}
+  {% blocktrans with used=usages.snapshots.used|intcomma quota=usages.snapshots.quota|intcomma|quotainf %}{{ used }} of {{ quota }} Used{% endblocktrans %}
+{% endblock %}
+
+{% block type_id %}
+  "quota_snapshots"
+{% endblock %}
+
+{% block total_progress %}
+  "{{ usages.snapshots.quota }}"
+{% endblock %}
+
+{% block used_progress %}
+  "{{ usages.snapshots.used }}"
+{% endblock %}
+
+{% block show_progress_bar %}
+  {% widthratio usages.snapshots.used usages.snapshots.quota 100 as volumes_percent %}
+  {% if numRequestedItems %}
+    {% widthratio numRequestedItems usages.snapshots.quota 100 as single_step %}
+  {% else %}
+    {% widthratio 1 usages.snapshots.quota 100 as single_step %}
+  {% endif %}
+  {% bs_progress_bar volumes_percent single_step %}
+{% endblock %}

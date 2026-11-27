@@ -1,0 +1,49 @@
+{% load i18n splitfilter %}
+<div class="messages">
+<toast></toast>
+{% for message in messages %}
+  {% if "info" in message.tags %}
+    <div class="alert alert-info alert-dismissable fade in">
+      <a class="close" data-dismiss="alert" href="#">
+        <span class="fa fa-times"></span>
+      </a>
+      <p><strong>{% trans "Info: " %}</strong>{{ message }}</p>
+    </div>
+  {% endif %}
+  {% if "warning" in message.tags %}
+    <div class="alert alert-warning alert-dismissable fade in">
+      <a class="close" data-dismiss="alert" href="#">
+        <span class="fa fa-times"></span>
+      </a>
+      <p><strong>{% trans "Warning: " %}</strong>{{ message }}</p>
+    </div>
+  {% endif %}
+  {% if "success" in message.tags %}
+    <div class="alert alert-success alert-dismissable fade in">
+      <a class="close" data-dismiss="alert" href="#">
+        <span class="fa fa-times"></span>
+      </a>
+      <p><strong>{% trans "Success: " %}</strong>{{ message }}</p>
+    </div>
+  {% endif %}
+  {% if "error" in message.tags %}
+    <div class="alert alert-danger alert-dismissable fade in">
+      <a class="close" data-dismiss="alert" href="#">
+        <span class="fa fa-times"></span>
+      </a>
+      <p>
+        {% with message.message|split_message as messages %}
+        <strong>{% trans "Error: " %}</strong>{{ messages|first }}
+          {% if messages|length > 1 %}
+            <a href="#message_details" data-toggle="collapse"
+             data-target="#message_details_{{ forloop.counter }}">Details</a>
+            <div id="message_details_{{ forloop.counter }}" class="collapse">
+              {{ messages|last }}
+            </div>
+          {% endif %}
+      </p>
+    </div>
+    {% endwith %}
+  {% endif %}
+{% endfor %}
+</div>
