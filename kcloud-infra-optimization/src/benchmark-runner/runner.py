@@ -30,12 +30,8 @@ CATALOG_SERVICE_ADDR = os.getenv(
     "CATALOG_SERVICE_ADDR",
     "catalog-service.kcp-control-plane.svc.cluster.local:50051",
 )
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://platform:platform1234"
-    "@timescaledb.data-pipeline.svc.cluster.local:5432/workload_data",
-)
-PROMETHEUS_URL     = os.getenv("PROMETHEUS_URL",  "http://10.0.4.230:30090")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+PROMETHEUS_URL     = os.getenv("PROMETHEUS_URL",  "http://prometheus:9090")
 BENCH_DURATION_SEC = int(os.getenv("BENCH_DURATION_SEC", "60"))
 NPU_INDEX          = int(os.getenv("NPU_INDEX", "0"))
 
@@ -51,8 +47,8 @@ GPU_PRECISION = os.getenv("GPU_PRECISION", "fp16")
 NPU_MODELS    = [m.strip() for m in os.getenv("NPU_MODELS",  _NPU_MODELS_DEFAULT).split(",")  if m.strip()]
 NPU_BATCHES   = [int(b)    for b in os.getenv("NPU_BATCHES", "1,4,8").split(",")              if b.strip()]
 
-_NPU_BASE_Q  = "/root/models/warboy-vision-models/models/quantized_onnx"
-_NPU_BASE_FP = "/root/models/warboy-vision-models/models/onnx"
+_NPU_BASE_Q  = os.getenv("NPU_MODEL_DIR_QUANTIZED", "models/warboy-vision-models/models/quantized_onnx")
+_NPU_BASE_FP = os.getenv("NPU_MODEL_DIR_FP", "models/warboy-vision-models/models/onnx")
 
 NPU_MODEL_REGISTRY: dict[str, dict] = {
     "yolov8n": {

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+가상 클러스터 그룹 대시보드 예시
 """
 
 try:
@@ -9,13 +10,13 @@ except ImportError:
 import json
 
 def show_group_dashboard():
-    """
+    """그룹 대시보드 표시"""
     manager = VirtualClusterGroupManager()
     
     print("가상 클러스터 그룹 대시보드")
     print("=" * 50)
     
-
+    # 예시 그룹들 생성 (실제로는 주석 해제)
     example_groups = {
         "ml-training-team": {
             "type": "ml_training",
@@ -26,7 +27,7 @@ def show_group_dashboard():
             "utilization": 85
         },
         "ai-inference-prod": {
-            "type": "ai_inference",
+            "type": "ai_inference", 
             "clusters": 2,
             "total_nodes": 6,
             "hourly_cost": 8.00,
@@ -49,7 +50,7 @@ def show_group_dashboard():
     for group_name, info in example_groups.items():
         print(f"\n{group_name} ({info['type']})")
         print(f"  클러스터: {info['clusters']}개")
-        print(f"  노드: {info['total_nodes']}개")
+        print(f"  노드: {info['total_nodes']}개") 
         print(f"  시간당 비용: ${info['hourly_cost']:.2f}")
         print(f"  활용률: {info['utilization']}%")
         print(f"  상태: {info['status']}")

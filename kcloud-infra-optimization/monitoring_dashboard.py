@@ -8,7 +8,6 @@ import sys
 import time
 import json
 from datetime import datetime
-sys.path.insert(0, '/root/kcloud_opt/venv/lib/python3.12/site-packages')
 
 from virtual_cluster_monitoring import VirtualClusterMonitor
 

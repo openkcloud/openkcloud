@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+kcloud-opt 모니터링 시스템 설정
 """
 
 import os
@@ -8,8 +9,8 @@ from typing import Dict, List, Optional
 
 @dataclass
 class OpenStackConfig:
-    """
-    auth_url: str = os.getenv('OS_AUTH_URL', "http://10.0.4.200:5000/v3")
+    """OpenStack 연결 설정"""
+    auth_url: str = os.getenv('OS_AUTH_URL', "http://localhost:5000/v3")
     username: str = os.getenv('OS_USERNAME', "admin")
     password: str = os.getenv('OS_PASSWORD', "")
     project_name: str = os.getenv('OS_PROJECT_NAME', "cloud-platform")
@@ -21,55 +22,61 @@ class OpenStackConfig:
 
 @dataclass
 class MonitoringConfig:
-    """
-    update_interval: int = 30
-    history_retention: int = 100
-    alert_retention: int = 50
+    """모니터링 시스템 설정"""
+    update_interval: int = 30  # 초
+    history_retention: int = 100  # 최대 기록 수
+    alert_retention: int = 50    # 최대 알림 수
     
-
-    high_cost_threshold: float = 20.0
+    # 임계값 설정
+    high_cost_threshold: float = 20.0      # $/시간
     low_efficiency_threshold: float = 30.0  # %
     low_health_threshold: float = 50.0      # %
     high_power_threshold: float = 10000.0   # W
     
-
+    # 비용 계산
     electricity_rate: float = 0.12  # $/kWh
     cooling_overhead: float = 1.3   # PUE (Power Usage Effectiveness)
 
 @dataclass
 class ClusterTemplate:
-    """template_id: str
+    """클러스터 템플릿 정보"""
+    template_id: str
     name: str
     base_cost_per_hour: float
     has_gpu: bool
     estimated_power_per_node: float  # watts
 
+# 사전 정의된 템플릿들
 CLUSTER_TEMPLATES = {
     "ai-k8s-template": ClusterTemplate(
         template_id="ai-k8s-template",
+        name="AI/ML 워크로드용 GPU 템플릿",
         base_cost_per_hour=1.20,
         has_gpu=True,
         estimated_power_per_node=1200.0
     ),
     "dev-k8s-template": ClusterTemplate(
-        template_id="dev-k8s-template",
+        template_id="dev-k8s-template", 
+        name="개발용 CPU 템플릿",
         base_cost_per_hour=0.15,
         has_gpu=False,
         estimated_power_per_node=300.0
     ),
     "prod-k8s-template": ClusterTemplate(
         template_id="prod-k8s-template",
+        name="운영용 고성능 템플릿", 
         base_cost_per_hour=0.30,
         has_gpu=False,
         estimated_power_per_node=500.0
     )
 }
 
+# 전역 설정 인스턴스
 openstack_config = OpenStackConfig()
 monitoring_config = MonitoringConfig()
 
 def get_openstack_config() -> OpenStackConfig:
-"""
+    """
     Get current OpenStack configuration.
 
     Returns:
@@ -107,7 +114,7 @@ def update_config_from_env() -> None:
     """
     global openstack_config, monitoring_config
     
-
+    # OpenStack 설정
     if os.getenv('OS_AUTH_URL'):
         openstack_config.auth_url = os.getenv('OS_AUTH_URL')
     if os.getenv('OS_USERNAME'):
@@ -117,7 +124,7 @@ def update_config_from_env() -> None:
     if os.getenv('OS_PROJECT_NAME'):
         openstack_config.project_name = os.getenv('OS_PROJECT_NAME')
     
-
+    # 모니터링 설정
     if os.getenv('MONITORING_UPDATE_INTERVAL'):
         monitoring_config.update_interval = int(os.getenv('MONITORING_UPDATE_INTERVAL'))
     if os.getenv('HIGH_COST_THRESHOLD'):

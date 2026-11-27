@@ -95,4 +95,6 @@ bandit>=1.7.0         # Security linting
 
 # Deployment & K8s
 kubernetes>=27.2.0    # If K8s integration needed
-helm>=3.0.0          # Helm chart management (Python binding)
+asyncpg>=0.29.0
+grpcio>=1.76.0
+protobuf>=6.31.1

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Virtual Cluster REST API
 """
+Virtual Cluster REST API
+OpenStack 클러스터 CRUD 작업을 위한 FastAPI 엔드포인트
+"""
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -10,18 +13,24 @@ from datetime import datetime
 import uvicorn
 import asyncio
 import json
+
 from openstack_cluster_crud import (
     OpenStackClusterCRUD,
     ClusterConfig,
     ClusterInfo,
     ClusterStatus
 )
+
+# CRUD 컨트롤러 인스턴스 관리
 _crud_controller: Optional[OpenStackClusterCRUD] = None
+
+
+# ============= Lifespan 이벤트 =============
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-"""
-    """global _crud_controller
-
+    """애플리케이션 생명주기 관리"""
+    global _crud_controller
+    # 시작 시 초기화
     try:
         _crud_controller = OpenStackClusterCRUD(cloud_name="openstack")
         print("Connected to OpenStack")
@@ -31,17 +40,20 @@ async def lifespan(app: FastAPI):
     
     yield
     
-
+    # 종료 시 정리
     _crud_controller = None
     print("Shutting down API server")
 
 
+# FastAPI 앱 생성
 app = FastAPI(
     title="Virtual Cluster Management API",
+    description="OpenStack Magnum 클러스터 CRUD 작업 API",
     version="1.0.0",
     lifespan=lifespan
 )
 
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -53,11 +65,16 @@ app.add_middleware(
 
 # ============= Dependency Injection =============
 def get_crud_controller() -> OpenStackClusterCRUD:
-"""
+    """
+    CRUD 컨트롤러 의존성 제공
+    
     Returns:
+        OpenStackClusterCRUD 인스턴스
+        
     Raises:
-"""
-    """global _crud_controller
+        HTTPException: 컨트롤러가 초기화되지 않은 경우
+    """
+    global _crud_controller
     if _crud_controller is None:
         raise HTTPException(
             status_code=503,
@@ -66,12 +83,32 @@ def get_crud_controller() -> OpenStackClusterCRUD:
     return _crud_controller
 
 
+# ============= Pydantic 모델 =============
 class ClusterCreateRequest(BaseModel):
-"""
+    """클러스터 생성 요청 모델"""
+    name: str = Field(..., description="클러스터 이름")
+    cluster_template_id: str = Field(..., description="클러스터 템플릿 ID")
+    keypair: str = Field(default="ketilinux", description="SSH 키페어")
+    master_count: int = Field(default=1, ge=1, le=3, description="마스터 노드 수")
+    node_count: int = Field(default=2, ge=1, le=100, description="워커 노드 수")
+    master_flavor: Optional[str] = Field(None, description="마스터 노드 플레이버")
+    flavor: Optional[str] = Field(None, description="워커 노드 플레이버")
+    docker_volume_size: int = Field(default=50, ge=10, description="Docker 볼륨 크기 (GB)")
+    labels: Optional[Dict[str, str]] = Field(None, description="클러스터 레이블")
+    fixed_network: Optional[str] = Field(None, description="고정 네트워크")
+    fixed_subnet: Optional[str] = Field(None, description="고정 서브넷")
+    floating_ip_enabled: bool = Field(default=True, description="플로팅 IP 활성화")
+
+
 class ClusterUpdateRequest(BaseModel):
-"""
-    """class ClusterResponse(BaseModel):
-"""
+    """클러스터 업데이트 요청 모델"""
+    node_count: Optional[int] = Field(None, ge=1, le=100, description="워커 노드 수")
+    max_node_count: Optional[int] = Field(None, ge=1, le=100, description="최대 노드 수")
+    min_node_count: Optional[int] = Field(None, ge=1, le=100, description="최소 노드 수")
+
+
+class ClusterResponse(BaseModel):
+    """클러스터 응답 모델"""
     id: str
     name: str
     status: str
@@ -93,7 +130,7 @@ class ClusterUpdateRequest(BaseModel):
 
 
 class TemplateResponse(BaseModel):
-    """
+    """클러스터 템플릿 응답 모델"""
     id: str
     name: str
     coe: str
@@ -106,14 +143,14 @@ class TemplateResponse(BaseModel):
 
 
 class StatusResponse(BaseModel):
-    """
+    """상태 응답 모델"""
     status: str
     message: str
     timestamp: str
 
 
 class ErrorResponse(BaseModel):
-    """
+    """에러 응답 모델"""
     error: str
     detail: str
     timestamp: str
@@ -122,7 +159,7 @@ class ErrorResponse(BaseModel):
 # ============= Health Check =============
 @app.get("/", response_model=StatusResponse)
 async def root():
-    """
+    """헬스 체크 엔드포인트"""
     return StatusResponse(
         status="healthy",
         message="Virtual Cluster Management API is running",
@@ -132,9 +169,9 @@ async def root():
 
 @app.get("/health", response_model=StatusResponse)
 async def health_check(crud: OpenStackClusterCRUD = Depends(get_crud_controller)):
-    """
+    """상세 헬스 체크"""
     try:
-
+        # OpenStack 연결 확인
         templates = crud.get_cluster_templates()
         return StatusResponse(
             status="healthy",
@@ -148,7 +185,7 @@ async def health_check(crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 # ============= Template Endpoints =============
 @app.get("/api/v1/templates", response_model=List[TemplateResponse])
 async def list_templates(crud: OpenStackClusterCRUD = Depends(get_crud_controller)):
-    """
+    """사용 가능한 클러스터 템플릿 목록 조회"""
     try:
         templates = crud.get_cluster_templates()
         return templates
@@ -163,7 +200,8 @@ async def create_cluster(
     background_tasks: BackgroundTasks,
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-    """try:
+    """새 클러스터 생성"""
+    try:
         config = ClusterConfig(
             name=request.name,
             cluster_template_id=request.cluster_template_id,
@@ -179,7 +217,7 @@ async def create_cluster(
             floating_ip_enabled=request.floating_ip_enabled
         )
         
-
+        # 비동기로 생성 (오래 걸리므로)
         cluster_info = crud.create_cluster(config)
         
         return ClusterResponse(**cluster_info.__dict__)
@@ -190,9 +228,11 @@ async def create_cluster(
 
 @app.get("/api/v1/clusters", response_model=List[ClusterResponse])
 async def list_clusters(
+    status: Optional[str] = Query(None, description="필터: 클러스터 상태"),
+    name: Optional[str] = Query(None, description="필터: 클러스터 이름"),
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-"""
+    """클러스터 목록 조회"""
     try:
         filters = {}
         if status:
@@ -212,7 +252,7 @@ async def get_cluster(
     cluster_id: str,
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-    """
+    """특정 클러스터 정보 조회"""
     try:
         cluster = crud.get_cluster(cluster_id=cluster_id)
         return ClusterResponse(**cluster.__dict__)
@@ -229,7 +269,7 @@ async def update_cluster(
     request: ClusterUpdateRequest,
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-    """
+    """클러스터 업데이트 (노드 수 조정)"""
     try:
         cluster = crud.update_cluster(
             cluster_id=cluster_id,
@@ -238,17 +278,21 @@ async def update_cluster(
             min_node_count=request.min_node_count
         )
         return ClusterResponse(**cluster.__dict__)
+        
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=404, detail=f"Cluster not found: {cluster_id}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.delete("/api/v1/clusters/{cluster_id}", response_model=StatusResponse)
 async def delete_cluster(
     cluster_id: str,
+    force: bool = Query(False, description="강제 삭제 여부"),
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-"""
-    """try:
+    """클러스터 삭제"""
+    try:
         success = crud.delete_cluster(cluster_id, force=force)
         
         if success:
@@ -270,9 +314,10 @@ async def delete_cluster(
 @app.post("/api/v1/clusters/{cluster_id}/resize", response_model=ClusterResponse)
 async def resize_cluster(
     cluster_id: str,
+    node_count: int = Query(..., ge=1, le=100, description="새 노드 수"),
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-"""
+    """클러스터 노드 수 조정 (간편 API)"""
     try:
         cluster = crud.resize_cluster(cluster_id, node_count)
         return ClusterResponse(**cluster.__dict__)
@@ -288,7 +333,8 @@ async def get_cluster_kubeconfig(
     cluster_id: str,
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-    """try:
+    """클러스터 kubeconfig 조회"""
+    try:
         config = crud.get_cluster_credentials(cluster_id)
         return config
         
@@ -301,9 +347,10 @@ async def get_cluster_kubeconfig(
 # ============= Maintenance Operations =============
 @app.post("/api/v1/maintenance/cleanup", response_model=StatusResponse)
 async def cleanup_stuck_clusters(
+    hours: int = Query(24, ge=1, le=168, description="경과 시간 (시간 단위)"),
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-"""
+    """오래된 stuck 클러스터 정리"""
     try:
         deleted = crud.cleanup_stuck_clusters(hours=hours)
         
@@ -324,7 +371,7 @@ async def create_multiple_clusters(
     background_tasks: BackgroundTasks,
     crud: OpenStackClusterCRUD = Depends(get_crud_controller)
 ):
-    """
+    """여러 클러스터 동시 생성"""
     created_clusters = []
     errors = []
     
